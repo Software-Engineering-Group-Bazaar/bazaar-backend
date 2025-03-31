@@ -1,0 +1,103 @@
+{
+    // General settings
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.wordWrap": "on",
+    "editor.renderWhitespace": "all",
+    "editor.formatOnSave": true,
+    "editor.minimap.enabled": true,
+    "files.autoSave": "onWindowChange",
+    "files.autoSaveDelay": 1000,
+    "files.eol": "\n",
+
+    // .NET specific settings
+    "csharp.format.enable": true,
+    "csharp.format.indentation.size": 4,
+    "csharp.format.indentation.style": "block",
+    "csharp.format.insertSpaceAfterCommaDelimiter": true,
+    "csharp.referencesCodeLens.enabled": true,
+    "csharp.rename.enable": true,
+    "csharp.suggest.enable": true,
+    "csharp.enableRoslynAnalyzers": true,
+
+    // C# and .NET debugging settings
+    "debug.openDebug": "neverOpen",
+    "debug.inlineValues": "auto",
+    "debug.console.fontSize": 14,
+
+    // VSCode extensions: C# (Omnisharp), C# XML Documentation, etc.
+    "omnisharp.enableRoslynAnalyzers": true,
+    "omnisharp.enableCodeLens": true,
+    "omnisharp.organizeImportsOnFormat": true,
+    "omnisharp.autoStart": true,
+
+    // Extensions for .NET
+    "dotnet-testExplorer.showRunTree": "always",
+    "dotnet-testExplorer.showRunTreeOnTestFileOpen": true,
+    "dotnet-testExplorer.saveBeforeRun": true,
+
+    // Python formatting (if working with Python)
+    "[python]": {
+        "editor.formatOnSave": true,
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "autopep8"
+    },
+
+    // Version control (Git)
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "git.autofetch": true,
+
+    // VSCode integrated terminal
+    "terminal.integrated.fontSize": 14,
+    "terminal.integrated.fontFamily": "monospace",
+    "terminal.integrated.cursorStyle": "block",
+    "terminal.integrated.scrollback": 10000,
+
+    // Files and folders to exclude
+    "files.exclude": {
+        "**/.git": true,
+        "**/.vscode": true,
+        "**/bin": true,
+        "**/obj": true,
+        "**/node_modules": true
+    },
+
+    // Workspace settings: Specific settings for your workspace
+    "search.exclude": {
+        "**/bin": true,
+        "**/obj": true
+    },
+
+    // Code linting and styling
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit"
+    },
+    "eslint.validate": ["javascript", "typescript", "html", "css"],
+    "prettier.requireConfig": true,
+
+    // Snippets settings (for C#)
+    "editor.snippetSuggestions": "top",
+    "csharp.snippetCompletion": true,
+
+    // Key bindings
+    "keybindings": [
+        {
+            "key": "ctrl+shift+b",
+            "command": "workbench.action.tasks.build"
+        },
+        {
+            "key": "ctrl+shift+d",
+            "command": "workbench.action.debug.start"
+        }
+    ],
+
+    // Auto save
+    "files.autoSave": "onWindowChange",
+    "files.autoSaveDelay": 1000,
+
+    // Terminal and other file preferences
+    "terminal.integrated.fontSize": 14,
+    "editor.renderControlCharacters": true
+}
