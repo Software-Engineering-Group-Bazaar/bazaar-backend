@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Users.Models;
-using Users.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +26,21 @@ var app = builder.Build();
 
 //var roleManager = app.Services.GetRequiredService<RoleManager<IdentityRole>>();
 //await RoleSeeder.SeedRolesAsync(roleManager);
+
+// Ensure roles exist at startup
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    foreach (Role role in Enum.GetValues(typeof(Role)))
+    {
+        string roleName = role.ToString();
+        if (!await roleManager.RoleExistsAsync(roleName))
+        {
+            await roleManager.CreateAsync(new IdentityRole(roleName));
+        }
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
