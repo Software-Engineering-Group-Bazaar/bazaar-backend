@@ -1,8 +1,16 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using Users.Services;
+using Users.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+
+builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddIdentity<User, IdentityRole>()
+    .AddEntityFrameworkStores<UsersDbContext>()
+    .AddDefaultTokenProviders();
 
 // Add services to the container.
 
@@ -16,8 +24,23 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-var roleManager = app.Services.GetRequiredService<RoleManager<IdentityRole>>();
-await RoleSeeder.SeedRolesAsync(roleManager);
+//var roleManager = app.Services.GetRequiredService<RoleManager<IdentityRole>>();
+//await RoleSeeder.SeedRolesAsync(roleManager);
+
+// Ensure roles exist at startup
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    foreach (Role role in Enum.GetValues(typeof(Role)))
+    {
+        string roleName = role.ToString();
+        if (!await roleManager.RoleExistsAsync(roleName))
+        {
+            await roleManager.CreateAsync(new IdentityRole(roleName));
+        }
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
