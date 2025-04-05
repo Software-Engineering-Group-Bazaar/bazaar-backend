@@ -1,28 +1,37 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
-using YourAppNamespace.Users.Services;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Facebook;
+using Microsoft.AspNetCore.Mvc;
 
-namespace YourAppNamespace.Users.Controllers
+[Route("api/[controller]")]
+public class FacebookAuthController : Controller
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class FacebookAuthController : ControllerBase
+    [HttpGet("login")]
+    public IActionResult Login()
     {
-        private readonly FacebookSignInService _facebookService;
+        var redirectUrl = Url.Action("FacebookResponse", "FacebookAuth");
+        var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
+        return Challenge(properties, FacebookDefaults.AuthenticationScheme);
+    }
 
-        public FacebookAuthController(FacebookSignInService facebookService)
+    [HttpGet("facebook-response")]
+    public async Task<IActionResult> FacebookResponse()
+    {
+        var result = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        if (!result.Succeeded)
         {
-            _facebookService = facebookService;
+            return Unauthorized("Facebook authentication failed.");
         }
 
-        [HttpPost("login")]
-        public async Task<IActionResult> FacebookLogin([FromBody] string accessToken)
-        {
-            var result = await _facebookService.ValidateFacebookTokenAsync(accessToken);
-            if (result == null)
-                return Unauthorized("Nevalidan Facebook token");
+        var claims = result.Principal.Identities.FirstOrDefault()?.Claims;
+        var email = claims?.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+        var name = claims?.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
 
-            return Ok(result);
-        }
+        return Ok(new
+        {
+            Name = name,
+            Email = email,
+        });
     }
 }

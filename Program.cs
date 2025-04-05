@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Facebook;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -10,8 +13,26 @@ static async Task MainAsync(string[] args)
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    // Registracija FacebookSignInService sa HttpClient
-    builder.Services.AddHttpClient<FacebookSignInService>();
+    builder.Services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = FacebookDefaults.AuthenticationScheme;
+        })
+        .AddCookie(options =>
+            {
+                options.Cookie.SecurePolicy = CookieSecurePolicy.None; // allow non-HTTPS
+                options.Cookie.SameSite = SameSiteMode.Lax;             // allow redirects
+                options.Cookie.HttpOnly = false; // just to be safe in dev
+
+            })
+        .AddFacebook(options =>
+        {
+            options.ClientId = builder.Configuration["Authentication:Facebook:AppId"];
+            options.ClientSecret = builder.Configuration["Authentication:Facebook:AppSecret"];
+            options.CallbackPath = "/signin-facebook"; // this should match what you set on Facebook
+        });
+
 
     builder.Services.AddDbContext<UsersDbContext>(options =>
         options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -45,9 +66,32 @@ static async Task MainAsync(string[] args)
         });
     }
 
-    app.UseHttpsRedirection();
+    // app.UseHttpsRedirection();
 
+    app.UseAuthentication();
     app.UseAuthorization();
+    
+    app.MapGet("/login/facebook", async context =>
+    {
+        await context.ChallengeAsync(FacebookDefaults.AuthenticationScheme, new AuthenticationProperties
+        {
+            RedirectUri = "/swagger" // where to send the user after successful login
+        });
+    });
+
+    app.MapGet("/auth/callback", async context =>
+    {
+        if (context.User.Identity?.IsAuthenticated ?? false)
+        {
+            await context.Response.WriteAsync($"Welcome, {context.User.Identity.Name}!");
+        }
+        else
+        {
+            await context.Response.WriteAsync("Login failed.");
+        }
+    });
+
+
 
     app.MapControllers();
 
