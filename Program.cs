@@ -2,34 +2,61 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Users.Models;
+using YourAppNamespace.Users.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+await MainAsync(args); // ➤ Pokrećemo async Main
 
-
-builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-builder.Services.AddIdentity<User, IdentityRole>()
-    .AddEntityFrameworkStores<UsersDbContext>()
-    .AddDefaultTokenProviders();
-
-// Add services to the container.
-
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
+static async Task MainAsync(string[] args)
 {
-    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Bazaar API", Version = "v1" });
-});
+    var builder = WebApplication.CreateBuilder(args);
 
-var app = builder.Build();
+    // Registracija FacebookSignInService sa HttpClient
+    builder.Services.AddHttpClient<FacebookSignInService>();
 
-//var roleManager = app.Services.GetRequiredService<RoleManager<IdentityRole>>();
-//await RoleSeeder.SeedRolesAsync(roleManager);
+    builder.Services.AddDbContext<UsersDbContext>(options =>
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Ensure roles exist at startup
-using (var scope = app.Services.CreateScope())
+    builder.Services.AddIdentity<User, IdentityRole>()
+        .AddEntityFrameworkStores<UsersDbContext>()
+        .AddDefaultTokenProviders();
+
+    // Add services to the container.
+    builder.Services.AddControllers();
+
+    // Swagger konfiguracija
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(options =>
+    {
+        options.SwaggerDoc("v1", new OpenApiInfo { Title = "Bazaar API", Version = "v1" });
+    });
+
+    var app = builder.Build();
+
+    // Poziv async metode za seedanje rola
+    //await SeedRolesAsync(app);
+
+    // Configure the HTTP request pipeline.
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bazaar API V1");
+        });
+    }
+
+    app.UseHttpsRedirection();
+
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    app.Run();
+}
+
+static async Task SeedRolesAsync(WebApplication app)
 {
+    using var scope = app.Services.CreateScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     foreach (Role role in Enum.GetValues(typeof(Role)))
@@ -41,21 +68,3 @@ using (var scope = app.Services.CreateScope())
         }
     }
 }
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-        {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bazaar API V1");
-        });
-}
-
-app.UseHttpsRedirection();
-
-app.UseAuthorization();
-
-app.MapControllers();
-
-app.Run();
