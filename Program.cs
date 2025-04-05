@@ -5,8 +5,10 @@ using Users.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
-builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+}
 
 builder.Services.AddIdentity<User, IdentityRole>()
     .AddEntityFrameworkStores<UsersDbContext>()
