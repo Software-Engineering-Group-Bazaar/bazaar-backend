@@ -20,7 +20,7 @@ services:
       # --- IMPORTANT ---
       # Map host port 5433 to container port 5432.
       # Your *local* .NET app will connect to localhost:5433
-      - "5433:5432"
+      - "5432:5432"
     restart: unless-stopped
     # Optional: Healthcheck is still useful
     healthcheck:
