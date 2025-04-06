@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Users.Dtos;
 using Users.Interfaces;
 using Users.Models;
+using Users.Models.Dtos;
 
 namespace Users.Controllers
 {
@@ -12,10 +13,12 @@ namespace Users.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IGoogleSignInService _googleSignInService;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, IGoogleSignInService googleSignInService)
         {
             _authService = authService;
+            _googleSignInService = googleSignInService;
         }
 
         // api/auth/register
@@ -56,6 +59,22 @@ namespace Users.Controllers
         {
             await _authService.LogoutAsync();
             return Ok(new { message = "Izlogovani ste." });
+        }
+
+        [AllowAnonymous]
+        [HttpPost("login/google")]
+        public async Task<ActionResult<string>> SignGoogleUser([FromBody] GoogleSignInRequestDto request)
+        {
+
+            var response = await _googleSignInService.SignInAsync(request);
+            if (response == null)
+            {
+                return Unauthorized(new { message = "Neispravni podaci" });
+            }
+
+            // Vraćamo odgovor sa tokenom
+            return Ok(response);
+
         }
     }
 }
