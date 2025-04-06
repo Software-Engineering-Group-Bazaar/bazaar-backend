@@ -1,14 +1,35 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using Users.Models;
+using Microsoft.OpenApi.Models;
 using Users.Interfaces;
+using Users.Models;
 using Users.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+const string DevelopmentCorsPolicy = "_developmentCorsPolicy";
+
+// 1. Add CORS Services and define the development policy
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: DevelopmentCorsPolicy,
+                      policy =>
+                      {
+                          // Allows requests from any origin with the host "localhost"
+                          // regardless of the port or scheme (http/https)
+                          policy.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost")
+                                .AllowAnyHeader()
+                                .AllowAnyMethod()
+                                .AllowCredentials(); // Important if your frontend needs to send/receive cookies or Authorization headers
+                                                     // NOTE: Cannot be used with AllowAnyOrigin()
+                      });
+    // You can define other policies here for production, e.g.:
+    // options.AddPolicy(name: "ProductionCorsPolicy", ...)
+});
+
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
@@ -48,7 +69,16 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = issuer,
         ValidAudience = audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-        ClockSkew = TimeSpan.Zero 
+        ClockSkew = TimeSpan.Zero
+    };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            // Try to get token from cookie
+            context.Token = context.Request.Cookies["X-Access-Token"]; // Use the SAME name as set in Login
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -69,7 +99,7 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Bazaar API", Version = "v1" });
 
-     // --- Omogućavanje slanja JWT tokena kroz Swagger UI ---
+    // --- Omogućavanje slanja JWT tokena kroz Swagger UI ---
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -121,6 +151,7 @@ if (app.Environment.IsDevelopment())
         {
             c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bazaar API V1");
         });
+    app.UseCors(DevelopmentCorsPolicy);
 }
 
 app.UseHttpsRedirection();
