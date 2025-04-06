@@ -26,6 +26,7 @@ Welcome to the **Bazaar Backend Project**! This project is a modular architectur
 
 -  **Visual Studio Code**: Recommended IDE for working on the project. [Download VSCode](https://code.visualstudio.com/).
 
+-  **Docker**: Allows building, sharing and running container applications [Download Docker](https://www.docker.com/).
   
 
 ## Getting Started
@@ -48,7 +49,11 @@ To get this project up and running on your local machine, follow the steps below
 
 - Install the C# extension by OmniSharp for better development support in VSCode.
 
-  
+  3.  **Docker**:
+
+- Download and install [Download Docker](https://www.docker.com/).
+
+- Install the C# extension by Microsoft for better development support in VSCode.
 
 ### Clone the Repository
 
@@ -67,9 +72,11 @@ cd  bazaar
 
 ## Setup and Configuration
 
-1. Open the project
-2. Open a terminal in VSCode and restore the project dependencies by running: `dotnet restore`
-3.  To run the project locally, use the following command: `dotnet run`, you may also use the key bindings `Ctrl+Shift+B` for building the project and `Ctrl+Shift+D` for running and debugging the project.
+1. Make sure your Docker application is open
+2. Open the project in VSCode
+3. Open a terminal in VSCode and run: `docker compose up`
+3. Open a terminal in VSCode and restore the project dependencies by running: `dotnet restore`
+4.  To run the project locally, use the following command: `dotnet run`, you may also use the key bindings `Ctrl+Shift+B` for building the project and `Ctrl+Shift+D` for running and debugging the project.
 
 ## Sample API usage
 You may figure out more about using the API by running the project and browsing the Swagger UI at https://localhost:7176/swagger/index.html 
