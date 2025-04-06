@@ -9,6 +9,12 @@ using Users.Models;
 using Users.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+// Registrujte AuthService
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Registrujte ostale servise
+
+
 
 // --- Service Configuration ---
 builder.Services.AddHttpClient<FacebookSignInService>();
