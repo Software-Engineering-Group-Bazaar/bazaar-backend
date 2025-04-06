@@ -43,6 +43,8 @@ builder.Services.AddIdentity<User, IdentityRole>() // Replace User if needed
     .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<IJWTService, JWTService>();
+// Add services to the container.
+builder.Services.AddScoped<IGoogleSignInService, GoogleSignInService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
