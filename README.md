@@ -49,7 +49,7 @@ To get this project up and running on your local machine, follow the steps below
 
 - Install the C# extension by OmniSharp for better development support in VSCode.
 
-  3.  **Docker**:
+3.  **Docker**:
 
 - Download and install [Download Docker](https://www.docker.com/).
 
