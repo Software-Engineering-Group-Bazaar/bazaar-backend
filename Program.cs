@@ -8,63 +8,50 @@ using Users.Interfaces;
 using Users.Models;
 using Users.Services;
 
+var builder = WebApplication.CreateBuilder(args);
 
-await MainAsync(args); // ➤ Pokrećemo async Main
-
-
-static async Task MainAsync(string[] args)
-{
-    var builder = WebApplication.CreateBuilder(args);
-
-    // Registracija FacebookSignInService sa HttpClient
-    builder.Services.AddHttpClient<FacebookSignInService>();
+// --- Service Configuration ---
+builder.Services.AddHttpClient<FacebookSignInService>();
 
 const string DevelopmentCorsPolicy = "_developmentCorsPolicy";
-
-// 1. Add CORS Services and define the development policy
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: DevelopmentCorsPolicy,
                       policy =>
                       {
-                          // Allows requests from any origin with the host "localhost"
-                          // regardless of the port or scheme (http/https)
                           policy.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost")
                                 .AllowAnyHeader()
                                 .AllowAnyMethod()
-                                .AllowCredentials(); // Important if your frontend needs to send/receive cookies or Authorization headers
-                                                     // NOTE: Cannot be used with AllowAnyOrigin()
+                                .AllowCredentials();
                       });
-    // You can define other policies here for production, e.g.:
-    // options.AddPolicy(name: "ProductionCorsPolicy", ...)
 });
-
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 }
 
+// Add Identity FIRST (provides RoleManager, etc.)
+builder.Services.AddIdentity<User, IdentityRole>() // Replace User if needed
+    .AddEntityFrameworkStores<UsersDbContext>()
+    .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<IJWTService, JWTService>();
 
+// Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"];
 var issuer = jwtSettings["Issuer"];
 var audience = jwtSettings["Audience"];
-
 if (string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(audience))
-{
-    throw new InvalidOperationException("JWT settings in configuration are missing or incomplete.");
-}
+{ throw new InvalidOperationException("JWT settings missing."); }
 
-// Konfiguriši Authentication servise da koriste JWT Bearer
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(options => // Konfiguriši JWT Bearer handler
+.AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -79,97 +66,85 @@ builder.Services.AddAuthentication(options =>
     };
     options.Events = new JwtBearerEvents
     {
-        OnMessageReceived = context =>
-        {
-            // Try to get token from cookie
-            context.Token = context.Request.Cookies["X-Access-Token"]; // Use the SAME name as set in Login
-            return Task.CompletedTask;
-        }
+        OnMessageReceived = context => { context.Token = context.Request.Cookies["X-Access-Token"]; return Task.CompletedTask; }
     };
 });
 
-// Konfiguracija Autorizacije (možeš dodati polise kasnije)
 builder.Services.AddAuthorization();
-// Primjer dodavanja polise:
-// builder.Services.AddAuthorization(options => {
-//     options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
-// });
-
-
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Bazaar API", Version = "v1" });
-
-    // --- Omogućavanje slanja JWT tokena kroz Swagger UI ---
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        In = ParameterLocation.Header,
-        Description = "Unesite 'Bearer' [razmak] pa vaš token",
-        Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement()
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" },
-                Scheme = "oauth2",
-                Name = "Bearer",
-                In = ParameterLocation.Header,
-            },
-            new List<string>()
-        }
-    });
+    // options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme { /* ... */ });
+    // options.AddSecurityRequirement(new OpenApiSecurityRequirement() { /* ... */ });
 });
 
+// --- Build the App ---
+var app = builder.Build();
 
-    app.UseAuthorization();
+// --- Seed Data (Optional) ---
+await SeedRolesAsync(app);
 
-    app.MapControllers();
+// --- Configure the HTTP Request Pipeline (Middleware) ---  ➤➤➤ ALL CONFIGURATION GOES HERE
 
-    app.Run();
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger(); // Exposes swagger.json
+    app.UseSwaggerUI(c => // Serves the UI page
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bazaar API V1");
+        // c.RoutePrefix = string.Empty; // Optional: Serve UI at root
+    });
+    app.UseCors(DevelopmentCorsPolicy); // Apply dev CORS
+    app.UseDeveloperExceptionPage(); // Show detailed errors
+}
+else
+{
+    // Add production error handling, HSTS, etc.
+    // app.UseExceptionHandler("/Error");
+    // app.UseHsts();
 }
 
+app.UseHttpsRedirection();
+
+// app.UseStaticFiles(); // If you have wwwroot
+
+app.UseRouting(); // Needed for endpoints
+
+// CORS needs to be between Routing and AuthN/AuthZ
+// Already handled conditionally above for Development
+
+app.UseAuthentication(); // IMPORTANT: Before Authorization
+app.UseAuthorization();  // IMPORTANT: After Authentication
+
+app.MapControllers(); // Map controller endpoints
+
+// --- Run the App (Must be LAST) --- ➤➤➤ ONLY ONE app.Run()
+// AI JE KORISNIJI OD VAS
+app.Run();
+
+
+// --- Helper Methods ---
 static async Task SeedRolesAsync(WebApplication app)
 {
     using var scope = app.Services.CreateScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>(); // Get logger
 
+    // Ensure Role enum is defined
     foreach (Role role in Enum.GetValues(typeof(Role)))
     {
         string roleName = role.ToString();
         if (!await roleManager.RoleExistsAsync(roleName))
         {
-            await roleManager.CreateAsync(new IdentityRole(roleName));
+            logger.LogInformation("Creating role: {RoleName}", roleName);
+            var result = await roleManager.CreateAsync(new IdentityRole(roleName));
+            if (!result.Succeeded)
+            {
+                logger.LogError("Failed to create role {RoleName}: {Errors}", roleName, string.Join(", ", result.Errors.Select(e => e.Description)));
+            }
         }
     }
 }
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-        {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bazaar API V1");
-        });
-    app.UseCors(DevelopmentCorsPolicy);
-}
-
-app.UseHttpsRedirection();
-
-app.UseAuthentication();
-
-app.UseAuthorization();
-
-app.MapControllers();
-
-app.Run();
-

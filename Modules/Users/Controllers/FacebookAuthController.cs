@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
-using YourAppNamespace.Users.Services;
+﻿using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Users.Services;
 
-namespace YourAppNamespace.Users.Controllers
+namespace Users.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]

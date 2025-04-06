@@ -1,8 +1,8 @@
 ﻿using System.Net.Http;
-using System.Threading.Tasks;
 using System.Text.Json;
+using System.Threading.Tasks;
 
-namespace YourAppNamespace.Users.Services
+namespace Users.Services
 {
     public class FacebookSignInService
     {
