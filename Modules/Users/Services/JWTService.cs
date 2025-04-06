@@ -1,22 +1,22 @@
 // Services/JWTService.cs
 using System;
 using System.Collections.Generic;
-using System.IdentityModel.Tokens.Jwt;   
-using System.Security.Claims;            
-using System.Text;                       
-using System.Threading.Tasks;            
-using Microsoft.Extensions.Configuration; 
-using Microsoft.IdentityModel.Tokens;     
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Users.Interfaces;                
-using Users.Models;                   
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using Users.Interfaces;
+using Users.Models;
 
-namespace Users.Services 
+namespace Users.Services
 {
 
     public class JWTService : IJWTService
     {
-        private readonly IConfiguration _configuration; 
+        private readonly IConfiguration _configuration;
 
         // Constructor Injection: Dobijamo IConfiguration od .NET DI sistema
         public JWTService(IConfiguration configuration)
@@ -25,7 +25,7 @@ namespace Users.Services
         }
 
         // Implementacija metode iz interfejsa
-        public async Task<string> GenerateTokenAsync(User user, IList<string> roles)
+        public async Task<(string, DateTime)> GenerateTokenAsync(User user, IList<string> roles)
         {
             // 1. Dobavi JWT postavke iz konfiguracije (appsettings.json)
             var jwtSettings = _configuration.GetSection("JwtSettings");
@@ -68,16 +68,16 @@ namespace Users.Services
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             // 6. Odredi vrijeme isteka tokena
-            var expiry = DateTime.UtcNow.AddMinutes(expiryMinutes); 
+            var expiry = DateTime.UtcNow.AddMinutes(expiryMinutes);
 
             // 7. Kreiraj JWT token objekat sa svim definisanim podacima
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(claims), 
-                Expires = expiry,                     
-                Issuer = issuer,                     
-                Audience = audience,                
-                SigningCredentials = creds           
+                Subject = new ClaimsIdentity(claims),
+                Expires = expiry,
+                Issuer = issuer,
+                Audience = audience,
+                SigningCredentials = creds
             };
 
             // 8. Kreiraj handler i ispiši token kao string
@@ -88,7 +88,7 @@ namespace Users.Services
             // 9. Vrati generisani token string
             // Koristimo Task.FromResult jer samo generisanje nije asinhrono,
             // ali vraćamo Task<string> zbog interfejsa.
-            return await Task.FromResult(tokenString);
+            return await Task.FromResult((tokenString, expiry));
         }
     }
 }

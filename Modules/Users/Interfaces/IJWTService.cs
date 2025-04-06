@@ -7,6 +7,6 @@ namespace Users.Interfaces
 
     public interface IJWTService
     {
-        Task<string> GenerateTokenAsync(User user, IList<string> roles);
+        Task<(string, DateTime)> GenerateTokenAsync(User user, IList<string> roles);
     }
 }
