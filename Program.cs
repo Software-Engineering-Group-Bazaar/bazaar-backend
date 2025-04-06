@@ -8,7 +8,16 @@ using Users.Interfaces;
 using Users.Models;
 using Users.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+
+await MainAsync(args); // ➤ Pokrećemo async Main
+
+
+static async Task MainAsync(string[] args)
+{
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Registracija FacebookSignInService sa HttpClient
+    builder.Services.AddHttpClient<FacebookSignInService>();
 
 const string DevelopmentCorsPolicy = "_developmentCorsPolicy";
 
@@ -36,9 +45,6 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 }
 
-builder.Services.AddIdentity<User, IdentityRole>()
-    .AddEntityFrameworkStores<UsersDbContext>()
-    .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<IJWTService, JWTService>();
 
@@ -123,14 +129,17 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-var app = builder.Build();
 
-//var roleManager = app.Services.GetRequiredService<RoleManager<IdentityRole>>();
-//await RoleSeeder.SeedRolesAsync(roleManager);
+    app.UseAuthorization();
 
-// Ensure roles exist at startup
-using (var scope = app.Services.CreateScope())
+    app.MapControllers();
+
+    app.Run();
+}
+
+static async Task SeedRolesAsync(WebApplication app)
 {
+    using var scope = app.Services.CreateScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     foreach (Role role in Enum.GetValues(typeof(Role)))
@@ -163,3 +172,4 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
