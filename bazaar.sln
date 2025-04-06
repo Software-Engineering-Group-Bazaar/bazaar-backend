@@ -1,8 +1,12 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bazaar", "bazaar.csproj", "{7AC1E853-C149-6FEE-149F-2EFF4A069992}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "UnitTests\UnitTests.csproj", "{D9B1E769-ABF6-4DA0-AE89-7DE48F60DB80}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IntegrationTests", "IntegrationTests\IntegrationTests.csproj", "{5F9EC204-769B-4362-BDDC-02424555BF5F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,6 +18,14 @@ Global
 		{7AC1E853-C149-6FEE-149F-2EFF4A069992}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7AC1E853-C149-6FEE-149F-2EFF4A069992}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7AC1E853-C149-6FEE-149F-2EFF4A069992}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9B1E769-ABF6-4DA0-AE89-7DE48F60DB80}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9B1E769-ABF6-4DA0-AE89-7DE48F60DB80}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9B1E769-ABF6-4DA0-AE89-7DE48F60DB80}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9B1E769-ABF6-4DA0-AE89-7DE48F60DB80}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5F9EC204-769B-4362-BDDC-02424555BF5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F9EC204-769B-4362-BDDC-02424555BF5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F9EC204-769B-4362-BDDC-02424555BF5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F9EC204-769B-4362-BDDC-02424555BF5F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

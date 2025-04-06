@@ -6,6 +6,7 @@ using YourAppNamespace.Users.Services;
 
 await MainAsync(args); // ➤ Pokrećemo async Main
 
+
 static async Task MainAsync(string[] args)
 {
     var builder = WebApplication.CreateBuilder(args);
@@ -13,8 +14,11 @@ static async Task MainAsync(string[] args)
     // Registracija FacebookSignInService sa HttpClient
     builder.Services.AddHttpClient<FacebookSignInService>();
 
-    builder.Services.AddDbContext<UsersDbContext>(options =>
-        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+}
+
 
     builder.Services.AddIdentity<User, IdentityRole>()
         .AddEntityFrameworkStores<UsersDbContext>()
