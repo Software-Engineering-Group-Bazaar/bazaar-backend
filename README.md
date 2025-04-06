@@ -92,3 +92,6 @@ dotnet test
 
 ## Contributing
 Please adhere to the [SI guidlines](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow)
+
+## More Documentation
+[GitFlow Guide](Gitflow.md)
