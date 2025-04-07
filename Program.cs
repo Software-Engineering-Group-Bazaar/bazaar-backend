@@ -21,7 +21,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: DevelopmentCorsPolicy,
                       policy =>
                       {
-                          policy.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost")
+                          policy.SetIsOriginAllowed(origin => true)
                                 .AllowAnyHeader()
                                 .AllowAnyMethod()
                                 .AllowCredentials();
@@ -124,6 +124,7 @@ app.UseRouting(); // Needed for endpoints
 // Already handled conditionally above for Development
 
 app.UseAuthentication(); // IMPORTANT: Before Authorization
+app.UseCors(DevelopmentCorsPolicy);
 app.UseAuthorization();  // IMPORTANT: After Authentication
 
 app.MapControllers(); // Map controller endpoints
