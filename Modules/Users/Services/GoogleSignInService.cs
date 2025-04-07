@@ -20,7 +20,10 @@ namespace Users.Services
             {
                 configuration["GoogleAuth:AndroidClientId"]!,
                 configuration["GoogleAuth:iOSClientId"]!,
-                configuration["GoogleAuth:webClientId"]!
+                configuration["GoogleAuth:webClientId"]!,
+                configuration["GoogleAuth:AndroidClientSellerId"]!,
+                configuration["GoogleAuth:iOSClientSellerId"]!,
+                configuration["GoogleAuth:webClientSellerId"]!
             };
             _userManager = userManager;
             _signInManager = signInManager;
