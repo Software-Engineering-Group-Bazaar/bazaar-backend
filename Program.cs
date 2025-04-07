@@ -15,10 +15,6 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 // Registrujte ostale servise
 
 
-
-// --- Service Configuration ---
-builder.Services.AddHttpClient<FacebookSignInService>();
-
 const string DevelopmentCorsPolicy = "_developmentCorsPolicy";
 builder.Services.AddCors(options =>
 {
@@ -37,6 +33,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 }
 
+builder.Services.AddHttpClient();
+
 // Add Identity FIRST (provides RoleManager, etc.)
 builder.Services.AddIdentity<User, IdentityRole>() // Replace User if needed
     .AddEntityFrameworkStores<UsersDbContext>()
@@ -45,6 +43,7 @@ builder.Services.AddIdentity<User, IdentityRole>() // Replace User if needed
 builder.Services.AddScoped<IJWTService, JWTService>();
 // Add services to the container.
 builder.Services.AddScoped<IGoogleSignInService, GoogleSignInService>();
+builder.Services.AddScoped<IFacebookSignInService, FacebookSignInService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
