@@ -5,6 +5,6 @@ namespace Users.Interfaces
 {
     public interface IFacebookSignInService
     {
-        Task<LoginResponseDto?> SignInAsync(string accessToken, string app);
+        Task<FacebookResponseDto?> SignInAsync(string accessToken, string app);
     }
 }

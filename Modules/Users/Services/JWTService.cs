@@ -50,10 +50,13 @@ namespace Users.Services
             var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id),             // Subject = ID korisnika (iz IdentityUser)
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),           // Email korisnika
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()) // Jedinstveni ID samog tokena (za npr. opoziv)
                 // Opciono: new Claim(ClaimTypes.NameIdentifier, user.UserName) // Korisničko ime
             };
+            if (user.EmailConfirmed && !user.Email.EndsWith("@placeholder.local"))
+            {
+                claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+            }
 
             // 3. Dodaj role korisnika kao zasebne claim-ove
             foreach (var role in roles)
