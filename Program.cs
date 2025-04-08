@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Store.Models;
+using Store.Services;
 using Users.Interfaces;
 using Users.Models;
 using Users.Services;
@@ -31,6 +33,7 @@ builder.Services.AddCors(options =>
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    builder.Services.AddDbContext<StoreDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("StoreConnection")));
 }
 
 builder.Services.AddHttpClient();
@@ -44,6 +47,9 @@ builder.Services.AddScoped<IJWTService, JWTService>();
 // Add services to the container.
 builder.Services.AddScoped<IGoogleSignInService, GoogleSignInService>();
 builder.Services.AddScoped<IFacebookSignInService, FacebookSignInService>();
+
+builder.Services.AddScoped<IStoreService, StoreService>();
+builder.Services.AddScoped<IStoreCategoryService, StoreCategoryService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
