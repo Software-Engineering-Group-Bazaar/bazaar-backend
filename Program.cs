@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using SharedKernel;
 using Store.Models;
 using Store.Services;
 using Users.Interfaces;
@@ -112,6 +113,8 @@ if (app.Environment.IsDevelopment())
     });
     app.UseCors(DevelopmentCorsPolicy); // Apply dev CORS
     app.UseDeveloperExceptionPage(); // Show detailed errors
+
+    await UserDataSeeder.SeedDevelopmentUsersAsync(app);
 }
 else
 {
