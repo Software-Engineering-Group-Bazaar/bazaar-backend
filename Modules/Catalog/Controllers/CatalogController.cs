@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Catalog.Controllers
 {
-    // [Authorize] // Sve akcije zahtijevaju autorizaciju
+    [Authorize] // Sve akcije zahtijevaju autorizaciju
     [ApiController]
     [Route("api/[controller]")] // Bazna putanja: /api/catalog
     public class CatalogController : ControllerBase
@@ -55,17 +55,20 @@ namespace Catalog.Controllers
         [ProducesResponseType(typeof(ProductCategory), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)] // Dodan za slučaj duplikata
-        public async Task<IActionResult> CreateCategory([FromBody] ProductCategory category)
+        public async Task<IActionResult> CreateCategory([FromBody] ProductCategoryDto category)
         {
             if (category == null) return BadRequest("Category data is required.");
             // Osnovna validacija se očekuje od [ApiController] atributa
 
             try
             {
-                // Servis bi trebao rukovati generiranjem ID-a
-                if (category.Id != 0) category.Id = 0; // Osiguraj da se ne šalje ID
+                var productCategory = new ProductCategory
+                {
+                    Id = 0,
+                    Name = category.Name
+                };
 
-                var createdCategory = await _categoryService.CreateCategoryAsync(category);
+                var createdCategory = await _categoryService.CreateCategoryAsync(productCategory);
                 return CreatedAtAction(nameof(GetCategoryById), new { id = createdCategory.Id }, createdCategory);
             }
             catch (ArgumentException ex)
@@ -87,16 +90,22 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)] // Dodan za slučaj duplikata imena
-        public async Task<IActionResult> UpdateCategory(int id, [FromBody] ProductCategory category)
+        public async Task<IActionResult> UpdateCategory(int id, [FromBody] ProductCategoryDto category)
         {
-            if (id <= 0 || category == null || id != category.Id)
+            if (id <= 0 || category == null)
             {
                 return BadRequest("Route ID mismatch with body ID or invalid ID provided.");
             }
 
             try
             {
-                var success = await _categoryService.UpdateCategoryAsync(category);
+                var productCategory = new ProductCategory
+                {
+                    Id = id,
+                    Name = category.Name
+                };
+
+                var success = await _categoryService.UpdateCategoryAsync(productCategory);
 
                 if (!success)
                 {
@@ -202,24 +211,30 @@ namespace Catalog.Controllers
         [HttpPost("products")] // POST /api/catalog/products
         [ProducesResponseType(typeof(Product), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> CreateProduct([FromBody] Product product)
+        public async Task<IActionResult> CreateProduct([FromBody] ProductDto productDto)
         {
-            if (product == null) return BadRequest("Product data is required.");
+            if (productDto == null) return BadRequest("Product data is required.");
             // Osnovna validacija modela od [ApiController]
 
             try
             {
-                if (product.Id != 0) product.Id = 0; // Osiguraj da baza generira ID
+                var category = await _categoryService.GetCategoryByIdAsync(productDto.ProductCategoryId);
 
-                // Dodatna validacija prije poziva servisa (npr. provjera categoryId)
-                if (product.ProductCategory.Id <= 0) // Provjera eksplicitnog FK
+                if (category == null) return BadRequest($"Category with ID {productDto.ProductCategoryId} not found.");
+
+                var product = new Product
                 {
-                    return BadRequest("Valid ProductCategoryId is required.");
-                }
-                // Opcionalno: Provjeriti postoji li kategorija ako servis to ne radi
-                // var categoryExists = await _categoryService.GetCategoryByIdAsync(product.ProductCategoryId);
-                // if (categoryExists == null) return BadRequest($"Category with ID {product.ProductCategoryId} not found.");
-
+                    Id = 0,
+                    Name = productDto.Name,
+                    ProductCategory = category,
+                    RetailPrice = productDto.RetailPrice,
+                    WholesalePrice = productDto.WholesalePrice,
+                    Weight = productDto.Weight,
+                    WeightUnit = productDto.WeightUnit,
+                    Volume = productDto.Volume,
+                    VolumeUnit = productDto.VolumeUnit,
+                    StoreId = productDto.StoreId
+                };
 
                 var createdProduct = await _productService.CreateProductAsync(product);
                 return CreatedAtAction(nameof(GetProductById), new { id = createdProduct.Id }, createdProduct);
@@ -243,9 +258,9 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateProduct(int id, [FromBody] Product product)
+        public async Task<IActionResult> UpdateProduct(int id, [FromBody] ProductDto productDto)
         {
-            if (id <= 0 || product == null || id != product.Id)
+            if (id <= 0 || productDto == null)
             {
                 return BadRequest("Route ID mismatch with body ID or invalid ID provided.");
             }
@@ -253,13 +268,26 @@ namespace Catalog.Controllers
             try
             {
                 // Dodatna validacija prije poziva servisa
-                if (product.ProductCategory.Id <= 0)
+                if (productDto.ProductCategoryId <= 0)
                 {
                     return BadRequest("Valid ProductCategoryId is required.");
                 }
-                // Opcionalno: Provjeriti postoji li kategorija ako servis to ne radi
-                // var categoryExists = await _categoryService.GetCategoryByIdAsync(product.ProductCategoryId);
-                // if (categoryExists == null) return BadRequest($"Category with ID {product.ProductCategoryId} not found.");
+                var category = await _categoryService.GetCategoryByIdAsync(productDto.ProductCategoryId);
+                if (category == null) return BadRequest($"Category with ID {productDto.ProductCategoryId} not found.");
+
+                var product = new Product
+                {
+                    Id = 0,
+                    Name = productDto.Name,
+                    ProductCategory = category,
+                    RetailPrice = productDto.RetailPrice,
+                    WholesalePrice = productDto.WholesalePrice,
+                    Weight = productDto.Weight,
+                    WeightUnit = productDto.WeightUnit,
+                    Volume = productDto.Volume,
+                    VolumeUnit = productDto.VolumeUnit,
+                    StoreId = productDto.StoreId
+                };
 
                 var success = await _productService.UpdateProductAsync(product);
                 if (!success)
@@ -305,4 +333,23 @@ namespace Catalog.Controllers
             }
         }
     }
+
+    public class ProductDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public int ProductCategoryId { get; set; }
+        public decimal RetailPrice { get; set; }
+        public decimal WholesalePrice { get; set; }
+        public decimal? Weight { get; set; }
+        public string? WeightUnit { get; set; }
+        public decimal? Volume { get; set; }
+        public string? VolumeUnit { get; set; }
+        public int StoreId { get; set; }
+    }
+
+    public class ProductCategoryDto
+    {
+        public required string Name { get; set; } = string.Empty;
+    }
+
 }

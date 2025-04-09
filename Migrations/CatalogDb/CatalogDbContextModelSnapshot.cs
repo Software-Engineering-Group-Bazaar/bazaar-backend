@@ -85,15 +85,59 @@ namespace bazaar.Migrations.CatalogDb
                     b.ToTable("ProductCategories");
                 });
 
+            modelBuilder.Entity("Catalog.Models.ProductPicture", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductPicture");
+                });
+
             modelBuilder.Entity("Catalog.Models.Product", b =>
                 {
                     b.HasOne("Catalog.Models.ProductCategory", "ProductCategory")
-                        .WithMany()
+                        .WithMany("Products")
                         .HasForeignKey("ProductCategoryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("ProductCategory");
+                });
+
+            modelBuilder.Entity("Catalog.Models.ProductPicture", b =>
+                {
+                    b.HasOne("Catalog.Models.Product", "Product")
+                        .WithMany("Pictures")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Catalog.Models.Product", b =>
+                {
+                    b.Navigation("Pictures");
+                });
+
+            modelBuilder.Entity("Catalog.Models.ProductCategory", b =>
+                {
+                    b.Navigation("Products");
                 });
 #pragma warning restore 612, 618
         }

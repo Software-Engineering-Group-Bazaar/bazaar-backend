@@ -61,7 +61,7 @@ namespace Catalog.Services
                 throw new ArgumentException("ProductCategory s validnim ID-jem je obavezan.", nameof(product.ProductCategory));
             if (string.IsNullOrWhiteSpace(product.Name))
                 throw new ArgumentException("Naziv proizvoda je obavezan.", nameof(product.Name));
-            if (product.RetailPrice <= 0 || product.WholesalePrice <= 0)
+            if (product.RetailPrice < 0 || product.WholesalePrice < 0)
                 throw new ArgumentException("Cijene moraju biti pozitivne.", nameof(product.RetailPrice));
             if (product.StoreId <= 0)
                 throw new ArgumentException("StoreId je obavezan.", nameof(product.StoreId));
