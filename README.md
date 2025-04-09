@@ -55,6 +55,16 @@ To get this project up and running on your local machine, follow the steps below
 
 - Install the C# extension by Microsoft for better development support in VSCode.
 
+4.  **pgadmin (Recommended, but a terminal or Dbeaver can be used instead):**
+
+- Download and install [pgadmin](https://www.pgadmin.org/download/).
+
+- pgAdmin provides a user-friendly interface for managing PostgreSQL databases.
+
+- After installation, launch pgAdmin and connect to your PostgreSQL instance.
+
+- Use the Query Tool to run SQL commands and manage your database efficiently.
+
 ### Clone the Repository
 
   
@@ -76,12 +86,21 @@ cd  bazaar
 2. Open the project in VSCode
 3. Open a terminal in VSCode and run: `docker compose up`
 3. Open a terminal in VSCode and restore the project dependencies by running: `dotnet restore`
-4.  To run the project locally, use the following command: `dotnet run`, you may also use the key bindings `Ctrl+Shift+B` for building the project and `Ctrl+Shift+D` for running and debugging the project.
+4. After that, run the following commands: `dotnet ef database update -c UsersDbContext` and `dotnet ef database update --context StoreDbContext`. If these commands don't go through, run this before trying them again: `dotnet tool install --global dotnet-ef`
+5.  To run the project locally, use the following command: `dotnet run`, you may also use the key bindings `Ctrl+Shift+B` for building the project and `Ctrl+Shift+D` for running and debugging the project.
 
 ## Sample API usage
 You may figure out more about using the API by running the project and browsing the Swagger UI at https://localhost:7176/swagger/index.html 
 
 Using [Swagger CodeGen](https://github.com/swagger-api/swagger-codegen)  you can auto generate Client APIs for the frontend applications from https://localhost:7176/swagger/v1/swagger.json
+
+## Backend with https
+
+Run the following:
+
+- `dotnet dev-certs https --trust`
+
+- `dotnet run --launch-profile https`
 
 ## Testing
  Toplevel you can trigger tests in 
