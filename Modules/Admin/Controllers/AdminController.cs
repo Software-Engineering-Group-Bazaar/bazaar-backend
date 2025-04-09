@@ -12,11 +12,9 @@ using Users.Models; // Your User model and DbContext namespace
 
 namespace Admin.Controllers
 {
-    // Uncomment this when authentication is fully working and required
-    //[Authorize(Roles = "Admin")]
-    // Or use the policy if defined: [Authorize(Policy = "RequireAdminRole")]
+    [Authorize(Roles = "Admin")]
     [ApiController]
-    [Route("api/[controller]")] // Base route: api/admin
+    [Route("api/[controller]")]
     public class AdminController : ControllerBase
     {
         private readonly UserManager<User> _userManager;

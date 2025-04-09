@@ -95,8 +95,42 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Bazaar API", Version = "v1" });
-    // options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme { /* ... */ });
-    // options.AddSecurityRequirement(new OpenApiSecurityRequirement() { /* ... */ });
+
+    // 1. Define the Security Scheme (How Authentication Works)
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        // Description shown in the Swagger UI Authorize dialog
+        Description = @"JWT Authorization header using the Bearer scheme. 
+                      Enter your token in the text input below.
+                      Example: '12345abcdef'",
+        Name = "Authorization", // The name of the header (standard for Bearer)
+        In = ParameterLocation.Header, // Where the token is located (Header)
+        Type = SecuritySchemeType.Http, // The type of security scheme (Http for Bearer)
+        Scheme = "bearer", // The scheme name ('bearer' lowercase is important)
+        BearerFormat = "JWT" // The format expected (helps Swagger UI/tools)
+    });
+
+    // 2. Add a Security Requirement (Apply the Scheme Globally)
+    // This tells Swagger UI that the 'Bearer' scheme defined above should be applied
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement()
+    {
+        { // Dictionary entry: Defines the scheme reference and required scopes
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme, // It's a reference to a SecurityScheme
+                    Id = "Bearer" // The Id MUST match the name given in AddSecurityDefinition ("Bearer")
+                },
+                // These Scheme, Name, In properties are technically not required here for the reference
+                // but sometimes included for clarity or older versions. The Reference is the key part.
+                // Scheme = "oauth2",
+                // Name = "Bearer",
+                // In = ParameterLocation.Header,
+            },
+            new List<string>() // List of scopes required (usually empty for basic JWT Bearer)
+        }
+    });
 });
 
 // --- Build the App ---
