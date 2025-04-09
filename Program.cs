@@ -1,9 +1,13 @@
 using System.Text;
+using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using S3Infrastrucutre.Interfaces;
+using S3Infrastrucutre.Service;
 using SharedKernel;
 using Store.Models;
 using Store.Services;
@@ -127,6 +131,20 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
+
+// --- AWS Konfiguracija ---
+// Učitaj AWS opcije (Region) iz appsettings.json
+var awsOptions = builder.Configuration.GetAWSOptions();
+// Postavi defaultne opcije za AWS SDK
+builder.Services.AddDefaultAWSOptions(awsOptions);
+// Registruj specifični AWS servis klijent (S3)
+// SDK će automatski tražiti kredencijale (IAM Role na EC2, ~/.aws/credentials lokalno)
+builder.Services.AddAWSService<IAmazonS3>();
+// -------------------------
+
+// --- Registruj tvoj Image Storage Servis ---
+// Koristimo Singleton jer S3 klijent može biti singleton
+builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
 
 // --- Build the App ---
 var app = builder.Build();
