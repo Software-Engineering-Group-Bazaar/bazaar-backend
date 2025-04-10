@@ -1,6 +1,7 @@
 using System.Text;
 using Amazon.S3;
 using Catalog.Interfaces;
+using Catalog.Models;
 using Catalog.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -135,6 +136,10 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddScoped<IImageStorageService, FileImageStorageService>();
+}
 
 if (!builder.Environment.IsEnvironment("Testing") && !builder.Environment.IsEnvironment("Development"))
 {
@@ -150,7 +155,7 @@ if (!builder.Environment.IsEnvironment("Testing") && !builder.Environment.IsEnvi
 
     // --- Registruj tvoj Image Storage Servis ---
     // Koristimo Singleton jer S3 klijent može biti singleton
-    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>(); // i think scoped
 }
 
 
@@ -183,6 +188,8 @@ else
     // app.UseExceptionHandler("/Error");
     // app.UseHsts();
 }
+
+app.UseStaticFiles();
 
 app.UseHttpsRedirection();
 
