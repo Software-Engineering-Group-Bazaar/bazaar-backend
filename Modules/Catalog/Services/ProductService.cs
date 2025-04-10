@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 using Modules.Catalog.Models;
 using Modules.Catalog.Services;
-using Modules.Store;
 using Modules.Store.Models;
 using S3Infrastrucutre.Interfaces;
 using Store.Models;
@@ -30,18 +29,18 @@ namespace Modules.Catalog.Services
             List<IFormFile> imageFiles)
         {
             // 1. Provjera vlasništva nad prodavnicom
-            var store = await _dbContext.Stores
-                .FirstOrDefaultAsync(s => s.Id == storeId && s.SellerUserId == sellerUserId);
+         /*   var store = await _dbContext.Stores
+                //.FirstOrDefaultAsync(s => s.id == storeId && s.SellerUserId == sellerUserId);
 
             if (store == null)
-                return null;
+                return null;*/
 
-            // 2. Validacija kategorije
-            var category = await _dbContext.StoreCategories
+             //2. Validacija kategorije
+      /*      var category = await _dbContext.StoreCategories
                 .FirstOrDefaultAsync(c => c.Id == productData.ProductCategoryId);
 
             if (category == null)
-                return null;
+                return null;*/
 
             // 3. Upload slika na S3
             var imageUrls = new List<string>();
@@ -78,9 +77,9 @@ namespace Modules.Catalog.Services
             // 6. Mapiranje u ProductDto
             var productDto = new ProductDto
             {
-                Id = product.Id,
+               Id = product.Id,
                 Name = product.Name,
-                CategoryName = category.Name,
+             /*  CategoryName = category.name,*/
                 Price = product.Price,
                 ImageUrls = product.ProductImages.Select(pi => pi.ImageUrl).ToList()
             };
