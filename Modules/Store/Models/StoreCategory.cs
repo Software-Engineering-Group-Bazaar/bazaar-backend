@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -9,12 +8,12 @@ namespace Store.Models
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public Guid id { get; set; }
+        public int Id { get; set; }
 
         [Required]
         [MaxLength(255)]
-        public required string name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
-        public required ICollection<StoreModel> stores { get; set; } = new List<StoreModel>();
+        public ICollection<StoreModel> Stores { get; set; } = new List<StoreModel>();
     }
 }
