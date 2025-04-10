@@ -132,19 +132,25 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// --- AWS Konfiguracija ---
-// Učitaj AWS opcije (Region) iz appsettings.json
-var awsOptions = builder.Configuration.GetAWSOptions();
-// Postavi defaultne opcije za AWS SDK
-builder.Services.AddDefaultAWSOptions(awsOptions);
-// Registruj specifični AWS servis klijent (S3)
-// SDK će automatski tražiti kredencijale (IAM Role na EC2, ~/.aws/credentials lokalno)
-builder.Services.AddAWSService<IAmazonS3>();
-// -------------------------
 
-// --- Registruj tvoj Image Storage Servis ---
-// Koristimo Singleton jer S3 klijent može biti singleton
-builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+if (!builder.Environment.IsEnvironment("Testing") && !builder.Environment.IsEnvironment("Development"))
+{
+    // --- AWS Konfiguracija ---
+    // Učitaj AWS opcije (Region) iz appsettings.json
+    var awsOptions = builder.Configuration.GetAWSOptions();
+    // Postavi defaultne opcije za AWS SDK
+    builder.Services.AddDefaultAWSOptions(awsOptions);
+    // Registruj specifični AWS servis klijent (S3)
+    // SDK će automatski tražiti kredencijale (IAM Role na EC2, ~/.aws/credentials lokalno)
+    builder.Services.AddAWSService<IAmazonS3>();
+    // -------------------------
+
+    // --- Registruj tvoj Image Storage Servis ---
+    // Koristimo Singleton jer S3 klijent može biti singleton
+    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+}
+
+
 
 // --- Build the App ---
 var app = builder.Build();
