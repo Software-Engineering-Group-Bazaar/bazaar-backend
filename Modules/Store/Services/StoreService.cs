@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
+using Store.Interface;
 using Store.Models;
 using Store.Services;
 
@@ -17,7 +18,7 @@ namespace Store.Services
         }
 
         // Create a new store
-        public StoreModel CreateStore(string _name, Guid _categoryId, string _address, string _description)
+        public StoreModel CreateStore(string _name, int _categoryId, string _address, string _description)
         {
             var _category = _context.StoreCategories.Find(_categoryId);
             if (_category == null)
@@ -46,13 +47,13 @@ namespace Store.Services
         }
 
         // Get a store by ID
-        public StoreModel? GetStoreById(Guid id)
+        public StoreModel? GetStoreById(int id)
         {
             return _context.Stores.Include(s => s.category).FirstOrDefault(s => s.id == id);
         }
 
         // Update a store
-        public StoreModel? UpdateStore(Guid id, string name, Guid categoryId, string address, string description, bool isActive)
+        public StoreModel? UpdateStore(int id, string name, int categoryId, string address, string description, bool isActive)
         {
             var store = _context.Stores.Find(id);
             if (store == null)
@@ -77,7 +78,7 @@ namespace Store.Services
         }
 
         // Delete a store
-        public bool DeleteStore(Guid id)
+        public bool DeleteStore(int id)
         {
             var store = _context.Stores.Find(id);
             if (store == null)
@@ -88,6 +89,12 @@ namespace Store.Services
             _context.Stores.Remove(store);
             _context.SaveChanges();
             return true;
+        }
+
+        // Check if a store exists by ID
+        public bool DoesStoreExist(int id)
+        {
+            return _context.Stores.Any(s => s.id == id);
         }
     }
 }

@@ -5,8 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SharedKernel;
+using Store.Interface;
 using Store.Models;
 using Store.Services;
+using Users.Interface;
 using Users.Interfaces;
 using Users.Models;
 using Users.Services;
@@ -51,6 +53,8 @@ builder.Services.AddScoped<IFacebookSignInService, FacebookSignInService>();
 
 builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddScoped<IStoreCategoryService, StoreCategoryService>();
+
+builder.Services.AddScoped<IUserService, UserService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");

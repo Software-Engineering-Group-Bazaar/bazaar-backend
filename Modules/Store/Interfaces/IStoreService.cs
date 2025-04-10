@@ -2,23 +2,23 @@ using System;
 using System.Collections.Generic;
 using Store.Models;
 
-namespace Store.Services
+namespace Store.Interface
 {
     public interface IStoreService
     {
         // Create a new store
-        StoreModel CreateStore(string name, Guid categoryId, string address, string description);
+        StoreModel CreateStore(string name, int categoryId, string address, string description);
 
         // Get all stores
         IEnumerable<StoreModel> GetAllStores();
 
         // Get a store by ID
-        StoreModel? GetStoreById(Guid id);
+        StoreModel? GetStoreById(int id);
 
         // Update a store
-        StoreModel? UpdateStore(Guid id, string name, Guid categoryId, string address, string description, bool isActive);
+        StoreModel? UpdateStore(int id, string name, int categoryId, string address, string description, bool isActive);
 
         // Delete a store
-        bool DeleteStore(Guid id);
+        bool DeleteStore(int id);
     }
 }
