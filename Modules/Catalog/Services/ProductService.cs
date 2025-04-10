@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Catalog.Interfaces;
 using Catalog.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace Catalog.Services
@@ -10,10 +12,14 @@ namespace Catalog.Services
     public class ProductService : IProductService
     {
         private readonly CatalogDbContext _context;
+        private readonly IImageStorageService _imageStorageService;
 
-        public ProductService(CatalogDbContext context, ILogger<ProductService> logger) // Logger je opcionalan
+        public ProductService(CatalogDbContext context,
+                            IImageStorageService imageStorageService,
+                            ILogger<ProductService> logger) // Logger je opcionalan
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _imageStorageService = imageStorageService;
         }
 
         public async Task<IEnumerable<Product>> GetAllProductsAsync()
@@ -53,7 +59,7 @@ namespace Catalog.Services
                                  .ToListAsync();
         }
 
-        public async Task<Product> CreateProductAsync(Product product)
+        public async Task<Product> CreateProductAsync(Product product, List<IFormFile>? files)
         {
             if (product == null)
                 throw new ArgumentNullException(nameof(product));
@@ -79,9 +85,28 @@ namespace Catalog.Services
 
             _context.Products.Add(product);
 
+            if (files is not null)
+            {
+                foreach (var file in files)
+                {
+                    var path = await _imageStorageService.UploadImageAsync(file, null);
+                    if (path is null)
+                    {
+                        throw new InvalidDataException("Path not created for image!");
+                    }
+                    var pic = new ProductPicture
+                    {
+                        Url = path,
+                        ProductId = product.Id
+                    };
+                    await _context.AddAsync(pic);
+                }
+            }
+
             try
             {
                 await _context.SaveChangesAsync();
+
                 return product;
             }
             catch (DbUpdateException ex)
