@@ -132,7 +132,7 @@ namespace Catalog.Services
                 await _context.SaveChangesAsync();
                 return true;
             }
-            catch (DbUpdateConcurrencyException ex)
+            catch (DbUpdateConcurrencyException)
             {
                 var stillExists = await _context.Products.AnyAsync(p => p.Id == product.Id);
                 if (!stillExists)
