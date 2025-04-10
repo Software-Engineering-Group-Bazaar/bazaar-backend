@@ -3,12 +3,12 @@ using System.IO;
 using System.Threading.Tasks;
 using Amazon.S3;
 using Amazon.S3.Model;
+using Catalog.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using S3Infrastrucutre.Interfaces;
 
-namespace S3Infrastrucutre.Service
+namespace Catalog.Services
 {
     public class S3ImageStorageService : IImageStorageService
     {

@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 
-namespace S3Infrastrucutre.Interfaces
+namespace Catalog.Interfaces
 {
     public interface IImageStorageService
     {

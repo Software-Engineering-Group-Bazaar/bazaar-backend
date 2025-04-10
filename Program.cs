@@ -1,13 +1,13 @@
 using System.Text;
 using Amazon.S3;
+using Catalog.Interfaces;
+using Catalog.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using S3Infrastrucutre.Interfaces;
-using S3Infrastrucutre.Service;
 using SharedKernel;
 using Store.Models;
 using Store.Services;
