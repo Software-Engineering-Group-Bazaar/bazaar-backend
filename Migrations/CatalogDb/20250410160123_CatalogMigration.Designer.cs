@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace bazaar.Migrations.CatalogDb
 {
     [DbContext(typeof(CatalogDbContext))]
-    [Migration("20250409213428_CatalogMigration")]
+    [Migration("20250410160123_CatalogMigration")]
     partial class CatalogMigration
     {
         /// <inheritdoc />

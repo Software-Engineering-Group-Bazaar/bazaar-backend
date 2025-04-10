@@ -237,7 +237,21 @@ namespace Catalog.Controllers
                 };
 
                 var createdProduct = await _productService.CreateProductAsync(product);
-                return CreatedAtAction(nameof(GetProductById), new { id = createdProduct.Id }, createdProduct);
+
+                var createdProductDto = new ProductDto
+                {
+                    Name = createdProduct.Name,
+                    ProductCategoryId = createdProduct.ProductCategoryId,
+                    RetailPrice = createdProduct.RetailPrice,
+                    WholesalePrice = createdProduct.WholesalePrice,
+                    Weight = createdProduct.Weight,
+                    WeightUnit = createdProduct.WeightUnit,
+                    Volume = createdProduct.Volume,
+                    VolumeUnit = createdProduct.VolumeUnit,
+                    StoreId = createdProduct.StoreId
+                };
+
+                return CreatedAtAction(nameof(GetProducts), new { }, createdProductDto);
             }
             catch (ArgumentException ex)
             {

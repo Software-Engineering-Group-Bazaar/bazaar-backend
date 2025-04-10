@@ -14,19 +14,21 @@ namespace Catalog.Models
 
         [Required]
         [StringLength(200)]
-        public required string Name { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+
+        public int ProductCategoryId { get; set; }
 
         // Foreign Key to ProductCategory
         [Required]
-        public required ProductCategory ProductCategory { get; set; }
+        public ProductCategory ProductCategory { get; set; } = null!;
 
         [Required]
         [Column(TypeName = "decimal(18, 2)")]
-        public required decimal RetailPrice { get; set; }
+        public decimal RetailPrice { get; set; }
 
         [Required]
         [Column(TypeName = "decimal(18, 2)")]
-        public required decimal WholesalePrice { get; set; }
+        public decimal WholesalePrice { get; set; }
 
         [Column(TypeName = "decimal(10, 3)")]
         public decimal? Weight { get; set; }
@@ -41,7 +43,7 @@ namespace Catalog.Models
         public string? VolumeUnit { get; set; }
 
         [Required]
-        public required int StoreId { get; set; }
+        public int StoreId { get; set; }
 
         public ICollection<ProductPicture> Pictures { get; } = new List<ProductPicture>();
     }

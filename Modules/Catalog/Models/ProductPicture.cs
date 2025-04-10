@@ -13,10 +13,11 @@ namespace Catalog.Models
 
         [Required]
         [StringLength(255)]
-        public required string Url { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+        public int ProductId { get; set; }
 
         [Required]
-        public required Product Product { get; set; }
+        public Product Product { get; set; } = null!;
 
     }
 }
