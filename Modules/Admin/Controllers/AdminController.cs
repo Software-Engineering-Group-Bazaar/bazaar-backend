@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
+using Store.Interface;
 using Users.Models; // Your User model and DbContext namespace
 
 namespace Admin.Controllers
@@ -25,16 +26,25 @@ namespace Admin.Controllers
         private readonly ILogger<AdminController> _logger; // Inject logger
 
         private readonly IProductService _productService;
+        private readonly IStoreService _storeService;
+        private readonly IStoreCategoryService _storeCategoryService;
+        private readonly IProductCategoryService _productCategoryService;
 
         public AdminController(
             UserManager<User> userManager,
             RoleManager<IdentityRole> roleManager,
             IProductService productService,
+            IStoreService storeService,
+            IStoreCategoryService storeCategoryService,
+            IProductCategoryService productCategoryService,
             ILogger<AdminController> logger) // Add logger to constructor
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _productService = productService;
+            _storeService = storeService;
+            _productCategoryService = productCategoryService;
+            _storeCategoryService = storeCategoryService;
             _logger = logger; // Assign injected logger
         }
 
@@ -188,7 +198,7 @@ namespace Admin.Controllers
             return Ok($"User {user.UserName ?? user.Id} successfully approved."); // Return 200 OK with a message
         }
 
-        // POST /api/admin/users/approve
+        // POST /api/admin/products/create
         [HttpPost("products/create")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -199,7 +209,13 @@ namespace Admin.Controllers
             {
                 _logger.LogInformation("Attempting to create product with storeID: {StoreId} categoryID:{CategoryId}", createProductDto.StoreId, createProductDto.ProductCategoryId);
 
-                // await store nadji id
+                var store = _storeService.GetStoreById(createProductDto.StoreId);
+
+                if (store is null)
+                {
+                    _logger.LogInformation($"not found store with id:{createProductDto.StoreId}");
+                    return BadRequest($"store with id:{createProductDto.StoreId} does not exist");
+                }
 
                 var product = new Product
                 {
