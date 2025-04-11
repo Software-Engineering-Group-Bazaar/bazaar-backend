@@ -52,9 +52,18 @@ namespace SharedKernel
                         logger,
                         email: "admin@bazaar.com",
                         password: "Pa55word!", // Use strong passwords even for dev, or load from config
-                        roles: new[] { adminRole, basicUserRole } // Admin is also a User
-                                                                  // Add custom properties if using ApplicationUser: , customPropertyValue: "value"
+                        roles: new[] { adminRole } // Admin is also a User
+                                                   // Add custom properties if using ApplicationUser: , customPropertyValue: "value"
                         );
+
+                    await CreateUserWithRolesAsync(
+                       userManager,
+                       logger,
+                       email: "administrator@bazaar.com",
+                       password: "Pa55word!", // Use strong passwords even for dev, or load from config
+                       roles: new[] { adminRole } // Admin is also a User
+                                                  // Add custom properties if using ApplicationUser: , customPropertyValue: "value"
+                       );
 
                     // --- Seed Store Owner User ---
                     await CreateUserWithRolesAsync(

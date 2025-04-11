@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AdminApi.DTOs; // Your DTOs namespace (Ensure this namespace is correct)
+using Catalog.Dtos;
+using Catalog.Models;
+using Catalog.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -21,13 +24,17 @@ namespace Admin.Controllers
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ILogger<AdminController> _logger; // Inject logger
 
+        private readonly IProductService _productService;
+
         public AdminController(
             UserManager<User> userManager,
             RoleManager<IdentityRole> roleManager,
+            IProductService productService,
             ILogger<AdminController> logger) // Add logger to constructor
         {
             _userManager = userManager;
             _roleManager = roleManager;
+            _productService = productService;
             _logger = logger; // Assign injected logger
         }
 
@@ -179,6 +186,73 @@ namespace Admin.Controllers
 
             _logger.LogInformation("User {UserId} approved successfully.", user.Id);
             return Ok($"User {user.UserName ?? user.Id} successfully approved."); // Return 200 OK with a message
+        }
+
+        // POST /api/admin/users/approve
+        [HttpPost("products/create")]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CreateProduct([FromForm] ProductDto createProductDto)
+        {
+            try
+            {
+                _logger.LogInformation("Attempting to create product with storeID: {StoreId} categoryID:{CategoryId}", createProductDto.StoreId, createProductDto.ProductCategoryId);
+
+                // await store nadji id
+
+                var product = new Product
+                {
+                    Id = 0,
+                    Name = createProductDto.Name,
+                    ProductCategoryId = createProductDto.ProductCategoryId,
+                    ProductCategory = new ProductCategory
+                    {
+                        Id = 1,
+                        Name = "nezz"
+                    },
+                    RetailPrice = createProductDto.RetailPrice,
+                    WholesalePrice = createProductDto.WholesalePrice,
+                    Weight = createProductDto.Weight,
+                    WeightUnit = createProductDto.WeightUnit,
+                    Volume = createProductDto.Volume,
+                    VolumeUnit = createProductDto.VolumeUnit,
+                    StoreId = createProductDto.StoreId
+                };
+
+                var createdProduct = await _productService.CreateProductAsync(product, createProductDto.Files);
+                _logger.LogInformation("Succesfully created a product with id {ProductId} {ProductName}", createdProduct.Id, createdProduct.Name);
+                var createdProductDto = new ProductGetDto
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
+                    RetailPrice = product.RetailPrice,
+                    WholesalePrice = product.WholesalePrice,
+                    Weight = product.Weight,
+                    WeightUnit = product.WeightUnit,
+                    Volume = product.Volume,
+                    VolumeUnit = product.VolumeUnit,
+                    StoreId = product.StoreId
+                };
+
+                return CreatedAtAction(nameof(CreateProduct), new { }, createdProductDto);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex) // Npr. nepostojeća kategorija u servisu
+            {
+                // Može biti BadRequest ili NotFound ovisno o uzroku
+                return BadRequest(ex.Message);
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the product.");
+            }
+
+
         }
 
         // DELETE /api/admin/user/{id}

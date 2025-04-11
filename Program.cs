@@ -1,7 +1,12 @@
 using System.Text;
+using Amazon.S3;
+using Catalog.Interfaces;
+using Catalog.Models;
+using Catalog.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SharedKernel;
@@ -14,6 +19,8 @@ using Users.Services;
 var builder = WebApplication.CreateBuilder(args);
 // Registrujte AuthService
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 
 // Registrujte ostale servise
 
@@ -35,6 +42,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
     builder.Services.AddDbContext<StoreDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("StoreConnection")));
+    builder.Services.AddDbContext<CatalogDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("CatalogConnection")));
 }
 
 builder.Services.AddHttpClient();
@@ -128,6 +136,30 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddScoped<IImageStorageService, FileImageStorageService>();
+}
+
+if (!builder.Environment.IsEnvironment("Testing") && !builder.Environment.IsEnvironment("Development"))
+{
+    // --- AWS Konfiguracija ---
+    // Učitaj AWS opcije (Region) iz appsettings.json
+    var awsOptions = builder.Configuration.GetAWSOptions();
+    // Postavi defaultne opcije za AWS SDK
+    builder.Services.AddDefaultAWSOptions(awsOptions);
+    // Registruj specifični AWS servis klijent (S3)
+    // SDK će automatski tražiti kredencijale (IAM Role na EC2, ~/.aws/credentials lokalno)
+    builder.Services.AddAWSService<IAmazonS3>();
+    // -------------------------
+
+    // --- Registruj tvoj Image Storage Servis ---
+    // Koristimo Singleton jer S3 klijent može biti singleton
+    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>(); // i think scoped
+}
+
+
+
 // --- Build the App ---
 var app = builder.Build();
 
@@ -156,6 +188,8 @@ else
     // app.UseExceptionHandler("/Error");
     // app.UseHsts();
 }
+
+app.UseStaticFiles();
 
 app.UseHttpsRedirection();
 
