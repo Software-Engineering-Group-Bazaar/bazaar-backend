@@ -9,7 +9,7 @@ namespace Store.Models
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public Guid id { get; set; }
+        public int id { get; set; }
 
         [Required]
         [MaxLength(255)]
@@ -17,6 +17,6 @@ namespace Store.Models
         public required StoreCategory category { get; set; }
         public required bool isActive { get; set; } = true;
         public required string address { get; set; }
-        public string description { get; set; }
+        public string? description { get; set; }
     }
 }

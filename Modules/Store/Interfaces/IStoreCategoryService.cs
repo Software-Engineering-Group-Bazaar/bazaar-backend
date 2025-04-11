@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Store.Models;
 
-namespace Store.Services
+namespace Store.Interface
 {
     public interface IStoreCategoryService
     {
@@ -13,15 +13,15 @@ namespace Store.Services
         IEnumerable<StoreCategory> GetAllCategories();
 
         // Get a category by ID
-        StoreCategory? GetCategoryById(Guid id);
+        StoreCategory? GetCategoryById(int id);
 
         // Update a category
-        StoreCategory? UpdateCategory(Guid id, string name);
+        StoreCategory? UpdateCategory(int id, string name);
 
         // Delete a category
-        bool DeleteCategory(Guid id);
+        bool DeleteCategory(int id);
 
         // Get all stores in a category
-        IEnumerable<StoreModel> GetStoresInCategory(Guid categoryId);
+        IEnumerable<StoreModel> GetStoresInCategory(int categoryId);
     }
 }

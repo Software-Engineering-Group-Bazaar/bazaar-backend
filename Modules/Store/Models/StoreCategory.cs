@@ -9,7 +9,7 @@ namespace Store.Models
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public Guid id { get; set; }
+        public int id { get; set; }
 
         [Required]
         [MaxLength(255)]

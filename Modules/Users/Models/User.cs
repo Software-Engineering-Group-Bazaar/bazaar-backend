@@ -5,5 +5,7 @@ namespace Users.Models
     public class User : IdentityUser
     {
         public bool IsApproved { get; set; }
+        public bool IsActive { get; set; }
+        public int? StoreId { get; set; }
     }
 }

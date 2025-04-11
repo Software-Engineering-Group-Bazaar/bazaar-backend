@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
+using Store.Interface;
 using Store.Models;
 using Store.Services;
 
@@ -37,13 +38,13 @@ namespace Store.Services
         }
 
         // Get a category by ID
-        public StoreCategory? GetCategoryById(Guid id)
+        public StoreCategory? GetCategoryById(int id)
         {
             return _context.StoreCategories.Include(c => c.stores).FirstOrDefault(c => c.id == id);
         }
 
         // Update a category
-        public StoreCategory? UpdateCategory(Guid id, string name)
+        public StoreCategory? UpdateCategory(int id, string name)
         {
             var category = _context.StoreCategories.Find(id);
             if (category == null)
@@ -58,7 +59,7 @@ namespace Store.Services
         }
 
         // Delete a category
-        public bool DeleteCategory(Guid id)
+        public bool DeleteCategory(int id)
         {
             var category = _context.StoreCategories.Find(id);
             if (category == null)
@@ -72,7 +73,7 @@ namespace Store.Services
         }
 
         // Get all stores in a category
-        public IEnumerable<StoreModel> GetStoresInCategory(Guid categoryId)
+        public IEnumerable<StoreModel> GetStoresInCategory(int categoryId)
         {
             var category = _context.StoreCategories
                 .Include(c => c.stores) // Ensure stores are loaded
