@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SharedKernel;
+using SharedKernel.Interfaces;
+using SharedKernel.Models;
+using SharedKernel.Services;
 using Store.Interface;
 using Store.Models;
 using Store.Services;
@@ -19,10 +22,17 @@ using Users.Models;
 using Users.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
+builder.Services.AddTransient<IMailService, MailService>();
+
 // Registrujte AuthService
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
+
+
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 
 // Registrujte ostale servise
 
@@ -53,6 +63,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddIdentity<User, IdentityRole>() // Replace User if needed
     .AddEntityFrameworkStores<UsersDbContext>()
     .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<IPasswordHasher<PasswordResetRequest>, PasswordHasher<PasswordResetRequest>>();
 
 builder.Services.AddScoped<IJWTService, JWTService>();
 // Add services to the container.

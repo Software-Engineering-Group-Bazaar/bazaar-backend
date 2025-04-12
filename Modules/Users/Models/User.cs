@@ -7,5 +7,6 @@ namespace Users.Models
         public bool IsApproved { get; set; }
         public bool IsActive { get; set; }
         public int? StoreId { get; set; }
+        public ICollection<PasswordResetRequest> Posts { get; } = new List<PasswordResetRequest>();
     }
 }
