@@ -20,6 +20,7 @@ namespace AdminApi.DTOs
         [Required]
         [MinLength(6)] // Should match Identity options
         public string Password { get; set; } = string.Empty;
+        public string Role { get; set; } = "Seller";
     }
 
     // DTO for approving a user (input)
@@ -27,6 +28,13 @@ namespace AdminApi.DTOs
     {
         [Required]
         public string UserId { get; set; } = string.Empty;
+    }
+    public class ActivateUserDto
+    {
+        [Required]
+        public string UserId { get; set; } = string.Empty;
+        [Required]
+        public bool ActivationStatus { get; set; }
     }
 
     // DTO for displaying user info (output)
