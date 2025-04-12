@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
+using SharedKernel;
 using Store.Interface;
 using Store.Models;
 using Users.Models; // Your User model and DbContext namespace
@@ -129,7 +130,7 @@ namespace Admin.Controllers
 
             // Add the user to the specified role
             _logger.LogInformation("Attempting to add user {UserId} to role {UserRole}", user.Id, Role.Seller.ToString());
-            var roleResult = await _userManager.AddToRoleAsync(user, Role.Seller.ToString());
+            var roleResult = await _userManager.AddToRoleAsync(user, Utils.FirstLetterToUpper(createUserDto.Role));
             if (!roleResult.Succeeded)
             {
                 _logger.LogError("Failed to add user {UserId} to role {UserRole}. Errors: {@IdentityErrors}", user.Id, Role.Seller.ToString(), roleResult.Errors);
