@@ -70,7 +70,8 @@ namespace Admin.Controllers
                         Email = user.Email ?? "N/A",
                         EmailConfirmed = user.EmailConfirmed,
                         Roles = await _userManager.GetRolesAsync(user), // Be mindful of performance on very large user sets
-                        IsApproved = user.IsApproved
+                        IsApproved = user.IsApproved,
+                        IsActive = user.IsActive,
                     });
                 }
                 _logger.LogInformation("Successfully retrieved {UserCount} users.", userInfoDtos.Count);

@@ -58,6 +58,5 @@ namespace AdminApi.DTOs
         public IList<string> Roles { get; set; } = new List<string>();
         public bool IsApproved { get; set; }
         public bool IsActive { get; set; }
-
     }
 }
