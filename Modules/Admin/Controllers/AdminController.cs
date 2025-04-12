@@ -179,7 +179,7 @@ namespace Admin.Controllers
             var result = await _userManager.UpdateAsync(user);
 
             if (result.Succeeded)
-                return Ok("User updated successfully");
+                return CreatedAtAction(nameof(GetUsers), new { }, user);
 
             return BadRequest(result.Errors);
 
