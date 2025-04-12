@@ -83,8 +83,16 @@ namespace Catalog.Services
 
             product.ProductCategory = existingCategory;
 
-            _context.Products.Add(product);
 
+            await _context.Products.AddAsync(product);
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                throw new InvalidOperationException("Došlo je do greške prilikom spremanja proizvoda.", ex);
+            }
             if (files is not null)
             {
                 foreach (var file in files)
@@ -97,9 +105,10 @@ namespace Catalog.Services
                     var pic = new ProductPicture
                     {
                         Url = path,
-                        ProductId = product.Id
+                        ProductId = product.Id,
                     };
                     await _context.AddAsync(pic);
+
                 }
             }
 
@@ -198,6 +207,14 @@ namespace Catalog.Services
             {
                 throw new InvalidOperationException("Nije moguće obrisati proizvod. Možda postoje povezane stavke.", ex);
             }
+        }
+
+        public async Task<bool> DeleteProductFromStoreAsync(int storeId)
+        {
+            var productsToDelete = await _context.Products.Where(p => p.StoreId == storeId).ToListAsync();
+            _context.Products.RemoveRange(productsToDelete);
+            await _context.SaveChangesAsync();
+            return productsToDelete.Count > 0;
         }
     }
 }

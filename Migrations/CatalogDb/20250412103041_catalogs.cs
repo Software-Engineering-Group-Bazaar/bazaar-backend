@@ -6,7 +6,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace bazaar.Migrations.CatalogDb
 {
     /// <inheritdoc />
-    public partial class CatalogMigration : Migration
+    public partial class catalogs : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

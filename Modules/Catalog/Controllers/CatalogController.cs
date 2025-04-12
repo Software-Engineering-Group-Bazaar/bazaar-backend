@@ -217,7 +217,8 @@ namespace Catalog.Controllers
                 WeightUnit = product.WeightUnit,
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
-                StoreId = product.StoreId
+                StoreId = product.StoreId,
+                Photos = product.Pictures.Select(photo => photo.Url).ToList()
             }).ToList();
 
             return Ok(productsDto);
@@ -248,7 +249,8 @@ namespace Catalog.Controllers
                 WeightUnit = product.WeightUnit,
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
-                StoreId = product.StoreId
+                StoreId = product.StoreId,
+                Photos = product.Pictures.Select(photo => photo.Url).ToList()
             };
 
             return Ok(productDto);
@@ -257,7 +259,7 @@ namespace Catalog.Controllers
         [HttpPost("products")] // POST /api/catalog/products
         [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> CreateProduct([FromBody] ProductDto productDto)
+        public async Task<IActionResult> CreateProduct([FromForm] ProductDto productDto)
         {
             if (productDto == null) return BadRequest("Product data is required.");
             // Osnovna validacija modela od [ApiController]
@@ -296,7 +298,8 @@ namespace Catalog.Controllers
                     WeightUnit = product.WeightUnit,
                     Volume = product.Volume,
                     VolumeUnit = product.VolumeUnit,
-                    StoreId = product.StoreId
+                    StoreId = product.StoreId,
+                    Photos = product.Pictures.Select(photo => photo.Url).ToList()
                 };
 
                 return CreatedAtAction(nameof(GetProducts), new { }, createdProductDto);

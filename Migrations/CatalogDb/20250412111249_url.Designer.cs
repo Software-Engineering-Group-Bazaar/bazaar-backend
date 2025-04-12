@@ -11,8 +11,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace bazaar.Migrations.CatalogDb
 {
     [DbContext(typeof(CatalogDbContext))]
-    [Migration("20250410202759_ProductMigration")]
-    partial class ProductMigration
+    [Migration("20250412111249_url")]
+    partial class url
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -90,21 +90,14 @@ namespace bazaar.Migrations.CatalogDb
 
             modelBuilder.Entity("Catalog.Models.ProductPicture", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Url")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.HasKey("Id");
+                    b.HasKey("Url");
 
                     b.HasIndex("ProductId");
 

@@ -13,5 +13,6 @@ namespace Catalog.Services
         Task<Product> CreateProductAsync(Product product, List<IFormFile>? files);
         Task<bool> UpdateProductAsync(Product product);
         Task<bool> DeleteProductAsync(int id);
+        Task<bool> DeleteProductFromStoreAsync(int storeId);
     }
 }

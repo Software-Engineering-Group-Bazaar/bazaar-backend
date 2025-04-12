@@ -53,7 +53,7 @@ namespace Store.Services
         }
 
         // Update a store
-        public StoreModel? UpdateStore(int id, string name, int categoryId, string address, string description, bool isActive)
+        public StoreModel? UpdateStore(int id, string? name, int? categoryId, string? address, string? description, bool? isActive)
         {
             var store = _context.Stores.Find(id);
             if (store == null)
@@ -66,12 +66,16 @@ namespace Store.Services
             {
                 throw new ArgumentException("Category not found.");
             }
-
-            store.name = name;
-            store.category = category;
-            store.address = address;
-            store.description = description;
-            store.isActive = isActive;
+            if (name is not null)
+                store.name = name;
+            if (category is not null)
+                store.category = category;
+            if (address is not null)
+                store.address = address;
+            if (description is not null)
+                store.description = description;
+            if (isActive is not null)
+                store.isActive = (bool)isActive;
 
             _context.SaveChanges();
             return store;
@@ -95,6 +99,19 @@ namespace Store.Services
         public bool DoesStoreExist(int id)
         {
             return _context.Stores.Any(s => s.id == id);
+        }
+
+        public async Task<bool> DeleteStoreAsync(int id)
+        {
+            var store = await _context.Stores.FindAsync(id);
+            if (store == null)
+            {
+                return false;
+            }
+
+            _context.Stores.Remove(store);
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }

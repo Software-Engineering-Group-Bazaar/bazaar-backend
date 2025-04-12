@@ -16,9 +16,10 @@ namespace Store.Interface
         StoreModel? GetStoreById(int id);
 
         // Update a store
-        StoreModel? UpdateStore(int id, string name, int categoryId, string address, string description, bool isActive);
+        StoreModel? UpdateStore(int id, string? name, int? categoryId, string? address, string? description, bool? isActive);
 
         // Delete a store
         bool DeleteStore(int id);
+        Task<bool> DeleteStoreAsync(int id);
     }
 }

@@ -11,8 +11,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace bazaar.Migrations.CatalogDb
 {
     [DbContext(typeof(CatalogDbContext))]
-    [Migration("20250410160123_CatalogMigration")]
-    partial class CatalogMigration
+    [Migration("20250412110806_picchangeurl")]
+    partial class picchangeurl
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

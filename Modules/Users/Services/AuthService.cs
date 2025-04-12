@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using SharedKernel;
 using Users.Dtos;
 using Users.Interfaces;
 using Users.Models;
@@ -24,7 +25,8 @@ namespace Users.Services
             var userExists = await _userManager.FindByEmailAsync(dto.Email);
             if (userExists != null)
                 return "Korisnik sa ovim emailom već postoji.";
-
+            if (dto.App is null)
+                return "Nema role";
             // Kreiranje novog korisnika
             var user = new User
             {
@@ -39,7 +41,7 @@ namespace Users.Services
                 return string.Join(", ", result.Errors.Select(e => e.Description));
 
             // Dodavanje korisnika u defaultnu rolu (Buyer)
-            await _userManager.AddToRoleAsync(user, "Buyer");
+            await _userManager.AddToRoleAsync(user, Utils.FirstLetterToUpper(dto.App));
 
             return "Registracija uspješna.";
         }
@@ -58,6 +60,8 @@ namespace Users.Services
 
             // Dobijanje uloga korisnika
             var roles = await _userManager.GetRolesAsync(user);
+            if (!roles.Contains(Utils.FirstLetterToUpper(dto.App)))
+                return null;
             var (token, _) = await _jwtService.GenerateTokenAsync(user, roles);
 
             return new LoginResponseDto
