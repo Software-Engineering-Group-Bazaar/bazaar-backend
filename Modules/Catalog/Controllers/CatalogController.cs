@@ -217,7 +217,8 @@ namespace Catalog.Controllers
                 WeightUnit = product.WeightUnit,
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
-                StoreId = product.StoreId
+                StoreId = product.StoreId,
+                Photos = product.Pictures.Select(photo => photo.Url).ToList()
             }).ToList();
 
             return Ok(productsDto);
@@ -248,7 +249,8 @@ namespace Catalog.Controllers
                 WeightUnit = product.WeightUnit,
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
-                StoreId = product.StoreId
+                StoreId = product.StoreId,
+                Photos = product.Pictures.Select(photo => photo.Url).ToList()
             };
 
             return Ok(productDto);

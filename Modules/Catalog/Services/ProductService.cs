@@ -208,5 +208,13 @@ namespace Catalog.Services
                 throw new InvalidOperationException("Nije moguće obrisati proizvod. Možda postoje povezane stavke.", ex);
             }
         }
+
+        public async Task<bool> DeleteProductFromStoreAsync(int storeId)
+        {
+            var productsToDelete = await _context.Products.Where(p => p.StoreId == storeId).ToListAsync();
+            _context.Products.RemoveRange(productsToDelete);
+            await _context.SaveChangesAsync();
+            return productsToDelete.Count > 0;
+        }
     }
 }
