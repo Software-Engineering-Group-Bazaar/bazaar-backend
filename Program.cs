@@ -36,15 +36,35 @@ builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 
 // Registrujte ostale servise
 
-
-const string DevelopmentCorsPolicy = "_developmentCorsPolicy";
+const string AllowLocalhostOriginsPolicy = "_allowLocalhostOrigins";
+const string AllowProductionOriginPolicy = "_allowProductionOrigin";
+//const string DevelopmentCorsPolicy = "_developmentCorsPolicy";
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(name: DevelopmentCorsPolicy,
+    // DEVELOPMENT Policy (Allow any localhost)
+    options.AddPolicy(name: AllowLocalhostOriginsPolicy,
                       policy =>
                       {
-                          policy.SetIsOriginAllowed(origin => true)
-                                .AllowAnyHeader()
+                          policy.SetIsOriginAllowed(origin =>
+                          {
+                              if (string.IsNullOrWhiteSpace(origin)) return false;
+                              if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                              {
+                                  return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase);
+                              }
+                              return false;
+                          })
+                          .AllowAnyHeader() // More permissive for dev
+                          .AllowAnyMethod()
+                          .AllowCredentials(); // Allow credentials if needed during dev
+                      });
+
+    // PRODUCTION Policy (Allow Specific Netlify Origin)
+    options.AddPolicy(name: AllowProductionOriginPolicy,
+                      policy =>
+                      {
+                          policy.WithOrigins("https://bazaar-admin-web.netlify.app") // YOUR specific frontend URL
+                                .AllowAnyHeader() // More permissive for dev
                                 .AllowAnyMethod()
                                 .AllowCredentials();
                       });
@@ -193,7 +213,7 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bazaar API V1");
         // c.RoutePrefix = string.Empty; // Optional: Serve UI at root
     });
-    app.UseCors(DevelopmentCorsPolicy); // Apply dev CORS
+    app.UseCors(AllowLocalhostOriginsPolicy); // Apply dev CORS
     app.UseDeveloperExceptionPage(); // Show detailed errors
 
     await UserDataSeeder.SeedDevelopmentUsersAsync(app);
@@ -217,7 +237,7 @@ app.UseRouting(); // Needed for endpoints
 // Already handled conditionally above for Development
 
 app.UseAuthentication(); // IMPORTANT: Before Authorization
-app.UseCors(DevelopmentCorsPolicy);
+app.UseCors(AllowLocalhostOriginsPolicy);
 app.UseAuthorization();  // IMPORTANT: After Authentication
 
 app.MapControllers(); // Map controller endpoints

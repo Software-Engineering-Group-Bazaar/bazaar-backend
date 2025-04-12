@@ -386,7 +386,41 @@ namespace Admin.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving stores.");
             }
         }
+        // GET /api/Admin/stores/{id}
+        [HttpGet("stores/{id}")]
+        [ProducesResponseType(typeof(IEnumerable<StoreGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public ActionResult<IEnumerable<StoreGetDto>> GetStoresById(int id)
+        {
+            _logger.LogInformation($"Attempting to retrieve store. {id}");
 
+            try
+            {
+                var stores = _storeService.GetStoreById(id);
+                if (stores is null)
+                {
+                    _logger.LogInformation("No storee found.");
+                    return BadRequest("No store found");
+                }
+
+                var storeDto = new StoreGetDto
+                {
+                    Id = id,
+                    Address = stores.address,
+                    CategoryName = stores.category.name,
+                    IsActive = stores.isActive,
+                    Description = stores.description,
+                    Name = stores.name
+                };
+
+                return Ok(storeDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving stores.");
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving stores.");
+            }
+        }
 
 
         // GET /api/Admin/store/categories
