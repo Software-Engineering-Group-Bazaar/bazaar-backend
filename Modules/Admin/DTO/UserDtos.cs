@@ -59,9 +59,5 @@ namespace AdminApi.DTOs
         public bool IsApproved { get; set; }
         public bool IsActive { get; set; }
 
-        public static implicit operator UserInfoDto(UserInfoDto v)
-        {
-            throw new NotImplementedException();
-        }
     }
 }
