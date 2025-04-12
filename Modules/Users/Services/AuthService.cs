@@ -24,7 +24,8 @@ namespace Users.Services
             var userExists = await _userManager.FindByEmailAsync(dto.Email);
             if (userExists != null)
                 return "Korisnik sa ovim emailom već postoji.";
-
+            if (dto.App is null)
+                return "Nema role";
             // Kreiranje novog korisnika
             var user = new User
             {
@@ -39,7 +40,7 @@ namespace Users.Services
                 return string.Join(", ", result.Errors.Select(e => e.Description));
 
             // Dodavanje korisnika u defaultnu rolu (Buyer)
-            await _userManager.AddToRoleAsync(user, "Buyer");
+            await _userManager.AddToRoleAsync(user, dto.App);
 
             return "Registracija uspješna.";
         }
