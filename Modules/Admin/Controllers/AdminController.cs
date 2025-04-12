@@ -199,6 +199,49 @@ namespace Admin.Controllers
             return Ok($"User {user.UserName ?? user.Id} successfully approved."); // Return 200 OK with a message
         }
 
+        // POST /api/admin/users/approve
+        [HttpPost("users/activate")]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ActivateUser([FromBody] ActivateUserDto dto)
+        {
+            _logger.LogInformation("Attempting to activate user with ID: {UserId}", dto.UserId);
+
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Activate user request failed model validation for User ID {UserId}. Errors: {@ModelState}", dto.UserId, ModelState.Values.SelectMany(v => v.Errors));
+                return BadRequest(ModelState);
+            }
+
+            var user = await _userManager.FindByIdAsync(dto.UserId);
+            if (user == null)
+            {
+                _logger.LogWarning("User with ID {UserId} not found for approval.", dto.UserId);
+                return NotFound($"User with ID {dto.UserId} not found.");
+            }
+
+            if (user.IsApproved)
+            {
+                _logger.LogWarning("User {UserId} is already approved.", dto.UserId);
+                return BadRequest($"User with ID {dto.UserId} is already approved.");
+            }
+
+            user.IsActive = dto.ActivationStatus;
+            var result = await _userManager.UpdateAsync(user);
+
+            if (!result.Succeeded)
+            {
+                _logger.LogError("Failed to update user {UserId} for approval. Errors: {@IdentityErrors}", user.Id, result.Errors);
+                AddErrors(result);
+                return BadRequest(ModelState); // Or return a 500 Internal Server Error
+            }
+
+            _logger.LogInformation("User {UserId} approved successfully.", user.Id);
+            return Ok($"User {user.UserName ?? user.Id} successfully approved."); // Return 200 OK with a message
+        }
+
+
         // POST /api/admin/products/create
         [HttpPost("products/create")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
