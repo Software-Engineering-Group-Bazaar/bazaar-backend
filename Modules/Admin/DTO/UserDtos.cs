@@ -6,6 +6,17 @@ using System.ComponentModel.DataAnnotations;
 namespace AdminApi.DTOs
 {
     // DTO for creating a user (input)
+
+    public class UpdateUserDto
+    {
+        public string UserName { get; set; }
+        public required string Id { get; set; }
+        public string Role { get; set; }
+        public bool IsActive { get; set; }
+        public bool IsApproved { get; set; }
+        public string Email { get; set; }
+
+    }
     public class CreateUserDto
     {
         [Required]
