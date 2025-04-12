@@ -86,7 +86,14 @@ cd  bazaar
 2. Open the project in VSCode
 3. Open a terminal in VSCode and run: `docker compose up`
 3. Open a terminal in VSCode and restore the project dependencies by running: `dotnet restore`
-4. After that, run the following commands: `dotnet ef database update -c UsersDbContext` and `dotnet ef database update --context StoreDbContext`. If these commands don't go through, run this before trying them again: `dotnet tool install --global dotnet-ef`
+4. After that, run the following commands: 
+- `dotnet ef database update -c UsersDbContext`
+- `dotnet ef database update --context StoreDbContext`
+- `dotnet ef database update --context CatalogDbContext`
+- Any new DbContext that we add should also be run. 
+
+If these commands don't go through, run this before trying them again: `dotnet tool install --global dotnet-ef`
+
 5.  To run the project locally, use the following command: `dotnet run`, you may also use the key bindings `Ctrl+Shift+B` for building the project and `Ctrl+Shift+D` for running and debugging the project.
 
 ## Sample API usage
