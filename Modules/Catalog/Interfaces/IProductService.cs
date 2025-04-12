@@ -14,5 +14,6 @@ namespace Catalog.Services
         Task<bool> UpdateProductAsync(Product product);
         Task<bool> DeleteProductAsync(int id);
         Task<bool> DeleteProductFromStoreAsync(int storeId);
+        Task<IEnumerable<Product>> SearchProductsByNameAsync(string searchTerm);
     }
 }

@@ -216,5 +216,23 @@ namespace Catalog.Services
             await _context.SaveChangesAsync();
             return productsToDelete.Count > 0;
         }
+
+        public async Task<IEnumerable<Product>> SearchProductsByNameAsync(string searchTerm)
+        {
+            if (string.IsNullOrWhiteSpace(searchTerm))
+            {
+                // Vrati sve proizvode ako je pretraga prazna
+                return await _context.Products.Include(p => p.ProductCategory).ToListAsync();
+            }
+
+            var normalizedSearchTerm = searchTerm.Trim().ToLower();
+
+            var products = await _context.Products
+                .Include(p => p.ProductCategory)
+                .Where(p => p.Name.ToLower().Contains(normalizedSearchTerm))
+                .ToListAsync();
+
+            return products;
+        }
     }
 }
