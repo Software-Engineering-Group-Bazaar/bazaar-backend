@@ -59,6 +59,8 @@ namespace Users.Services
 
             // Dobijanje uloga korisnika
             var roles = await _userManager.GetRolesAsync(user);
+            if (!roles.Contains(dto.App))
+                return null;
             var (token, _) = await _jwtService.GenerateTokenAsync(user, roles);
 
             return new LoginResponseDto
