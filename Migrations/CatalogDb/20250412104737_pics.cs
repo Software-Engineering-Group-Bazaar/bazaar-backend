@@ -5,7 +5,7 @@
 namespace bazaar.Migrations.CatalogDb
 {
     /// <inheritdoc />
-    public partial class ProductMigration : Migration
+    public partial class pics : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

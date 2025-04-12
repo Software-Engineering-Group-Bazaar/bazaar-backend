@@ -30,7 +30,7 @@ namespace Catalog.Dtos
         public string? VolumeUnit { get; set; }
         public int StoreId { get; set; }
 
-        // slike jos
+        public List<string>? Photos { get; set; } = new List<string>();
     }
 
     public class ProductCategoryDto

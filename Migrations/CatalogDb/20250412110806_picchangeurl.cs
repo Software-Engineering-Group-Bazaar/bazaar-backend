@@ -5,7 +5,7 @@
 namespace bazaar.Migrations.CatalogDb
 {
     /// <inheritdoc />
-    public partial class Slicice : Migration
+    public partial class picchangeurl : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

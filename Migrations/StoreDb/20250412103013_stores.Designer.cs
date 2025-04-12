@@ -11,8 +11,8 @@ using Store.Models;
 namespace bazaar.Migrations.StoreDb
 {
     [DbContext(typeof(StoreDbContext))]
-    [Migration("20250410195502_StoreMigrationFix")]
-    partial class StoreMigrationFix
+    [Migration("20250412103013_stores")]
+    partial class stores
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -58,7 +58,6 @@ namespace bazaar.Migrations.StoreDb
                         .HasColumnType("integer");
 
                     b.Property<string>("description")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("isActive")
