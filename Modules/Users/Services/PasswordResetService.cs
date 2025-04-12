@@ -48,7 +48,7 @@ namespace Users.Services
             // NE OTKRIVAJ da li korisnik postoji. Uvek vrati kao da je uspeh.
             if (user == null)
             {
-                _logger.LogWarning("Zahtev za reset lozinke za nepostojeći email: {Email}", email);
+                _logger.LogWarning("Zahjtev za reset lozinke za nepostojeći email: {Email}", email);
                 // Ne bacaj grešku ovde, samo izađi.
                 return;
             }
@@ -61,7 +61,7 @@ namespace Users.Services
 
             if (latestRequest != null && (DateTime.UtcNow - latestRequest.CreatedDateTimeUtc) < _minRequestInterval)
             {
-                _logger.LogWarning("Prečesti zahtevi za reset lozinke za korisnika: {UserId}", user.Id);
+                _logger.LogWarning("Prečesti zahtjevi za reset lozinke za korisnika: {UserId}", user.Id);
                 // Možeš vratiti specifičnu grešku ili samo izaći
                 // throw new InvalidOperationException($"Molimo sačekajte {_minRequestInterval.TotalMinutes} minuta pre novog zahteva.");
                 return; // Tiho izađi
@@ -107,12 +107,25 @@ namespace Users.Services
             // Slanje emaila sa PLAIN TEXT kodom
             try
             {
+                var emailBody = @$"Resetovanje Lozinke
+
+
+Vaš kod za resetovanje lozinke je: {code}
+
+
+Ovaj kod ističe za {_codeValidityDuration.TotalMinutes} minuta.
+
+Ako niste zatražili resetovanje, ignorišite ovaj email.
+
+Vaš Bazaar Tim";
+
                 var mailRequest = new MailData
                 {
                     EmailToId = user.Email,
                     EmailToName = user.UserName,
                     EmailSubject = "Vaš kod za resetovanje lozinke",
-                    EmailBody = $"<h1>Resetovanje Lozinke</h1><p>Vaš kod za resetovanje lozinke je: <strong>{code}</strong></p><p>Ovaj kod ističe za {_codeValidityDuration.TotalMinutes} minuta.</p><p>Ako niste zatražili resetovanje, ignorišite ovaj email.</p>"
+                    EmailBody = emailBody
+
                 };
                 await _mailService.SendMailAsync(mailRequest);
                 _logger.LogInformation("Kod za reset lozinke poslat na email: {Email}", email);
