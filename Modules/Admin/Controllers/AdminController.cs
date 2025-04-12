@@ -176,11 +176,21 @@ namespace Admin.Controllers
             user.IsActive = dto.IsActive;
             user.IsApproved = dto.IsApproved;
 
+            var userInfo = new UserInfoDto
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Email = user.Email,
+                EmailConfirmed = user.EmailConfirmed,
+                Roles = new List<string> { dto.Role },
+                IsApproved = user.IsApproved,
+                IsActive = user.IsActive
+            };
 
             var result = await _userManager.UpdateAsync(user);
 
             if (result.Succeeded)
-                return CreatedAtAction(nameof(GetUsers), new { }, user);
+                return CreatedAtAction(nameof(GetUsers), new { }, userInfo);
 
             return BadRequest(result.Errors);
 
