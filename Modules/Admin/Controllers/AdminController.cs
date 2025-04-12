@@ -159,6 +159,33 @@ namespace Admin.Controllers
             return CreatedAtAction(nameof(GetUsers), new { }, userInfo);
         }
 
+        // POST /api/admin/users/create
+        [HttpPut("users/update")]
+        [ProducesResponseType(typeof(UserInfoDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<UserInfoDto>> UpdateUser([FromBody] UpdateUserDto dto)
+        {
+            var user = await _userManager.FindByIdAsync(dto.Id);
+            if (user == null)
+                return NotFound("User not found");
+
+
+            user.Email = dto.Email;
+            user.UserName = dto.UserName;
+            user.Id = dto.Id;
+            user.IsActive = dto.IsActive;
+            user.IsApproved = dto.IsApproved;
+
+
+            var result = await _userManager.UpdateAsync(user);
+
+            if (result.Succeeded)
+                return Ok("User updated successfully");
+
+            return BadRequest(result.Errors);
+
+        }
+
         // POST /api/admin/users/approve
         [HttpPost("users/approve")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
