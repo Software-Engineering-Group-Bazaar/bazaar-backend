@@ -397,6 +397,37 @@ namespace Catalog.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the product. It might be in use.");
             }
         }
+
+        [HttpGet("search")] // GET api/products/search
+        [ProducesResponseType(typeof(IEnumerable<ProductGetDto>), 200)]
+        [ProducesResponseType(400)]
+        public async Task<ActionResult<IEnumerable<ProductGetDto>>> SearchProducts([FromQuery] string searchTerm = "")
+        {
+
+            if (searchTerm is null)
+            {
+                searchTerm = string.Empty;
+            }
+
+            var products = await _productService.SearchProductsByNameAsync(searchTerm);
+
+            var productsDto = products.Select(product => new ProductGetDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
+                RetailPrice = product.RetailPrice,
+                WholesalePrice = product.WholesalePrice,
+                Weight = product.Weight,
+                WeightUnit = product.WeightUnit,
+                Volume = product.Volume,
+                VolumeUnit = product.VolumeUnit,
+                StoreId = product.StoreId,
+                Photos = product.Pictures.Select(photo => photo.Url).ToList()
+            }).ToList();
+
+            return Ok(productsDto);
+        }
     }
 
 
