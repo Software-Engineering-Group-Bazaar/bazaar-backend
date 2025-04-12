@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using SharedKernel;
 using Users.Dtos;
 using Users.Interfaces;
 using Users.Models;
@@ -40,7 +41,7 @@ namespace Users.Services
                 return string.Join(", ", result.Errors.Select(e => e.Description));
 
             // Dodavanje korisnika u defaultnu rolu (Buyer)
-            await _userManager.AddToRoleAsync(user, dto.App);
+            await _userManager.AddToRoleAsync(user, Utils.FirstLetterToUpper(dto.App));
 
             return "Registracija uspješna.";
         }
@@ -59,7 +60,7 @@ namespace Users.Services
 
             // Dobijanje uloga korisnika
             var roles = await _userManager.GetRolesAsync(user);
-            if (!roles.Contains(dto.App))
+            if (!roles.Contains(Utils.FirstLetterToUpper(dto.App)))
                 return null;
             var (token, _) = await _jwtService.GenerateTokenAsync(user, roles);
 
