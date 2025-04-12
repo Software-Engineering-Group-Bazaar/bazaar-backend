@@ -4,7 +4,7 @@ using Store.Models;
 
 namespace Store.Interface
 {
-    public interface IStoreService
+    public interface IStoreService //TODO: Make async methods
     {
         // Create a new store
         StoreModel CreateStore(string name, int categoryId, string address, string description);

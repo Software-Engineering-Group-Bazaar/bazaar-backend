@@ -11,7 +11,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
+using Store.Interface;
 using Users.Models; // Your User model and DbContext namespace
+using Store.Models;
 
 namespace Admin.Controllers
 {
@@ -25,16 +27,25 @@ namespace Admin.Controllers
         private readonly ILogger<AdminController> _logger; // Inject logger
 
         private readonly IProductService _productService;
+        private readonly IStoreService _storeService;
+        private readonly IStoreCategoryService _storeCategoryService;
+        private readonly IProductCategoryService _productCategoryService;
 
         public AdminController(
             UserManager<User> userManager,
             RoleManager<IdentityRole> roleManager,
             IProductService productService,
+            IStoreService storeService,
+            IStoreCategoryService storeCategoryService,
+            IProductCategoryService productCategoryService,
             ILogger<AdminController> logger) // Add logger to constructor
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _productService = productService;
+            _storeService = storeService;
+            _productCategoryService = productCategoryService;
+            _storeCategoryService = storeCategoryService;
             _logger = logger; // Assign injected logger
         }
 
@@ -188,7 +199,7 @@ namespace Admin.Controllers
             return Ok($"User {user.UserName ?? user.Id} successfully approved."); // Return 200 OK with a message
         }
 
-        // POST /api/admin/users/approve
+        // POST /api/admin/products/create
         [HttpPost("products/create")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -199,7 +210,13 @@ namespace Admin.Controllers
             {
                 _logger.LogInformation("Attempting to create product with storeID: {StoreId} categoryID:{CategoryId}", createProductDto.StoreId, createProductDto.ProductCategoryId);
 
-                // await store nadji id
+                var store = _storeService.GetStoreById(createProductDto.StoreId);
+
+                if (store is null)
+                {
+                    _logger.LogInformation($"not found store with id:{createProductDto.StoreId}");
+                    return BadRequest($"store with id:{createProductDto.StoreId} does not exist");
+                }
 
                 var product = new Product
                 {
@@ -285,6 +302,167 @@ namespace Admin.Controllers
             // but returning 200 OK with a message is also acceptable and sometimes preferred for clarity.
             return Ok($"User with ID {id} successfully deleted.");
         }
+
+
+
+// GET /api/Admin/stores
+[HttpGet("stores")]
+[ProducesResponseType(typeof(IEnumerable<StoreGetDto>), StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public ActionResult<IEnumerable<StoreGetDto>> GetStores()
+{
+    _logger.LogInformation("Attempting to retrieve all stores.");
+
+    try
+    {
+        var stores = _storeService.GetAllStores(); // kasnije prebaciti u asinhrono
+        if (stores == null || !stores.Any())
+        {
+            _logger.LogInformation("No stores found.");
+            return Ok(new List<StoreGetDto>());
+        }
+
+        var storeDtos = stores.Select(store => new StoreGetDto
+        {
+            Id = store.id,
+            Name = store.name,
+            Address = store.address,
+            Description = store.description,
+            IsActive = store.isActive,
+            CategoryName = store.category.name
+        }).ToList();
+
+        _logger.LogInformation("Successfully retrieved {StoreCount} stores.", storeDtos.Count);
+        return Ok(storeDtos);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "An error occurred while retrieving stores.");
+        return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving stores.");
+    }
+}
+
+
+
+// GET /api/Admin/store/categories
+[HttpGet("store/categories")]
+[ProducesResponseType(typeof(IEnumerable<StoreCategoryDto>), StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public ActionResult<IEnumerable<StoreCategoryDto>> GetStoreCategories()
+{
+    _logger.LogInformation("Attempting to retrieve store categories.");
+
+    try
+    {
+        var categories = _storeCategoryService.GetAllCategories(); 
+        if (categories == null || !categories.Any())
+        {
+            _logger.LogInformation("No categories found.");
+            return Ok(new List<StoreCategoryDto>());
+        }
+
+        var categoryDtos = categories.Select(c => new StoreCategoryDto
+        {
+            Id = c.id,
+            Name = c.name
+        }).ToList();
+
+        _logger.LogInformation("Successfully retrieved {CategoryCount} categories.", categoryDtos.Count);
+        return Ok(categoryDtos);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "An error occurred while retrieving store categories.");
+        return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving store categories.");
+    }
+}
+
+
+
+
+// POST /api/Admin/store/create
+[HttpPost("store/create")]
+[ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status201Created)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public ActionResult<StoreGetDto> CreateStore([FromBody] StoreCreateDto dto)
+{
+    _logger.LogInformation("Attempting to create a new store.");
+
+    try
+    {
+        var category = _storeCategoryService.GetCategoryById(dto.CategoryId);
+        if (category == null)
+        {
+            _logger.LogWarning("Category with ID {CategoryId} not found.", dto.CategoryId);
+            return BadRequest($"Category with ID {dto.CategoryId} does not exist.");
+        }
+
+        var store = _storeService.CreateStore(dto.Name, dto.CategoryId, dto.Address, dto.Description);
+
+        var storeDto = new StoreGetDto
+        {
+            Id = store.id,
+            Name = store.name,
+            Address = store.address,
+            Description = store.description,
+            IsActive = store.isActive,
+            CategoryName = category.name
+        };
+
+        _logger.LogInformation("Successfully created store with ID {StoreId}.", store.id);
+        return CreatedAtAction(nameof(GetStores), new { id = store.id }, storeDto);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "An error occurred while creating a store.");
+        return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the store.");
+    }
+}
+
+
+
+
+// POST /api/Admin/store/categories/create
+[HttpPost("store/categories/create")]
+[ProducesResponseType(typeof(StoreCategory), StatusCodes.Status201Created)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public ActionResult<StoreCategory> CreateCategory([FromBody] StoreCategoryCreateDto dto)
+{
+    _logger.LogInformation("Attempting to create a new store category.");
+
+    try
+    {
+        // Provjera da li već postoji kategorija sa istim imenom
+        var existingCategory = _storeCategoryService.GetAllCategories()
+            .FirstOrDefault(c => c.name.Equals(dto.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (existingCategory != null)
+        {
+            _logger.LogWarning("Category with name '{CategoryName}' already exists.", dto.Name);
+            return BadRequest("Category with this name already exists.");
+        }
+
+        // Kreiranje nove kategorije
+        var category = _storeCategoryService.CreateCategory(dto.Name);
+
+        _logger.LogInformation("Successfully created category with ID {CategoryId}.", category.id);
+        return CreatedAtAction(nameof(GetStoreCategories), new { id = category.id }, category);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "An error occurred while creating a category.");
+        return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the category.");
+    }
+}
+
+
+
+
+
+
+
 
         // Helper method to add errors to ModelState
         private void AddErrors(IdentityResult result)
