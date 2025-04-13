@@ -11,9 +11,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
-using SharedKernel;
 using Store.Interface;
 using Store.Models;
+using Users.Interfaces;
 using Users.Models; // Your User model and DbContext namespace
 
 namespace Admin.Controllers
@@ -26,7 +26,7 @@ namespace Admin.Controllers
         private readonly UserManager<User> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ILogger<AdminController> _logger; // Inject logger
-
+        private readonly IAuthService _authService;
         private readonly IProductService _productService;
         private readonly IStoreService _storeService;
         private readonly IStoreCategoryService _storeCategoryService;
@@ -39,6 +39,7 @@ namespace Admin.Controllers
             IStoreService storeService,
             IStoreCategoryService storeCategoryService,
             IProductCategoryService productCategoryService,
+            IAuthService authService,
             ILogger<AdminController> logger) // Add logger to constructor
         {
             _userManager = userManager;
@@ -47,6 +48,7 @@ namespace Admin.Controllers
             _storeService = storeService;
             _productCategoryService = productCategoryService;
             _storeCategoryService = storeCategoryService;
+            _authService = authService;
             _logger = logger; // Assign injected logger
         }
 
@@ -70,8 +72,7 @@ namespace Admin.Controllers
                         Email = user.Email ?? "N/A",
                         EmailConfirmed = user.EmailConfirmed,
                         Roles = await _userManager.GetRolesAsync(user), // Be mindful of performance on very large user sets
-                        IsApproved = user.IsApproved,
-                        IsActive = user.IsActive,
+                        IsApproved = user.IsApproved
                     });
                 }
                 _logger.LogInformation("Successfully retrieved {UserCount} users.", userInfoDtos.Count);
@@ -131,7 +132,7 @@ namespace Admin.Controllers
 
             // Add the user to the specified role
             _logger.LogInformation("Attempting to add user {UserId} to role {UserRole}", user.Id, Role.Seller.ToString());
-            var roleResult = await _userManager.AddToRoleAsync(user, Utils.FirstLetterToUpper(createUserDto.Role));
+            var roleResult = await _userManager.AddToRoleAsync(user, Role.Seller.ToString());
             if (!roleResult.Succeeded)
             {
                 _logger.LogError("Failed to add user {UserId} to role {UserRole}. Errors: {@IdentityErrors}", user.Id, Role.Seller.ToString(), roleResult.Errors);
@@ -238,49 +239,6 @@ namespace Admin.Controllers
             return Ok($"User {user.UserName ?? user.Id} successfully approved."); // Return 200 OK with a message
         }
 
-        // POST /api/admin/users/approve
-        [HttpPost("users/activate")]
-        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> ActivateUser([FromBody] ActivateUserDto dto)
-        {
-            _logger.LogInformation("Attempting to activate user with ID: {UserId}", dto.UserId);
-
-            if (!ModelState.IsValid)
-            {
-                _logger.LogWarning("Activate user request failed model validation for User ID {UserId}. Errors: {@ModelState}", dto.UserId, ModelState.Values.SelectMany(v => v.Errors));
-                return BadRequest(ModelState);
-            }
-
-            var user = await _userManager.FindByIdAsync(dto.UserId);
-            if (user == null)
-            {
-                _logger.LogWarning("User with ID {UserId} not found for approval.", dto.UserId);
-                return NotFound($"User with ID {dto.UserId} not found.");
-            }
-
-            if (user.IsApproved)
-            {
-                _logger.LogWarning("User {UserId} is already approved.", dto.UserId);
-                return BadRequest($"User with ID {dto.UserId} is already approved.");
-            }
-
-            user.IsActive = dto.ActivationStatus;
-            var result = await _userManager.UpdateAsync(user);
-
-            if (!result.Succeeded)
-            {
-                _logger.LogError("Failed to update user {UserId} for approval. Errors: {@IdentityErrors}", user.Id, result.Errors);
-                AddErrors(result);
-                return BadRequest(ModelState); // Or return a 500 Internal Server Error
-            }
-
-            _logger.LogInformation("User {UserId} approved successfully.", user.Id);
-            return Ok($"User {user.UserName ?? user.Id} successfully approved."); // Return 200 OK with a message
-        }
-
-
         // POST /api/admin/products/create
         [HttpPost("products/create")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
@@ -332,8 +290,7 @@ namespace Admin.Controllers
                     WeightUnit = product.WeightUnit,
                     Volume = product.Volume,
                     VolumeUnit = product.VolumeUnit,
-                    StoreId = product.StoreId,
-                    Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                    StoreId = product.StoreId
                 };
 
                 return CreatedAtAction(nameof(CreateProduct), new { }, createdProductDto);
@@ -424,41 +381,7 @@ namespace Admin.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving stores.");
             }
         }
-        // GET /api/Admin/stores/{id}
-        [HttpGet("stores/{id}")]
-        [ProducesResponseType(typeof(IEnumerable<StoreGetDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<IEnumerable<StoreGetDto>> GetStoresById(int id)
-        {
-            _logger.LogInformation($"Attempting to retrieve store. {id}");
 
-            try
-            {
-                var stores = _storeService.GetStoreById(id);
-                if (stores is null)
-                {
-                    _logger.LogInformation("No storee found.");
-                    return BadRequest("No store found");
-                }
-
-                var storeDto = new StoreGetDto
-                {
-                    Id = id,
-                    Address = stores.address,
-                    CategoryName = stores.category.name,
-                    IsActive = stores.isActive,
-                    Description = stores.description,
-                    Name = stores.name
-                };
-
-                return Ok(storeDto);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "An error occurred while retrieving stores.");
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving stores.");
-            }
-        }
 
 
         // GET /api/Admin/store/categories
@@ -495,45 +418,7 @@ namespace Admin.Controllers
         }
 
 
-        // PUT /api/Admin/store/{id}
-        [HttpPut("store/{id}")]
-        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status202Accepted)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StoreGetDto> UpdateStore([FromBody] StoreUpdateDto dto)
-        {
-            _logger.LogInformation("Attempting to update a store.");
 
-            try
-            {
-                if (dto.CategoryId is not null)
-                {
-                    var category = _storeCategoryService.GetCategoryById((int)dto.CategoryId);
-                    if (category == null)
-                    {
-                        _logger.LogWarning("Category with ID {CategoryId} not found.", dto.CategoryId);
-                        return BadRequest($"Category with ID {dto.CategoryId} does not exist.");
-                    }
-                }
-
-                var store = _storeService.GetStoreById(dto.Id);
-
-                if (store is null)
-                {
-                    return BadRequest($"Store with ID {dto.Id} does not exist!");
-                }
-
-                _storeService.UpdateStore(dto.Id, dto.Name, dto.CategoryId, dto.Address, dto.Description, dto.IsActive);
-
-                _logger.LogInformation("Successfully created store with ID {StoreId}.", store.id);
-                return CreatedAtAction(nameof(GetStores), new { id = store.id });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "An error occurred while creating a store.");
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the store.");
-            }
-        }
 
         // POST /api/Admin/store/create
         [HttpPost("store/create")]
@@ -575,98 +460,7 @@ namespace Admin.Controllers
             }
         }
 
-        [HttpDelete("store/{id}")] // DELETE /api/catalog/products/15
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DeleteStore(int id)
-        {
-            if (id <= 0) return BadRequest("Invalid product ID.");
 
-            try
-            {
-                var success = await _storeService.DeleteStoreAsync(id);
-                await _productService.DeleteProductFromStoreAsync(id);
-                if (!success)
-                {
-                    return NotFound();
-                }
-                return NoContent();
-            }
-            catch (Exception) // Paziti na DbUpdateException (foreign key constraints)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the product. It might be in use.");
-            }
-        }
-
-
-        //DELETE api/Admin/store/category/{id}
-        [HttpPut("store/category/{id}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateStoreCategory(int id, [FromBody] ProductCategoryDto category)
-        {
-            if (id <= 0 || category == null)
-            {
-                return BadRequest("Route ID mismatch with body ID or invalid ID provided.");
-            }
-
-            try
-            {
-                var categoryOld = _storeCategoryService.GetCategoryById(id);
-
-                if (categoryOld == null)
-                {
-                    return NotFound();
-                }
-
-                categoryOld.name = category.Name;
-
-                var success = _storeCategoryService.UpdateCategory(categoryOld.id, category.Name);
-
-                return NoContent(); // Uspješno ažurirano
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ex.Message);
-            }
-            catch (InvalidOperationException ex) // Npr. ako novo ime već postoji
-            {
-                return Conflict(ex.Message);
-            }
-            catch (Exception) // Općenita greška
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the category.");
-            }
-        }
-
-        //DELETE api/Admin/store/category/{id}
-        [HttpDelete("store/category/{id}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DeleteStoreCategory(int id)
-        {
-            if (id <= 0) return BadRequest("Invalid category ID.");
-
-            try
-            {
-                var success = _storeCategoryService.DeleteCategory(id);
-
-                if (!success)
-                {
-                    return NotFound();
-                }
-
-                return NoContent(); // Uspješno obrisano
-            }
-            catch (Exception) // Paziti na DbUpdateException (foreign key constraints)
-            {
-                // Ovisno o zahtjevima, možete vratiti BadRequest/Conflict ili 500
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the category. It might be in use.");
-            }
-        }
 
 
         // POST /api/Admin/store/categories/create
@@ -702,319 +496,6 @@ namespace Admin.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the category.");
             }
         }
-
-
-        // --- Akcije za Kategorije (ProductCategory) ---
-
-        [HttpGet("categories")] // GET /api/catalog/categories
-        [ProducesResponseType(typeof(IEnumerable<ProductCategoryGetDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetAllCategories()
-        {
-            var categories = await _productCategoryService.GetAllCategoriesAsync();
-
-            var categoryDtos = categories.Select(category => new ProductCategoryGetDto
-            {
-                Id = category.Id,
-                Name = category.Name
-            }).ToList();
-            return Ok(categoryDtos);
-        }
-
-        [HttpGet("categories/{id}")] // GET /api/catalog/categories/5
-        [ProducesResponseType(typeof(ProductCategoryGetDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> GetCategoryById(int id)
-        {
-            if (id <= 0) return BadRequest("Invalid category ID.");
-
-            var category = await _productCategoryService.GetCategoryByIdAsync(id);
-            if (category == null)
-            {
-                return NotFound();
-            }
-            var categoryDto = new ProductCategoryGetDto
-            {
-                Id = category.Id,
-                Name = category.Name
-            };
-            return Ok(categoryDto);
-        }
-
-        [HttpPost("categories")] // POST /api/catalog/categories
-        [ProducesResponseType(typeof(ProductCategoryGetDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status409Conflict)] // Dodan za slučaj duplikata
-        public async Task<IActionResult> CreateCategory([FromBody] ProductCategoryDto category)
-        {
-            if (category == null) return BadRequest("Category data is required.");
-            // Osnovna validacija se očekuje od [ApiController] atributa
-
-            try
-            {
-                var productCategory = new ProductCategory
-                {
-                    Id = 0,
-                    Name = category.Name
-                };
-
-                var createdCategory = await _productCategoryService.CreateCategoryAsync(productCategory);
-
-                var createdCategoryDto = new ProductCategoryGetDto
-                {
-                    Id = createdCategory.Id,
-                    Name = createdCategory.Name
-                };
-
-                return CreatedAtAction(nameof(GetAllCategories), new { }, createdCategoryDto);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ex.Message);
-            }
-            catch (InvalidOperationException ex) // Npr. ako ime već postoji
-            {
-                return Conflict(ex.Message);
-            }
-            catch (Exception) // Općenita greška
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the category.");
-            }
-        }
-
-        [HttpPut("categories/{id}")] // PUT /api/catalog/categories/5
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status409Conflict)] // Dodan za slučaj duplikata imena
-        public async Task<IActionResult> UpdateCategory(int id, [FromBody] ProductCategoryDto category)
-        {
-            if (id <= 0 || category == null)
-            {
-                return BadRequest("Route ID mismatch with body ID or invalid ID provided.");
-            }
-
-            try
-            {
-                var categoryOld = await _productCategoryService.GetCategoryByIdAsync(id);
-
-                if (categoryOld == null)
-                {
-                    return NotFound();
-                }
-
-                categoryOld.Name = category.Name;
-
-                var success = await _productCategoryService.UpdateCategoryAsync(categoryOld);
-
-                return NoContent(); // Uspješno ažurirano
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ex.Message);
-            }
-            catch (InvalidOperationException ex) // Npr. ako novo ime već postoji
-            {
-                return Conflict(ex.Message);
-            }
-            catch (Exception) // Općenita greška
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the category.");
-            }
-        }
-
-        [HttpDelete("categories/{id}")] // DELETE /api/catalog/categories/5
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DeleteCategory(int id)
-        {
-            if (id <= 0) return BadRequest("Invalid category ID.");
-
-            try
-            {
-                var success = await _productCategoryService.DeleteCategoryAsync(id);
-
-                if (!success)
-                {
-                    return NotFound();
-                }
-
-                return NoContent(); // Uspješno obrisano
-            }
-            catch (Exception) // Paziti na DbUpdateException (foreign key constraints)
-            {
-                // Ovisno o zahtjevima, možete vratiti BadRequest/Conflict ili 500
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the category. It might be in use.");
-            }
-        }
-
-
-        // --- Akcije za Proizvode (Product) ---
-
-        [HttpGet("products")] // GET /api/catalog/products?categoryId=2&storeId=10
-        [ProducesResponseType(typeof(IEnumerable<ProductGetDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetProducts([FromQuery] int? categoryId, [FromQuery] int? storeId)
-        {
-            IEnumerable<Product> products;
-
-            // Validacija ID-jeva
-            if ((categoryId.HasValue && categoryId <= 0) || (storeId.HasValue && storeId <= 0))
-            {
-                return BadRequest("Invalid Category or Store ID provided.");
-            }
-
-
-            if (categoryId.HasValue && storeId.HasValue)
-            {
-                // Filtriranje po oba - Oprez: filtriranje u memoriji ako servis ne podržava oba filtera
-                var byCategory = await _productService.GetProductsByCategoryIdAsync(categoryId.Value);
-                products = byCategory.Where(p => p.StoreId == storeId.Value);
-            }
-            else if (categoryId.HasValue)
-            {
-                products = await _productService.GetProductsByCategoryIdAsync(categoryId.Value);
-            }
-            else if (storeId.HasValue)
-            {
-                products = await _productService.GetProductsByStoreIdAsync(storeId.Value);
-            }
-            else
-            {
-                products = await _productService.GetAllProductsAsync();
-            }
-
-            var productsDto = products.Select(product => new ProductGetDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
-                RetailPrice = product.RetailPrice,
-                WholesalePrice = product.WholesalePrice,
-                Weight = product.Weight,
-                WeightUnit = product.WeightUnit,
-                Volume = product.Volume,
-                VolumeUnit = product.VolumeUnit,
-                StoreId = product.StoreId,
-                Photos = product.Pictures.Select(photo => photo.Url).ToList()
-            }).ToList();
-
-            return Ok(productsDto);
-        }
-
-        [HttpGet("products/{id}")] // GET /api/catalog/products/15
-        [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetProductById(int id)
-        {
-            if (id <= 0) return BadRequest("Invalid product ID.");
-
-            var product = await _productService.GetProductByIdAsync(id);
-            if (product == null)
-            {
-                return NotFound();
-            }
-
-            var productDto = new ProductGetDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
-                RetailPrice = product.RetailPrice,
-                WholesalePrice = product.WholesalePrice,
-                Weight = product.Weight,
-                WeightUnit = product.WeightUnit,
-                Volume = product.Volume,
-                VolumeUnit = product.VolumeUnit,
-                StoreId = product.StoreId,
-                Photos = product.Pictures.Select(photo => photo.Url).ToList()
-            };
-
-            return Ok(productDto);
-        }
-
-        [HttpPut("products/{id}")] // PUT /api/catalog/products/15
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateProduct(int id, [FromBody] ProductDto productDto)
-        {
-            if (id <= 0 || productDto == null)
-            {
-                return BadRequest("Route ID mismatch with body ID or invalid ID provided.");
-            }
-
-            try
-            {
-                // Dodatna validacija prije poziva servisa
-                if (productDto.ProductCategoryId <= 0)
-                {
-                    return BadRequest("Valid ProductCategoryId is required.");
-                }
-                var category = await _productCategoryService.GetCategoryByIdAsync(productDto.ProductCategoryId);
-                if (category == null) return BadRequest($"Category with ID {productDto.ProductCategoryId} not found.");
-
-                var product = await _productService.GetProductByIdAsync(id);
-                if (product == null) return BadRequest($"Product with ID {id} not found.");
-
-
-                product.Name = productDto.Name;
-                product.ProductCategory = category;
-                product.RetailPrice = productDto.RetailPrice;
-                product.WholesalePrice = productDto.WholesalePrice;
-                product.Weight = productDto.Weight;
-                product.WeightUnit = productDto.WeightUnit;
-                product.Volume = productDto.Volume;
-                product.VolumeUnit = productDto.VolumeUnit;
-                product.StoreId = productDto.StoreId;
-
-                var success = await _productService.UpdateProductAsync(product);
-                if (!success)
-                {
-                    return NotFound();
-                }
-                return NoContent();
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ex.Message);
-            }
-            catch (InvalidOperationException ex) // Npr. nepostojeća kategorija u servisu
-            {
-                return BadRequest(ex.Message);
-            }
-            catch (Exception)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the product.");
-            }
-        }
-
-        [HttpDelete("products/{id}")] // DELETE /api/catalog/products/15
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DeleteProduct(int id)
-        {
-            if (id <= 0) return BadRequest("Invalid product ID.");
-
-            try
-            {
-                var success = await _productService.DeleteProductAsync(id);
-                if (!success)
-                {
-                    return NotFound();
-                }
-                return NoContent();
-            }
-            catch (Exception) // Paziti na DbUpdateException (foreign key constraints)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the product. It might be in use.");
-            }
-        }
-
-
-
 
 
         // Helper method to add errors to ModelState
