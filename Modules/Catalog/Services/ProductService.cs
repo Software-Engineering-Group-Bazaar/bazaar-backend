@@ -227,7 +227,7 @@ namespace Catalog.Services
             if (string.IsNullOrWhiteSpace(searchTerm))
             {
                 // Vrati sve proizvode ako je pretraga prazna
-                return await _context.Products.Include(p => p.ProductCategory).ToListAsync();
+                return await _context.Products.Include(p => p.ProductCategory).Include(p => p.Pictures).ToListAsync();
             }
 
             var normalizedSearchTerm = searchTerm.Trim().ToLower();
