@@ -260,10 +260,10 @@ namespace Admin.Controllers
                 return NotFound($"User with ID {dto.UserId} not found.");
             }
 
-            if (user.IsApproved)
+            if (!user.IsApproved)
             {
-                _logger.LogWarning("User {UserId} is already approved.", dto.UserId);
-                return BadRequest($"User with ID {dto.UserId} is already approved.");
+                _logger.LogWarning("User {UserId} is not already approved.", dto.UserId);
+                return BadRequest($"User with ID {dto.UserId} is not already approved.");
             }
 
             user.IsActive = dto.ActivationStatus;
