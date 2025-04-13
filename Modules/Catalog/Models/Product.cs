@@ -45,6 +45,6 @@ namespace Catalog.Models
         [Required]
         public int StoreId { get; set; }
 
-        public ICollection<ProductPicture> Pictures { get; } = new List<ProductPicture>();
+        public virtual ICollection<ProductPicture> Pictures { get; set; } = new List<ProductPicture>();
     }
 }

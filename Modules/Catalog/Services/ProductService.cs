@@ -26,6 +26,7 @@ namespace Catalog.Services
         {
             return await _context.Products
                                  .Include(p => p.ProductCategory) // Uključi povezanu kategoriju
+                                 .Include(p => p.Pictures)
                                  .AsNoTracking()
                                  .ToListAsync();
         }
@@ -34,6 +35,7 @@ namespace Catalog.Services
         {
             return await _context.Products
                                  .Include(p => p.ProductCategory) // Uključi povezanu kategoriju
+                                 .Include(p => p.Pictures)
                                  .FirstOrDefaultAsync(p => p.Id == id);
         }
 
@@ -42,6 +44,7 @@ namespace Catalog.Services
             if (categoryId <= 0) return new List<Product>(); // Vrati praznu listu za nevažeći ID
             // Filtriramo po ID-u unutar navigacijskog svojstva
             return await _context.Products
+                                 .Include(p => p.Pictures)
                                  .Include(p => p.ProductCategory)
                                  .Where(p => p.ProductCategory.Id == categoryId) // Filter po ID-u kategorije
                                  .AsNoTracking()
@@ -54,6 +57,7 @@ namespace Catalog.Services
 
             return await _context.Products
                                  .Include(p => p.ProductCategory)
+                                 .Include(p => p.Pictures)
                                  .Where(p => p.StoreId == storeId) // Direktan filter po StoreId
                                  .AsNoTracking()
                                  .ToListAsync();
@@ -135,6 +139,7 @@ namespace Catalog.Services
 
             var existingProduct = await _context.Products
                                             .Include(p => p.ProductCategory)
+                                            .Include(p => p.Pictures)
                                             .FirstOrDefaultAsync(p => p.Id == product.Id);
 
             if (existingProduct == null)
@@ -229,6 +234,7 @@ namespace Catalog.Services
 
             var products = await _context.Products
                 .Include(p => p.ProductCategory)
+                .Include(p => p.Pictures)
                 .Where(p => p.Name.ToLower().Contains(normalizedSearchTerm))
                 .ToListAsync();
 
