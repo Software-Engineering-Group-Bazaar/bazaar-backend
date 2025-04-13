@@ -25,10 +25,13 @@ namespace Catalog.Controllers
         // Konstruktor sada prima samo servise
         public CatalogController(
             IProductService productService,
-            IProductCategoryService categoryService)
+            IProductCategoryService categoryService,
+            IStoreService storeService)
+
         {
             _productService = productService ?? throw new ArgumentNullException(nameof(productService));
             _categoryService = categoryService ?? throw new ArgumentNullException(nameof(categoryService));
+            _storeService = storeService ?? throw new ArgumentNullException(nameof(storeService));
         }
 
         // --- Akcije za Kategorije (ProductCategory) ---
