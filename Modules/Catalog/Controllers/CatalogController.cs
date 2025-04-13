@@ -6,16 +6,21 @@ using Catalog.Models;
 using Catalog.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging; // Required for logging
+using Store.Interface;
 
 namespace Catalog.Controllers
 {
-    [Authorize] // Sve akcije zahtijevaju autorizaciju
+    [Authorize(Roles = "Admin, Seller, Buyer")]
     [ApiController]
     [Route("api/[controller]")] // Bazna putanja: /api/catalog
     public class CatalogController : ControllerBase
     {
+
         private readonly IProductService _productService;
         private readonly IProductCategoryService _categoryService;
+
+        private readonly IStoreService _storeService;
 
         // Konstruktor sada prima samo servise
         public CatalogController(
@@ -256,37 +261,43 @@ namespace Catalog.Controllers
             return Ok(productDto);
         }
 
-        [HttpPost("products")] // POST /api/catalog/products
-        [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status201Created)]
+        // POST /api/admin/products/create
+        [HttpPost("products/create")]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)] // Updated success response type
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> CreateProduct([FromForm] ProductDto productDto)
+        public async Task<IActionResult> CreateProduct([FromForm] ProductDto createProductDto)
         {
-            if (productDto == null) return BadRequest("Product data is required.");
-            // Osnovna validacija modela od [ApiController]
-
             try
             {
-                var category = await _categoryService.GetCategoryByIdAsync(productDto.ProductCategoryId);
 
-                if (category == null) return BadRequest($"Category with ID {productDto.ProductCategoryId} not found.");
+                var store = _storeService.GetStoreById(createProductDto.StoreId);
+
+                if (store is null)
+                {
+                    return BadRequest($"store with id:{createProductDto.StoreId} does not exist");
+                }
 
                 var product = new Product
                 {
                     Id = 0,
-                    Name = productDto.Name,
-                    ProductCategoryId = productDto.ProductCategoryId,
-                    ProductCategory = category,
-                    RetailPrice = productDto.RetailPrice,
-                    WholesalePrice = productDto.WholesalePrice,
-                    Weight = productDto.Weight,
-                    WeightUnit = productDto.WeightUnit,
-                    Volume = productDto.Volume,
-                    VolumeUnit = productDto.VolumeUnit,
-                    StoreId = productDto.StoreId
+                    Name = createProductDto.Name,
+                    ProductCategoryId = createProductDto.ProductCategoryId,
+                    ProductCategory = new ProductCategory
+                    {
+                        Id = 1,
+                        Name = "nezz"
+                    },
+                    RetailPrice = createProductDto.RetailPrice,
+                    WholesalePrice = createProductDto.WholesalePrice,
+                    Weight = createProductDto.Weight,
+                    WeightUnit = createProductDto.WeightUnit,
+                    Volume = createProductDto.Volume,
+                    VolumeUnit = createProductDto.VolumeUnit,
+                    StoreId = createProductDto.StoreId
                 };
 
-                var createdProduct = await _productService.CreateProductAsync(product, productDto.Files);
-
+                var createdProduct = await _productService.CreateProductAsync(product, createProductDto.Files);
                 var createdProductDto = new ProductGetDto
                 {
                     Id = product.Id,
@@ -302,7 +313,7 @@ namespace Catalog.Controllers
                     Photos = product.Pictures.Select(photo => photo.Url).ToList()
                 };
 
-                return CreatedAtAction(nameof(GetProducts), new { }, createdProductDto);
+                return CreatedAtAction(nameof(CreateProduct), new { }, createdProductDto);
             }
             catch (ArgumentException ex)
             {
@@ -317,6 +328,8 @@ namespace Catalog.Controllers
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the product.");
             }
+
+
         }
 
         [HttpPut("products/{id}")] // PUT /api/catalog/products/15
