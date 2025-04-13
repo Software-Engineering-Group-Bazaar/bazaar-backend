@@ -174,24 +174,25 @@ builder.Services.AddSwaggerGen(options =>
 
 if (builder.Environment.IsDevelopment())
 {
-    builder.Services.AddScoped<IImageStorageService, FileImageStorageService>();
+    var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
+    builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
+    builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
+    // --------------------------------------------------
+
+    // Registruj S3 implementaciju kao Singleton
+    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
 }
-
-if (!builder.Environment.IsEnvironment("Testing") && !builder.Environment.IsEnvironment("Development"))
+else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing")) // Pokriva Production i ostala okruženja
 {
-    // --- AWS Konfiguracija ---
-    // Učitaj AWS opcije (Region) iz appsettings.json
-    var awsOptions = builder.Configuration.GetAWSOptions();
-    // Postavi defaultne opcije za AWS SDK
-    builder.Services.AddDefaultAWSOptions(awsOptions);
-    // Registruj specifični AWS servis klijent (S3)
-    // SDK će automatski tražiti kredencijale (IAM Role na EC2, ~/.aws/credentials lokalno)
-    builder.Services.AddAWSService<IAmazonS3>();
-    // -------------------------
+    // --- AWS Konfiguracija SAMO za Non-Development ---
+    var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
+    builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
+    builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
+    // --------------------------------------------------
 
-    // --- Registruj tvoj Image Storage Servis ---
-    // Koristimo Singleton jer S3 klijent može biti singleton
-    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>(); // i think scoped
+    // Registruj S3 implementaciju kao Singleton
+    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    // Ne treba logovanje ovdje ako pravi probleme
 }
 
 
@@ -201,28 +202,37 @@ var app = builder.Build();
 
 // --- Seed Data (Optional) ---
 await SeedRolesAsync(app);
-
-// --- Configure the HTTP Request Pipeline (Middleware) ---  ➤➤➤ ALL CONFIGURATION GOES HERE
-
-// Configure the HTTP request pipeline.
+// Seedovanje dev usera ostaje samo za dev
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger(); // Exposes swagger.json
-    app.UseSwaggerUI(c => // Serves the UI page
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bazaar API V1");
-        // c.RoutePrefix = string.Empty; // Optional: Serve UI at root
-    });
-    app.UseCors(AllowLocalhostOriginsPolicy); // Apply dev CORS
-    app.UseDeveloperExceptionPage(); // Show detailed errors
-
     await UserDataSeeder.SeedDevelopmentUsersAsync(app);
 }
-else
+
+// --- Configure the HTTP Request Pipeline (Middleware) ---
+
+// ➤➤➤ Omogući Swagger za SVA okruženja OVDJE
+app.UseSwagger(); // Exposes swagger.json definition
+app.UseSwaggerUI(c => // Serves the interactive UI page
 {
-    // Add production error handling, HSTS, etc.
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bazaar API V1");
+    // Postavi Swagger UI na root putanju za lakši pristup
+    c.RoutePrefix = string.Empty;
+});
+
+// Konfiguracija specifična za okruženje
+if (app.Environment.IsDevelopment())
+{
+    // Swagger je već dodat gore
+    app.UseCors(AllowLocalhostOriginsPolicy); // Primijeni dev CORS
+    app.UseDeveloperExceptionPage(); // Detaljne greške za dev
+}
+else // Production i ostala okruženja
+{
+    // Produkcijsko rukovanje greškama, HSTS, itd. idu ovdje
     // app.UseExceptionHandler("/Error");
     // app.UseHsts();
+    // Primijeni produkcijsku CORS politiku (ako je nisi primijenio kasnije)
+    // app.UseCors(AllowProductionOriginPolicy); // Pazi gdje stavljaš UseCors
 }
 
 app.UseStaticFiles();
