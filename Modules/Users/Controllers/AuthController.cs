@@ -14,7 +14,7 @@ namespace Users.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IGoogleSignInService _googleSignInService;
-         private readonly IFacebookSignInService _facebookSignInService;
+        private readonly IFacebookSignInService _facebookSignInService;
 
         public AuthController(IAuthService authService, IGoogleSignInService googleSignInService, IFacebookSignInService facebookSignInService)
         {
@@ -59,7 +59,7 @@ namespace Users.Controllers
         [HttpPost("logout")]
         public async Task<ActionResult> Logout()
         {
-            await _authService.LogoutAsync();
+            await _authService.LogoutAsync(User);
             return Ok(new { message = "Izlogovani ste." });
         }
 
@@ -79,7 +79,7 @@ namespace Users.Controllers
 
         }
 
-         // api/auth/login/facebook
+        // api/auth/login/facebook
         [AllowAnonymous]
         [HttpPost("login/facebook")]
         public async Task<ActionResult<string>> SignFacebookUser([FromBody] FacebookSignInRequestDto request)
@@ -92,6 +92,15 @@ namespace Users.Controllers
 
             // Vraćamo odgovor sa tokenom
             return Ok(response);
+        }
+
+        [HttpGet("logut/last")]
+        public async Task<ActionResult> LogoutLast()
+        {
+            var time = await _authService.GetLastLogout(User);
+            if (time is not null)
+                return Ok(new { lastLogout = time });
+            return Ok(new { message = "Never logged out!" });
         }
     }
 }

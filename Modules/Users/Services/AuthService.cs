@@ -1,8 +1,11 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using SharedKernel;
 using Users.Dtos;
 using Users.Interfaces;
 using Users.Models;
+
 
 namespace Users.Services
 {
@@ -71,9 +74,25 @@ namespace Users.Services
             };
         }
 
-        public async Task LogoutAsync()
+        public async Task LogoutAsync(System.Security.Claims.ClaimsPrincipal user)
         {
+            var curr = await _userManager.GetUserAsync(user);
+            if (curr != null)
+            {
+                curr.LastLogOut = DateTime.UtcNow;
+                await _userManager.UpdateAsync(curr);
+            }
             await _signInManager.SignOutAsync(); // Izloguj korisnika
+        }
+
+        public async Task<DateTime?> GetLastLogout(ClaimsPrincipal user)
+        {
+            var curr = await _userManager.GetUserAsync(user);
+            if (curr is not null && curr.LastLogOut is not null)
+            {
+                return curr.LastLogOut;
+            }
+            return null;
         }
     }
 }
