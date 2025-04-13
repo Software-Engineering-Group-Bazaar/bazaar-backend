@@ -265,7 +265,7 @@ namespace Admin.Controllers
                     ProductCategoryId = createProductDto.ProductCategoryId,
                     ProductCategory = new ProductCategory
                     {
-                        Id = 1,
+                        Id = createProductDto.ProductCategoryId,
                         Name = "nezz"
                     },
                     RetailPrice = createProductDto.RetailPrice,
