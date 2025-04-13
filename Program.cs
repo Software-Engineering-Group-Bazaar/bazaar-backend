@@ -232,7 +232,7 @@ else // Production i ostala okruženja
     // app.UseExceptionHandler("/Error");
     // app.UseHsts();
     // Primijeni produkcijsku CORS politiku (ako je nisi primijenio kasnije)
-    // app.UseCors(AllowProductionOriginPolicy); // Pazi gdje stavljaš UseCors
+    app.UseCors(AllowProductionOriginPolicy); // Pazi gdje stavljaš UseCors
 }
 
 app.UseStaticFiles();
@@ -248,6 +248,7 @@ app.UseRouting(); // Needed for endpoints
 
 app.UseAuthentication(); // IMPORTANT: Before Authorization
 app.UseCors(AllowLocalhostOriginsPolicy);
+app.UseCors(AllowProductionOriginPolicy);
 app.UseAuthorization();  // IMPORTANT: After Authentication
 
 app.MapControllers(); // Map controller endpoints
