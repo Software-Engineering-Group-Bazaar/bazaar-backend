@@ -222,6 +222,67 @@ namespace Store.Controllers
             }
         }
 
+        // GET /api/Stores/MyStore
+        [HttpGet("MyStore")]
+        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<StoreGetDto>> GetMyStore()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogWarning("[StoresController] GetMyStore - Could not find user ID claim for the authenticated user.");
+                return Unauthorized("User ID claim not found.");
+            }
+
+            _logger.LogInformation("[StoresController] GetMyStore - Attempting to retrieve store for User {UserId}", userId);
+
+            try
+            {
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    _logger.LogError("[StoresController] GetMyStore - User {UserId} not found in database after being authenticated.", userId);
+                    return StatusCode(StatusCodes.Status500InternalServerError, "Authenticated user could not be found.");
+                }
+
+                if (user.StoreId == null)
+                {
+                    _logger.LogInformation("[StoresController] GetMyStore - User {UserId} does not have an associated store.", userId);
+                    return NotFound($"No store associated with the current user.");
+                }
+
+                var store = _storeService.GetStoreById(user.StoreId.Value);
+
+                if (store == null)
+                {
+                    _logger.LogError("[StoresController] GetMyStore - Data inconsistency: User {UserId} has StoreId {StoreId}, but the store was not found.", userId, user.StoreId.Value);
+                    return NotFound($"The store (ID: {user.StoreId.Value}) associated with the user was not found."); // 404 Not Found
+                }
+
+                var storeDto = new StoreGetDto
+                {
+                    Id = store.id,
+                    Name = store.name,
+                    Address = store.address,
+                    Description = store.description,
+                    IsActive = store.isActive,
+                    CategoryName = store.category?.name ?? "N/A"
+                };
+
+                _logger.LogInformation("[StoresController] GetMyStore - Successfully retrieved store {StoreId} for User {UserId}", store.id, userId);
+
+                return Ok(storeDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[StoresController] GetMyStore - An unexpected error occurred while retrieving store for User {UserId}.", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while retrieving your store.");
+            }
+        }
+
         // POST /api/Stores/Categories
         [HttpPost("Categories")]
         [ProducesResponseType(typeof(StoreCategoryDto), StatusCodes.Status201Created)]
@@ -274,4 +335,6 @@ namespace Store.Controllers
             }
         }
     }
+
+
 }
