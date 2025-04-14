@@ -3,30 +3,49 @@ name: .NET CI - Develop Branch
 on:
   push:
     branches:
-      - develop
+      - develop # Trigger on pushes to develop
   pull_request:
     branches:
-      - develop
+      - develop # Trigger on PRs targeting develop
 
 jobs:
   build-test:
+    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 10 # Set a timeout to prevent runaway jobs
 
     steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Sets up the specified version of the .NET SDK
       - name: Set up .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x" # Use .NET 8
 
+      # Restores dependencies for the solution
       - name: Restore dependencies
         run: dotnet restore
 
+      # Builds the project and dependencies in Release configuration
       - name: Build project
         run: dotnet build --no-restore --configuration Release
 
+      # Runs the tests using the Release configuration, without rebuilding
       - name: Run tests
         run: dotnet test --no-build --configuration Release --verbosity normal
+        env:
+          # CRITICAL: Sets the environment for ASP.NET Core
+          # This ensures appsettings.Testing.json is loaded AND Program.cs logic (like skipping Npgsql) runs
+          ASPNETCORE_ENVIRONMENT: Testing
+
+          # --- Provide JWT Configuration via Environment Variables ---
+          # These OVERRIDE values from appsettings.Testing.json
+          # Names match the structure Program.cs expects (Section__Key)
+
+          JwtSettings__Issuer: "https://localhost:7001/testing" # Use a distinct value for testing
+          JwtSettings__Audience: "https://localhost:7001/testing" # Use a distinct value for testing
+          JwtSettings__SecretKey: ${{ secrets.TEST_JWT_SECRET_KEY }}
+          JwtSettings__ExpiryMinutes: 15 # Provide a short expiry for tests if needed by code
