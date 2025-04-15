@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Catalog.DTO;
 using Catalog.Dtos;
 using Catalog.Models;
 using Catalog.Services;
@@ -444,8 +446,28 @@ namespace Catalog.Controllers
 
             return Ok(productsDto);
         }
+
+        [HttpPost("prices")]
+        [Authorize(Roles = "Seller")]
+        public async Task<ActionResult<ProductGetDto>> UpdateProductPricing([FromBody] UpdateProductPricingRequestDto dto)
+        {
+            // 1. Izvuci UserId iz tokena
+            var sellerUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (sellerUserId is null)
+                return Unauthorized("User ID not found in token.");
+
+            // 2. Pozovi servis
+            var result = await _productService.UpdateProductPricingAsync(sellerUserId, dto.ProductId, dto);
+
+            // 3. Ako nema rezultata
+            if (result is null)
+                return NotFound("Product not found or not owned by seller.");
+
+            return Ok(result);
+        }
     }
-
-
-
 }
+
+
+  
