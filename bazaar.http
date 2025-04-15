@@ -4,3 +4,9 @@ GET {{bazaar_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+### Facebook login test
+
+POST http://localhost:5000/api/FacebookAuth/login
+Content-Type: application/json
+
+"paste_svoj_facebook__token"
