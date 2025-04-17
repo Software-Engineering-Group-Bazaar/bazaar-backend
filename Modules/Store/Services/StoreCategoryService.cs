@@ -1,85 +1,121 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+using AdminApi.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Store.Interface;
 using Store.Models;
-using Store.Services;
 
 namespace Store.Services
 {
     public class StoreCategoryService : IStoreCategoryService
     {
         private readonly StoreDbContext _context;
+        private readonly ILogger<StoreCategoryService> _logger;
 
-        public StoreCategoryService(StoreDbContext context)
+        public StoreCategoryService(StoreDbContext context, ILogger<StoreCategoryService> logger)
         {
-            _context = context;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        // Create a new category
-        public StoreCategory CreateCategory(string name)
+        public async Task<StoreCategoryDto> CreateCategoryAsync(StoreCategoryCreateDto createDto)
         {
+            if (createDto == null) throw new ArgumentNullException(nameof(createDto));
+            if (string.IsNullOrWhiteSpace(createDto.Name)) throw new ArgumentException("Category name cannot be empty.", nameof(createDto.Name));
+
+            bool nameExists = await _context.StoreCategories
+                                          .AnyAsync(c => c.Name.ToLower() == createDto.Name.ToLower());
+            if (nameExists)
+            {
+                throw new InvalidOperationException($"Store category with name '{createDto.Name}' already exists.");
+            }
+
             var category = new StoreCategory
             {
-                name = name,
-                stores = new List<StoreModel>()
+                Name = createDto.Name // Koristi PascalCase
             };
 
             _context.StoreCategories.Add(category);
-            _context.SaveChanges();
-            return category;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Created new store category with ID {Id} and Name {Name}", category.Id, category.Name);
+
+            return new StoreCategoryDto { Id = category.Id, Name = category.Name }; // Vraća puni DTO
         }
 
-        // Get all categories
-        public IEnumerable<StoreCategory> GetAllCategories()
+        public async Task<IEnumerable<StoreCategoryDto>> GetAllCategoriesAsync()
         {
-            return _context.StoreCategories.ToList();
+            var categories = await _context.StoreCategories
+                                           .AsNoTracking()
+                                           .OrderBy(c => c.Name)
+                                           .ToListAsync();
+            return categories.Select(c => new StoreCategoryDto { Id = c.Id, Name = c.Name }).ToList();
         }
 
-        // Get a category by ID
-        public StoreCategory? GetCategoryById(int id)
+        public async Task<StoreCategoryDto?> GetCategoryByIdAsync(int id)
         {
-            return _context.StoreCategories.Include(c => c.stores).FirstOrDefault(c => c.id == id);
+            if (id <= 0) return null;
+            var category = await _context.StoreCategories.FindAsync(id);
+            if (category == null) return null;
+            return new StoreCategoryDto { Id = category.Id, Name = category.Name };
         }
 
-        // Update a category
-        public StoreCategory? UpdateCategory(int id, string name)
+        public async Task<StoreCategoryDto?> UpdateCategoryAsync(int id, StoreCategoryDto updateDto)
         {
-            var category = _context.StoreCategories.Find(id);
-            if (category == null)
+            if (id <= 0) throw new ArgumentException("Category ID must be positive.", nameof(id));
+            if (updateDto == null) throw new ArgumentNullException(nameof(updateDto));
+            if (string.IsNullOrWhiteSpace(updateDto.Name)) throw new ArgumentException("Category name cannot be empty.", nameof(updateDto.Name));
+            // Opciono: Provjeri if (id != updateDto.Id) ako DTO ima ID
+
+            var existingCategory = await _context.StoreCategories.FindAsync(id);
+            if (existingCategory == null) return null; // Not Found
+
+            bool nameExistsOnOther = await _context.StoreCategories
+                                         .AnyAsync(c => c.Id != id && c.Name.ToLower() == updateDto.Name.ToLower());
+            if (nameExistsOnOther)
             {
-                return null;
+                throw new InvalidOperationException($"Another store category with name '{updateDto.Name}' already exists.");
             }
 
-            category.name = name;
+            existingCategory.Name = updateDto.Name; // Koristi PascalCase
 
-            _context.SaveChanges();
-            return category;
-        }
-
-        // Delete a category
-        public bool DeleteCategory(int id)
-        {
-            var category = _context.StoreCategories.Find(id);
-            if (category == null)
+            try
             {
-                return false;
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Updated store category with ID {Id}", id);
+                return new StoreCategoryDto { Id = existingCategory.Id, Name = existingCategory.Name };
             }
-
-            _context.StoreCategories.Remove(category);
-            _context.SaveChanges();
-            return true;
+            catch (DbUpdateConcurrencyException ex) { /* ... kao prije ... */ throw; }
+            catch (DbUpdateException ex) { /* ... kao prije ... */ throw; }
         }
 
-        // Get all stores in a category
-        public IEnumerable<StoreModel> GetStoresInCategory(int categoryId)
+        public async Task<bool> DeleteCategoryAsync(int id)
         {
-            var category = _context.StoreCategories
-                .Include(c => c.stores) // Ensure stores are loaded
-                .FirstOrDefault(c => c.id == categoryId);
+            if (id <= 0) throw new ArgumentException("Category ID must be positive.", nameof(id));
+            var categoryToRemove = await _context.StoreCategories.FindAsync(id);
+            if (categoryToRemove == null) return false;
+            bool isInUse = await _context.Stores.AnyAsync(s => s.StoreCategoryId == id);
+            if (isInUse) throw new InvalidOperationException("Cannot delete category because it is assigned to one or more stores.");
+            _context.StoreCategories.Remove(categoryToRemove);
+            try
+            {
+                return await _context.SaveChangesAsync() > 0;
+            }
+            catch (DbUpdateException ex) { /* ... kao prije ... */ throw; }
+        }
 
-            return category?.stores ?? new List<StoreModel>();
+        // Ova ostaje interna za sada
+        public async Task<IEnumerable<StoreModel>> GetStoresInCategoryAsync(int categoryId)
+        {
+            if (categoryId <= 0) return new List<StoreModel>();
+            return await _context.Stores
+                                 .Where(s => s.StoreCategoryId == categoryId)
+                                 .Include(s => s.StoreCategory)
+                                 .AsNoTracking()
+                                 .ToListAsync();
         }
     }
 }

@@ -1,340 +1,269 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Linq; // Potrebno za SelectMany u logovanju ModelState grešaka
 using System.Security.Claims;
 using System.Threading.Tasks;
 using AdminApi.DTOs;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity; // Za UserManager
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Store.Interface;
 using Store.Models;
-using Users.Models;
-
+using Users.Models; // Za User model
 
 namespace Store.Controllers
 {
-    [Authorize(Roles = "Admin, Seller, Buyer")]
     [ApiController]
-    [Route("api/[controller]")] // Osnovna ruta će biti /api/Stores
+    [Route("api/store")] // Osnovna putanja /api/store
     public class StoresController : ControllerBase
     {
         private readonly IStoreService _storeService;
-        private readonly IStoreCategoryService _storeCategoryService;
+        private readonly UserManager<User> _userManager;
         private readonly ILogger<StoresController> _logger;
 
-        private readonly UserManager<User> _userManager;
-
-        public StoresController(
-            IStoreService storeService,
-            IStoreCategoryService storeCategoryService,
-            UserManager<User> userManager,
-            ILogger<StoresController> logger)
+        // Izbacujemo IStoreCategoryService jer se kategorije sada nalaze u svom kontroleru
+        public StoresController(IStoreService storeService, UserManager<User> userManager, ILogger<StoresController> logger)
         {
-            _storeService = storeService;
-            _storeCategoryService = storeCategoryService;
-            _userManager = userManager;
-            _logger = logger;
+            _storeService = storeService ?? throw new ArgumentNullException(nameof(storeService));
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        // GET /api/Stores
+        // GET /api/store - Dohvati sve prodavnice
         [HttpGet]
+        [AllowAnonymous] // Svi mogu vidjeti listu prodavnica
         [ProducesResponseType(typeof(IEnumerable<StoreGetDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)] // Dobra praksa je dodati i ovo
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]   // I ovo, ako korisnik nema traženu ulogu
-        public ActionResult<IEnumerable<StoreGetDto>> GetStores()
+        public async Task<IActionResult> GetAllStores() // async Task<IActionResult>
         {
-
             _logger.LogInformation("[StoresController] Attempting to retrieve all stores.");
-
             try
             {
-                var stores = _storeService.GetAllStores();
-                if (stores == null || !stores.Any())
-                {
-                    _logger.LogInformation("[StoresController] No stores found.");
-                    return Ok(new List<StoreGetDto>());
-                }
-
-                var storeDtos = stores.Select(store => new StoreGetDto
-                {
-                    Id = store.id,
-                    Name = store.name,
-                    Address = store.address,
-                    Description = store.description,
-                    IsActive = store.isActive,
-                    CategoryName = store.category?.name ?? "N/A"
-                }).ToList();
-
-                _logger.LogInformation("[StoresController] Successfully retrieved {StoreCount} stores.", storeDtos.Count);
-                return Ok(storeDtos);
+                var stores = await _storeService.GetAllStoresAsync(); // Pozovi async metodu
+                return Ok(stores); // Servis vraća DTO listu
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[StoresController] An error occurred while retrieving stores.");
+                _logger.LogError(ex, "[StoresController] Error retrieving all stores.");
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving stores.");
             }
         }
 
-        // GET /api/Stores/Categories
-        [HttpGet("Categories")]
-        [ProducesResponseType(typeof(IEnumerable<StoreCategoryDto>), StatusCodes.Status200OK)]
+        // GET /api/store/{id} - Dohvati specifičnu prodavnicu
+        [HttpGet("{id:int}")]
+        [AllowAnonymous] // Svi mogu vidjeti detalje prodavnice
+        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public ActionResult<IEnumerable<StoreCategoryDto>> GetStoreCategories()
+        public async Task<IActionResult> GetStoreById(int id) // async Task<IActionResult>
         {
-            _logger.LogInformation("[StoresController] Attempting to retrieve store categories.");
-
+            if (id <= 0) return BadRequest("Invalid store ID.");
+            _logger.LogInformation("[StoresController] Attempting to retrieve store with ID {StoreId}", id);
             try
             {
-                var categories = _storeCategoryService.GetAllCategories();
-                if (categories == null || !categories.Any())
+                var store = await _storeService.GetStoreByIdAsync(id); // Pozovi async metodu
+                if (store == null)
                 {
-                    _logger.LogInformation("[StoresController] No store categories found.");
-                    return Ok(new List<StoreCategoryDto>());
+                    _logger.LogWarning("[StoresController] Store with ID {StoreId} not found.", id);
+                    return NotFound($"Store with ID {id} not found.");
                 }
-
-                var categoryDtos = categories.Select(c => new StoreCategoryDto
-                {
-                    Id = c.id,
-                    Name = c.name
-                }).ToList();
-
-                _logger.LogInformation("[StoresController] Successfully retrieved {CategoryCount} store categories.", categoryDtos.Count);
-                return Ok(categoryDtos);
+                return Ok(store); // Servis vraća DTO
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[StoresController] An error occurred while retrieving store categories.");
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving store categories.");
+                _logger.LogError(ex, "[StoresController] Error retrieving store with ID {StoreId}.", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving the store.");
             }
         }
 
-
-        // POST /api/Stores (Kreiranje prodavnice i ažuriranje korisnika)
-        [HttpPost]
-        [Authorize(Roles = "Admin, Seller")] // Samo Admin i Seller mogu da kreiraju prodavnice? Prilagodite.
-        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<StoreGetDto>> CreateStore([FromBody] StoreCreateDto dto)
-        {
-            // 1. Dobijanje ID-a trenutno ulogovanog korisnika
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
-            {
-                _logger.LogWarning("[StoresController] CreateStore - Could not find user ID claim for the authenticated user.");
-                return Unauthorized("User ID claim not found."); // 401 Unauthorized
-            }
-
-            _logger.LogInformation("[StoresController] CreateStore - User {UserId} attempting to create store: Name={StoreName}, CategoryId={CategoryId}", userId, dto.Name, dto.CategoryId);
-
-            // 2. Validacija DTO modela
-            if (!ModelState.IsValid)
-            {
-                _logger.LogWarning("[StoresController] CreateStore - Model validation failed for User {UserId}. Errors: {@ModelState}", userId, ModelState.Values.SelectMany(v => v.Errors));
-                return BadRequest(ModelState); // 400 Bad Request
-            }
-
-            StoreModel? createdStore = null;
-            try
-            {
-                var category = _storeCategoryService.GetCategoryById(dto.CategoryId);
-                if (category == null)
-                {
-                    _logger.LogWarning("[StoresController] CreateStore - Category with ID {CategoryId} not found for User {UserId}.", dto.CategoryId, userId);
-                    ModelState.AddModelError(nameof(dto.CategoryId), $"Category with ID {dto.CategoryId} does not exist.");
-                    return BadRequest(ModelState); // 400 Bad Request
-                }
-
-                createdStore = _storeService.CreateStore(dto.Name, dto.CategoryId, dto.Address, dto.Description);
-                _logger.LogInformation("[StoresController] CreateStore - Store {StoreId} created in database for User {UserId}.", createdStore.id, userId);
-                // --- Kraj dela za kreiranje prodavnice ---
-
-                var user = await _userManager.FindByIdAsync(userId);
-                if (user == null)
-                {
-                    _logger.LogError("[StoresController] CreateStore - User {UserId} not found in database after being authenticated. Store {StoreId} was created but cannot be linked.", userId, createdStore.id);
-
-                    return StatusCode(StatusCodes.Status500InternalServerError, "Authenticated user could not be found to associate the store. Store was created but not linked.");
-                }
-
-                if (user.StoreId != null)
-                {
-                    _logger.LogWarning("[StoresController] CreateStore - User {UserId} already has an associated StoreId ({ExistingStoreId}). Cannot assign new StoreId {NewStoreId}.", userId, user.StoreId, createdStore.id);
-
-                    return BadRequest($"User already has an associated store (ID: {user.StoreId}). Cannot create and link a new store.");
-                }
-
-                user.StoreId = createdStore.id;
-                var updateResult = await _userManager.UpdateAsync(user);
-
-                if (!updateResult.Succeeded)
-                {
-                    _logger.LogError("[StoresController] CreateStore - Failed to update User {UserId} with StoreId {StoreId}. Errors: {@Errors}. Store was created but linking failed.", userId, createdStore.id, updateResult.Errors);
-
-                    foreach (var error in updateResult.Errors)
-                    {
-                        ModelState.AddModelError(string.Empty, error.Description);
-                    }
-                    return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Store created successfully, but failed to link it to the user.", errors = ModelState });
-                }
-
-                _logger.LogInformation("[StoresController] CreateStore - Successfully updated User {UserId} with StoreId {StoreId}.", userId, createdStore.id);
-                // --- Kraj dela za ažuriranje korisnika ---
-
-
-                // 7. Mapiranje kreirane prodavnice u DTO za odgovor
-                var storeDto = new StoreGetDto
-                {
-                    Id = createdStore.id,
-                    Name = createdStore.name,
-                    Address = createdStore.address,
-                    Description = createdStore.description,
-                    IsActive = createdStore.isActive,
-                    CategoryName = category.name // Koristi kategoriju dobijenu ranije
-                };
-
-                // 8. Vraćanje odgovora 201 Created
-                // Ruta za GetStoreById bi bila bolja, ali GetStores je fallback.
-                return CreatedAtAction(nameof(GetStores), new { /* id = createdStore.id */ }, storeDto);
-
-            }
-            catch (ArgumentException ex) // Npr. ako CreateStore baci grešku
-            {
-                _logger.LogWarning(ex, "[StoresController] CreateStore - Argument error during store creation for User {UserId}.", userId);
-                // Ako je ModelState već popunjen (npr. za kategoriju), koristi ga.
-                if (!ModelState.IsValid) return BadRequest(ModelState);
-                return BadRequest(ex.Message); // 400 Bad Request
-            }
-            catch (Exception ex) // Neočekivana greška
-            {
-                _logger.LogError(ex, "[StoresController] CreateStore - An unexpected error occurred for User {UserId}.", userId);
-                // RAZMOTRITI: Ako je prodavnica kreirana pre exception-a, možda je treba obrisati?
-                // if (createdStore != null) { /* ... logika za brisanje ako je potrebno ... */ }
-                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while creating the store or linking it to the user."); // 500 Internal Server Error
-            }
-        }
-
-        // GET /api/Stores/MyStore
-        [HttpGet("MyStore")]
+        // GET /api/store/my-store - Dohvati prodavnicu ulogovanog Sellera
+        [HttpGet("my-store")]
+        [Authorize(Roles = "Seller")] // Samo za Sellera
         [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<StoreGetDto>> GetMyStore()
+        public async Task<ActionResult<StoreGetDto>> GetMyStore() // async Task<ActionResult<...>>
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
-            {
-                _logger.LogWarning("[StoresController] GetMyStore - Could not find user ID claim for the authenticated user.");
-                return Unauthorized("User ID claim not found.");
-            }
+            if (string.IsNullOrEmpty(userId)) return Unauthorized("User ID claim not found.");
 
-            _logger.LogInformation("[StoresController] GetMyStore - Attempting to retrieve store for User {UserId}", userId);
-
+            _logger.LogInformation("[StoresController] Attempting to retrieve store for User {UserId}", userId);
             try
             {
                 var user = await _userManager.FindByIdAsync(userId);
-                if (user == null)
+                if (user == null) return StatusCode(StatusCodes.Status500InternalServerError, "Authenticated user could not be found.");
+                if (!user.StoreId.HasValue) return NotFound($"No store associated with the current user.");
+
+                // Pozovi async metodu servisa
+                var storeDto = await _storeService.GetStoreByIdAsync(user.StoreId.Value);
+                if (storeDto == null)
                 {
-                    _logger.LogError("[StoresController] GetMyStore - User {UserId} not found in database after being authenticated.", userId);
-                    return StatusCode(StatusCodes.Status500InternalServerError, "Authenticated user could not be found.");
+                    _logger.LogError("[StoresController] Data inconsistency: User {UserId} has StoreId {StoreId}, but store not found.", userId, user.StoreId.Value);
+                    // Vrati NotFound umjesto 500 da bude jasnije
+                    return NotFound($"The store (ID: {user.StoreId.Value}) associated with the user was not found.");
                 }
 
-                if (user.StoreId == null)
-                {
-                    _logger.LogInformation("[StoresController] GetMyStore - User {UserId} does not have an associated store.", userId);
-                    return NotFound($"No store associated with the current user.");
-                }
-
-                var store = _storeService.GetStoreById(user.StoreId.Value);
-
-                if (store == null)
-                {
-                    _logger.LogError("[StoresController] GetMyStore - Data inconsistency: User {UserId} has StoreId {StoreId}, but the store was not found.", userId, user.StoreId.Value);
-                    return NotFound($"The store (ID: {user.StoreId.Value}) associated with the user was not found."); // 404 Not Found
-                }
-
-                var storeDto = new StoreGetDto
-                {
-                    Id = store.id,
-                    Name = store.name,
-                    Address = store.address,
-                    Description = store.description,
-                    IsActive = store.isActive,
-                    CategoryName = store.category?.name ?? "N/A"
-                };
-
-                _logger.LogInformation("[StoresController] GetMyStore - Successfully retrieved store {StoreId} for User {UserId}", store.id, userId);
-
+                _logger.LogInformation("[StoresController] Successfully retrieved store {StoreId} for User {UserId}", storeDto.Id, userId);
                 return Ok(storeDto);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[StoresController] GetMyStore - An unexpected error occurred while retrieving store for User {UserId}.", userId);
+                _logger.LogError(ex, "[StoresController] Error retrieving store for User {UserId}.", userId);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while retrieving your store.");
             }
         }
 
-        // POST /api/Stores/Categories
-        [HttpPost("Categories")]
-        [ProducesResponseType(typeof(StoreCategoryDto), StatusCodes.Status201Created)]
+        // POST /api/store - Kreiraj prodavnicu (samo za Sellera za sebe)
+        [HttpPost]
+        [Authorize(Roles = "Seller")] // ➤ Sada SAMO Seller može pozvati ovaj endpoint
+        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public ActionResult<StoreCategoryDto> CreateCategory([FromBody] StoreCategoryCreateDto dto)
+        [ProducesResponseType(StatusCodes.Status403Forbidden)] // Ako nema Seller rolu ili već ima store
+        [ProducesResponseType(StatusCodes.Status409Conflict)] // Ako user već ima store (iz servisa)
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> CreateStore([FromBody] StoreCreateDto createDto) // StoreCreateDto sada NEMA TargetSellerUserId
         {
-            _logger.LogInformation("[StoresController] Attempting to create a new store category with Name: {CategoryName}", dto.Name);
+            // Validacija DTO-a preko [ApiController] i ModelState
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            if (!ModelState.IsValid)
+            // Dobij ID ulogovanog korisnika (Sellera)
+            var sellerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(sellerUserId))
             {
-                _logger.LogWarning("[StoresController] Create category request failed model validation. Errors: {@ModelState}", ModelState.Values.SelectMany(v => v.Errors));
-                return BadRequest(ModelState);
+                // Iako [Authorize] ovo pokriva, dodatna provjera
+                _logger.LogWarning("User ID claim not found for an authenticated user trying to create a store.");
+                return Unauthorized("User identifier not found.");
             }
+
+            _logger.LogInformation("[StoresController] Seller {SellerUserId} attempting to create a store for themselves.", sellerUserId);
 
             try
             {
-                var existingCategory = _storeCategoryService.GetAllCategories()
-                    .FirstOrDefault(c => c.name.Equals(dto.Name, StringComparison.OrdinalIgnoreCase));
+                // Pozovi servisnu metodu koja prima ID Sellera i DTO
+                var createdStoreDto = await _storeService.CreateStoreForSellerAsync(sellerUserId, createDto);
 
-                if (existingCategory != null)
+                // Servis baca izuzetke za greške (npr. već ima store, kategorija ne postoji...)
+                if (createdStoreDto == null) // Neočekivano ako servis baca izuzetke
                 {
-                    _logger.LogWarning("[StoresController] Store category with name '{CategoryName}' already exists.", dto.Name);
-                    return BadRequest($"Store category with name '{dto.Name}' already exists.");
+                    _logger.LogError("CreateStoreForSellerAsync returned null unexpectedly for seller {SellerUserId}.", sellerUserId);
+                    return StatusCode(StatusCodes.Status500InternalServerError, "Store creation failed unexpectedly.");
                 }
 
-                var category = _storeCategoryService.CreateCategory(dto.Name);
+                // Vrati lokaciju nove prodavnice
+                return CreatedAtAction(nameof(GetStoreById), new { id = createdStoreDto.Id }, createdStoreDto);
+            }
+            catch (InvalidOperationException ex) // Npr. User already has store
+            {
+                _logger.LogWarning("Conflict creating store for user {SellerUserId}: {Message}", sellerUserId, ex.Message);
+                return Conflict(new { message = ex.Message }); // 409 Conflict
+            }
+            catch (ArgumentException ex) // Npr. Category not found
+            {
+                _logger.LogWarning("Bad request creating store for user {SellerUserId}: {Message}", sellerUserId, ex.Message);
+                return BadRequest(new { message = ex.Message }); // 400 Bad Request
+            }
+            catch (KeyNotFoundException ex) // Npr. User not found iz servisa
+            {
+                _logger.LogError(ex, "User not found exception during store creation for user ID {SellerUserId}", sellerUserId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Data consistency error during store creation.");
+            }
+            catch (Exception ex) // Sve ostale greške
+            {
+                _logger.LogError(ex, "Error creating store for user {SellerUserId}.", sellerUserId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while creating the store.");
+            }
+        }
 
-                var categoryDto = new StoreCategoryDto
-                {
-                    Id = category.id,
-                    Name = category.name
-                };
+        // PUT /api/store/{id} - Ažuriraj prodavnicu
+        [HttpPut("{id:int}")]
+        [Authorize(Roles = "Seller,Admin")]
+        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateStore(int id, [FromBody] StoreUpdateDto updateDto) // Koristi Update DTO
+        {
+            if (id <= 0) return BadRequest("Invalid store ID.");
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized("User identifier not found.");
 
-                _logger.LogInformation("[StoresController] Successfully created store category with ID {CategoryId}.", category.id);
-                return CreatedAtAction(nameof(GetStoreCategories), new { }, categoryDto);
+            try
+            {
+                // Pozovi async metodu
+                var updatedStoreDto = await _storeService.UpdateStoreAsync(id, updateDto, userId, isAdmin);
+
+                if (updatedStoreDto == null) return NotFound($"Store with ID {id} not found.");
+
+                return Ok(updatedStoreDto);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Forbidden attempt by User {UserId} to update Store {StoreId}", userId, id);
+                return Forbid();
             }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "[StoresController] Argument error while creating store category.");
-                return BadRequest(ex.Message);
+                _logger.LogWarning("Bad request updating store {StoreId}: {Message}", id, ex.Message);
+                return BadRequest(new { message = ex.Message });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[StoresController] An error occurred while creating a store category.");
-                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while creating the category.");
+                _logger.LogError(ex, "Error updating store {StoreId} by user {UserId} (IsAdmin: {IsAdmin}).", id, userId, isAdmin);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the store.");
             }
         }
+
+        // DELETE /api/store/{id} - Briši prodavnicu
+        [HttpDelete("{id:int}")]
+        [Authorize(Roles = "Admin")] // Samo Admin briše
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteStore(int id) // async Task<IActionResult>
+        {
+            if (id <= 0) return BadRequest("Invalid store ID.");
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = true;
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            try
+            {
+                // Pozovi async metodu
+                var success = await _storeService.DeleteStoreAsync(id, userId, isAdmin);
+                if (!success) return NotFound($"Store with ID {id} not found.");
+                return NoContent();
+            }
+            catch (InvalidOperationException ex) // Uhvati grešku iz servisa ako se ne može obrisati
+            {
+                _logger.LogWarning(ex, "Conflict deleting store {StoreId} requested by Admin {UserId}", id, userId);
+                return Conflict(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex) // Ne bi se smjelo desiti
+            {
+                _logger.LogWarning(ex, "Auth error deleting store {StoreId} by Admin {UserId}", id, userId);
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting store {StoreId} by Admin {UserId}.", id, userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the store.");
+            }
+        }
+
+        // Nema više metoda za kategorije ovdje
     }
-
-
 }

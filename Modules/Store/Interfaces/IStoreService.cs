@@ -1,25 +1,31 @@
-using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using AdminApi.DTOs;
 using Store.Models;
 
 namespace Store.Interface
 {
-    public interface IStoreService //TODO: Make async methods
+    public interface IStoreService
     {
-        // Create a new store
-        StoreModel CreateStore(string name, int categoryId, string address, string description);
+        // Prima Seller ID i DTO za kreiranje, vraća DTO za prikaz ili null, asinhrono
+        Task<StoreGetDto?> CreateStoreForSellerAsync(string sellerUserId, StoreCreateDto createDto);
 
-        // Get all stores
-        IEnumerable<StoreModel> GetAllStores();
+        // Opciono: Metoda za Admina
+        // Task<StoreGetDto?> CreateStoreForAdminAsync(StoreCreateDto createDto);
 
-        // Get a store by ID
-        StoreModel? GetStoreById(int id);
+        // Vraća listu DTO-a za prikaz, asinhrono
+        Task<IEnumerable<StoreGetDto>> GetAllStoresAsync();
 
-        // Update a store
-        StoreModel? UpdateStore(int id, string? name, int? categoryId, string? address, string? description, bool? isActive);
+        // Vraća DTO za prikaz ili null, asinhrono
+        Task<StoreGetDto?> GetStoreByIdAsync(int id);
 
-        // Delete a store
-        bool DeleteStore(int id);
-        Task<bool> DeleteStoreAsync(int id);
+        // Prima ID, DTO za ažuriranje, ID korisnika i info o roli, vraća ažurirani DTO ili null, asinhrono
+        Task<StoreGetDto?> UpdateStoreAsync(int id, StoreUpdateDto updateDto, string requestingUserId, bool isAdmin);
+
+        // Prima ID, ID korisnika i info o roli, vraća bool (uspjeh/neuspjeh), asinhrono
+        Task<bool> DeleteStoreAsync(int id, string requestingUserId, bool isAdmin);
+
+        // Opciono: Asinhrona provjera postojanja
+        // Task<bool> DoesStoreExistAsync(int id);
     }
 }

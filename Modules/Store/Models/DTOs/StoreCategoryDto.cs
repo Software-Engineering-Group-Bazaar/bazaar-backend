@@ -1,5 +1,8 @@
-public class StoreCategoryDto
+namespace Store.Models
 {
-    public int Id { get; set; }
-    public required string Name { get; set; }
+    public class StoreCategoryDto
+    {
+        public int Id { get; set; }
+        public required string Name { get; set; }
+    }
 }
