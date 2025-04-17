@@ -447,24 +447,60 @@ namespace Catalog.Controllers
             return Ok(productsDto);
         }
 
-        [HttpPost("prices")]
-        [Authorize(Roles = "Seller")]
-        public async Task<ActionResult<ProductGetDto>> UpdateProductPricing([FromBody] UpdateProductPricingRequestDto dto)
+        [HttpPut("products/{productId:int}/pricing")]
+        [Authorize(Roles = "Seller,Admin")]
+        [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateProductPricing(int productId, [FromBody] UpdateProductPricingRequestDto pricingData)
         {
-            // 1. Izvuci UserId iz tokena
-            var sellerUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            // Osnovna validacija ID-ja iz rute
+            if (productId <= 0)
+            {
+                return BadRequest("Invalid Product ID provided in URL.");
+            }
+            // Validacija DTO objekta (npr. [Range] atributi) će se izvršiti automatski
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
 
-            if (sellerUserId is null)
-                return Unauthorized("User ID not found in token.");
+            // Dobij ID korisnika koji šalje zahtjev
+            var requestingUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(requestingUserId))
+            {
+                return Unauthorized("User identifier not found.");
+            }
 
-            // 2. Pozovi servis
-            var result = await _productService.UpdateProductPricingAsync(sellerUserId, dto.ProductId, dto);
+            try
+            {
+                var updatedProductDto = await _productService.UpdateProductPricingAsync(requestingUserId, productId, pricingData);
 
-            // 3. Ako nema rezultata
-            if (result is null)
-                return NotFound("Product not found or not owned by seller.");
-
-            return Ok(result);
+                if (updatedProductDto == null)
+                {
+                    return NotFound($"Product with ID {productId} not found.");
+                }
+                return Ok(updatedProductDto);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Forbid();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "User validation error during pricing update.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating product pricing.");
+            }
         }
     }
 }
