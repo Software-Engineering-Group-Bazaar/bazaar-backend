@@ -18,7 +18,7 @@ namespace Store.Models
         public required bool isActive { get; set; } = true;
         public required string address { get; set; } //odsad se adresa tumaci kao ulica; Broj
         public string? description { get; set; }
-        public Place? place { get; set; } = null!; // tumaci kao grad
+        public Place place { get; set; } = null!; // tumaci kao grad
         public int placeId { get; set; }
 
     }
