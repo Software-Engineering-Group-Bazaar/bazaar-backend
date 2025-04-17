@@ -26,9 +26,11 @@ namespace Catalog.Models
         [Column(TypeName = "decimal(18, 2)")]
         public decimal RetailPrice { get; set; }
 
+        public int? WholesaleThreshold { get; set; }
+
         [Required]
         [Column(TypeName = "decimal(18, 2)")]
-        public decimal WholesalePrice { get; set; }
+        public decimal? WholesalePrice { get; set; }
 
         [Column(TypeName = "decimal(10, 3)")]
         public decimal? Weight { get; set; }

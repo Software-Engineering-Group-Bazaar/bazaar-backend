@@ -18,9 +18,5 @@ namespace Store.Models
         public required bool isActive { get; set; } = true;
         public required string address { get; set; }
         public string? description { get; set; }
-
-        [Required]
-        public string SellerUserId { get; set; } = string.Empty;
-
     }
 }

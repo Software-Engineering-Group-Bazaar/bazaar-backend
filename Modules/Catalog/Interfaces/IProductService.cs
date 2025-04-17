@@ -17,7 +17,7 @@ namespace Catalog.Services
         Task<bool> DeleteProductAsync(int id);
         Task<bool> DeleteProductFromStoreAsync(int storeId);
         Task<IEnumerable<Product>> SearchProductsByNameAsync(string searchTerm);
-Task<ProductGetDto?> UpdateProductPricingAsync(string sellerUserId, int productId, UpdateProductPricingRequestDto pricingData);
+        Task<ProductGetDto?> UpdateProductPricingAsync(string sellerUserId, int productId, UpdateProductPricingRequestDto pricingData);
 
-}
+    }
 }

@@ -7,8 +7,11 @@ using Catalog.Dtos;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Store.Models;
+using Users.Interface;
+using Users.Models;
 
 namespace Catalog.Services
 {
@@ -17,14 +20,17 @@ namespace Catalog.Services
         private readonly CatalogDbContext _context;
         private readonly StoreDbContext _storeContext;
         private readonly IImageStorageService _imageStorageService;
+        private readonly UserManager<User> _userManager;
 
         public ProductService(CatalogDbContext context,
                               StoreDbContext storeContext,
                               IImageStorageService imageStorageService,
+                              UserManager<User> userManager,
                               ILogger<ProductService> logger) // Logger je opcionalan
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _storeContext = storeContext ?? throw new ArgumentNullException(nameof(storeContext));
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _imageStorageService = imageStorageService;
         }
 
@@ -230,41 +236,86 @@ namespace Catalog.Services
 
         public async Task<ProductGetDto?> UpdateProductPricingAsync(string sellerUserId, int productId, UpdateProductPricingRequestDto pricingData)
         {
+            if (productId <= 0) throw new ArgumentException("Product ID must be positive.", nameof(productId));
+            if (pricingData == null) throw new ArgumentNullException(nameof(pricingData));
+            if (string.IsNullOrWhiteSpace(sellerUserId)) throw new ArgumentNullException(nameof(sellerUserId));
+
+            // 1. Dohvati Proizvod
             var product = await _context.Products
+                // Uključi navigaciona svojstva potrebna za DTO i validaciju
                 .Include(p => p.ProductCategory)
                 .Include(p => p.Pictures)
                 .FirstOrDefaultAsync(p => p.Id == productId);
 
-            if (product == null)
-                return null;
+            // 2. *** ISPRAVNA PROVJERA VLASNIŠTVA ***
+            // Pronađi korisnika (Sellera) koji je poslao zahtjev
+            var requestingSeller = await _userManager.FindByIdAsync(sellerUserId);
+            if (requestingSeller == null)
+            {
+                throw new KeyNotFoundException("Requesting user not found."); // Ili vrati null/Forbid?
+            }
 
-            var store = await _storeContext.Stores.FirstOrDefaultAsync(s => s.id == product.StoreId);
-            if (store == null || store.SellerUserId != sellerUserId)
-                return null;
+            // Provjeri da li StoreId korisnika odgovara StoreId proizvoda
+            // (Pretpostavka: User model ima nullable int StoreId)
+            if (requestingSeller.StoreId != product.StoreId)
+            {
+                // Vrati null ili baci UnauthorizedAccessException da kontroler vrati 403 Forbidden
+                // return null;
+                throw new UnauthorizedAccessException("User is not authorized to update pricing for this product.");
+            }
+            // --- KRAJ PROVJERE VLASNIŠTVA ---
 
-            if (pricingData.RetailPrice <= 0)
-                throw new ArgumentException("Retail price must be greater than 0.");
+            // 3. Validacija Cijena
+            if (pricingData.RetailPrice.HasValue && pricingData.RetailPrice <= 0)
+                throw new ArgumentException("Retail price must be greater than 0 if provided.");
 
-            if (pricingData.WholesaleThreshold < 0)
-                throw new ArgumentException("Wholesale threshold cannot be negative.");
+            // Pretpostavljamo da WholesaleThreshold može biti 0 ili veći
+            if (pricingData.WholesaleThreshold.HasValue && pricingData.WholesaleThreshold < 0)
+                throw new ArgumentException("Wholesale threshold cannot be negative if provided.");
 
-            if (pricingData.WholesalePrice < 0)
-                throw new ArgumentException("Wholesale price cannot be negative.");
+            if (pricingData.WholesalePrice.HasValue && pricingData.WholesalePrice < 0)
+                throw new ArgumentException("Wholesale price cannot be negative if provided.");
 
-            if (pricingData.WholesalePrice > pricingData.RetailPrice)
+            // Odredi finalnu maloprodajnu cijenu za poređenje
+            decimal finalRetailPrice = pricingData.RetailPrice ?? product.RetailPrice;
+            if (pricingData.WholesalePrice.HasValue && pricingData.WholesalePrice > finalRetailPrice)
                 throw new ArgumentException("Wholesale price cannot exceed retail price.");
 
+            // Logika za WholesalePrice ako nema praga
+            if (!pricingData.WholesaleThreshold.HasValue && pricingData.WholesalePrice.HasValue)
+            {
+                pricingData.WholesalePrice = null; // Postavi na null ako nema praga
+            }
+
+            // 4. Ažuriraj Polja Proizvoda (
             product.RetailPrice = pricingData.RetailPrice ?? product.RetailPrice;
-            product.WholesalePrice = pricingData.WholesalePrice ?? product.WholesalePrice;
-            // product.WholesaleThreshold = pricingData.WholesaleThreshold ?? product.WholesaleThreshold;
 
-            await _context.SaveChangesAsync();
+            product.WholesaleThreshold = pricingData.WholesaleThreshold;
 
+            product.WholesalePrice = pricingData.WholesalePrice;
+
+            // 5. Sačuvaj Promjene
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                if (!await _context.Products.AnyAsync(p => p.Id == productId)) return null;
+                else throw;
+            }
+            catch (DbUpdateException ex)
+            {
+                throw new Exception("Database error occurred during product pricing update.", ex);
+            }
+
+            // 6. Mapiraj ažurirani entitet u DTO za povratak
             return new ProductGetDto
             {
                 Id = product.Id,
                 Name = product.Name,
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold, // DTO polje treba biti int?
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
