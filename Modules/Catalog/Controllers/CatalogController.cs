@@ -222,6 +222,7 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
@@ -254,6 +255,7 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
@@ -294,6 +296,7 @@ namespace Catalog.Controllers
                         Name = "nezz"
                     },
                     RetailPrice = createProductDto.RetailPrice,
+                    WholesaleThreshold = createProductDto.WholesaleThreshold,
                     WholesalePrice = createProductDto.WholesalePrice,
                     Weight = createProductDto.Weight,
                     WeightUnit = createProductDto.WeightUnit,
@@ -309,6 +312,7 @@ namespace Catalog.Controllers
                     Name = product.Name,
                     ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                     RetailPrice = product.RetailPrice,
+                    WholesaleThreshold = product.WholesaleThreshold,
                     WholesalePrice = product.WholesalePrice,
                     Weight = product.Weight,
                     WeightUnit = product.WeightUnit,
@@ -365,6 +369,7 @@ namespace Catalog.Controllers
                 product.Name = productDto.Name;
                 product.ProductCategory = category;
                 product.RetailPrice = productDto.RetailPrice;
+                product.WholesaleThreshold = productDto.WholesaleThreshold;
                 product.WholesalePrice = productDto.WholesalePrice;
                 product.Weight = productDto.Weight;
                 product.WeightUnit = productDto.WeightUnit;
@@ -435,6 +440,7 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
@@ -447,7 +453,7 @@ namespace Catalog.Controllers
             return Ok(productsDto);
         }
 
-        [HttpPut("products/{productId:int}/pricing")]
+        [HttpPut("products/{Id:int}/pricing")]
         [Authorize(Roles = "Seller,Admin")]
         [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
