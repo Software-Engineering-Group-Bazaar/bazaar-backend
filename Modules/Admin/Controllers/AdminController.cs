@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AdminApi.DTOs; // Your DTOs namespace (Ensure this namespace is correct)
-using Catalog.Dtos;
+using Catalog.DTO;
 using Catalog.Models;
 using Catalog.Services;
 using Microsoft.AspNetCore.Authorization;

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Catalog.Models;
+using Microsoft.AspNetCore.Http; 
 
 namespace Catalog.Services
 {
@@ -15,5 +16,8 @@ namespace Catalog.Services
         Task<bool> DeleteProductAsync(int id);
         Task<bool> DeleteProductFromStoreAsync(int storeId);
         Task<IEnumerable<Product>> SearchProductsByNameAsync(string searchTerm);
+
+        
+        Task<bool> UpdateProductAvailabilityAsync(string sellerUserId, int productId, bool isAvailable);
     }
 }

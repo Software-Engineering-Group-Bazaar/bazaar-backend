@@ -23,6 +23,21 @@ using Users.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("appsettings.Testing.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
+
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Configuration.AddJsonFile("appsettings.Testing.json", optional: false);
+}
+
+
+
 builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 builder.Services.AddTransient<IMailService, MailService>();
 
@@ -97,12 +112,19 @@ builder.Services.AddScoped<IStoreCategoryService, StoreCategoryService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 // Configure Authentication AFTER Identity
-var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"];
-var issuer = jwtSettings["Issuer"];
-var audience = jwtSettings["Audience"];
+// Ensure appsettings.Testing.json is loaded early
+builder.Configuration.AddJsonFile("appsettings.Testing.json", optional: true, reloadOnChange: true);
+
+var secretKey = builder.Configuration["JwtSettings:SecretKey"];
+var issuer = builder.Configuration["JwtSettings:Issuer"];
+var audience = builder.Configuration["JwtSettings:Audience"];
+
 if (string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(audience))
-{ throw new InvalidOperationException("JWT settings missing."); }
+{
+    throw new InvalidOperationException("JWT settings missing.");
+}
+
+
 
 builder.Services.AddAuthentication(options =>
 {

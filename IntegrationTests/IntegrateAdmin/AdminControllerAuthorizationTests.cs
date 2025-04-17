@@ -17,6 +17,9 @@ using Microsoft.Extensions.Configuration; // Required for IConfiguration
 using Microsoft.Extensions.DependencyInjection;
 using Users.Models; // Your User model namespace
 using Xunit;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+
 
 namespace Tests.Integration; // Adjust namespace
 
@@ -92,35 +95,35 @@ public class AdminControllerAuthorizationTests : IDisposable
         }
 
         // Generate JWT Token
-        // var tokenHandler = new JwtSecurityTokenHandler();
-        // var key = Encoding.ASCII.GetBytes(configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured in test environment"));
-        // var claims = new List<Claim>
-        // {
-        //     new Claim(JwtRegisteredClaimNames.Sub, user.Id), // Subject (user ID)
-        //     new Claim(JwtRegisteredClaimNames.Name, user.UserName),
-        //     new Claim(JwtRegisteredClaimNames.Email, user.Email),
-        //     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique token ID
-        //     new Claim(ClaimTypes.Role, role) // Add the role claim
-        // };
+        var tokenHandler = new JwtSecurityTokenHandler();
+         var key = Encoding.ASCII.GetBytes(configuration["JwtSettings:SecretKey"] ?? throw new InvalidOperationException("JWT Key not configured in test environment"));
+         var claims = new List<Claim>
+         {
+             new Claim(JwtRegisteredClaimNames.Sub, user.Id), // Subject (user ID)
+             new Claim(JwtRegisteredClaimNames.Name, user.UserName),
+             new Claim(JwtRegisteredClaimNames.Email, user.Email),
+             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique token ID
+             new Claim(ClaimTypes.Role, role) // Add the role claim
+         };
 
         // Add all roles the user actually has (good practice)
-        // var actualRoles = await userManager.GetRolesAsync(user);
-        // foreach(var actualRole in actualRoles) { claims.Add(new Claim(ClaimTypes.Role, actualRole)); }
+         var actualRoles = await userManager.GetRolesAsync(user);
+         foreach(var actualRole in actualRoles) { claims.Add(new Claim(ClaimTypes.Role, actualRole)); }
 
-        // var tokenDescriptor = new SecurityTokenDescriptor
-        // {
-        //     Subject = new ClaimsIdentity(claims),
-        //     Expires = DateTime.UtcNow.AddMinutes(15), // Short expiry for tests
-        //     Issuer = configuration["Jwt:Issuer"],
-        //     Audience = configuration["Jwt:Audience"],
-        //     SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-        // };
-        // var token = tokenHandler.CreateToken(tokenDescriptor);
-        // var tokenString = tokenHandler.WriteToken(token);
+         var tokenDescriptor = new SecurityTokenDescriptor
+         {
+             Subject = new ClaimsIdentity(claims),
+             Expires = DateTime.UtcNow.AddMinutes(15), // Short expiry for tests
+             Issuer = configuration["JwtSettings:Issuer"],
+             Audience = configuration["JwtSettings:Audience"],
+             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+         };
+         var token = tokenHandler.CreateToken(tokenDescriptor);
+         var tokenString = tokenHandler.WriteToken(token);
 
         // Create HttpClient with Authorization header
         var client = _factory.CreateClient();
-        //client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenString);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenString);
         return client;
     }
 

@@ -1,19 +1,24 @@
 
-namespace Catalog.Dtos
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
+
+namespace Catalog.DTO
 {
 
 
     public class ProductDto
     {
         public string Name { get; set; } = string.Empty;
-        public required int ProductCategoryId { get; set; }
+        [Required]
+        public int ProductCategoryId { get; set; }
         public decimal RetailPrice { get; set; }
         public decimal WholesalePrice { get; set; }
         public decimal? Weight { get; set; }
         public string? WeightUnit { get; set; }
         public decimal? Volume { get; set; }
         public string? VolumeUnit { get; set; }
-        public required int StoreId { get; set; }
+        [Required]
+        public int StoreId { get; set; }
         public List<IFormFile>? Files { get; set; }
     }
 
@@ -42,4 +47,9 @@ namespace Catalog.Dtos
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
     }
+    public class UpdateAvailabilityDto
+{
+    public bool IsAvailable { get; set; }
+}
+
 }

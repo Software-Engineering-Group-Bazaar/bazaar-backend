@@ -9,6 +9,8 @@ namespace Catalog.Models
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductCategory> ProductCategories { get; set; }
         public DbSet<ProductPicture> ProductPictures { get; set; }
+        public DbSet<Store> Stores { get; set; }
+
 
         public CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             : base(options)

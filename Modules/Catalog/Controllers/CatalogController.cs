@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Catalog.Dtos;
+using Catalog.DTO;
 using Catalog.Models;
 using Catalog.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging; // Required for logging
 using Store.Interface;
+using Microsoft.EntityFrameworkCore;
+
+
 
 namespace Catalog.Controllers
 {
@@ -231,6 +234,28 @@ namespace Catalog.Controllers
 
             return Ok(productsDto);
         }
+        [HttpPut("products/{id}/availability")]
+[ProducesResponseType(StatusCodes.Status204NoContent)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+public async Task<IActionResult> UpdateAvailability(int id, [FromBody] UpdateAvailabilityDto dto)
+{
+    if (id <= 0)
+        return BadRequest("Invalid product ID.");
+
+    var product = await _productService.GetProductByIdAsync(id);
+    if (product == null)
+        return NotFound(new { message = "Product not found" });
+
+    product.IsAvailable = dto.IsAvailable;
+
+    var success = await _productService.UpdateProductAsync(product);
+    if (!success)
+        return StatusCode(500, "Failed to update product availability.");
+
+    return NoContent();
+}
+
 
         [HttpGet("products/{id}")] // GET /api/catalog/products/15
         [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status200OK)]
@@ -448,4 +473,4 @@ namespace Catalog.Controllers
 
 
 
-}
+} 

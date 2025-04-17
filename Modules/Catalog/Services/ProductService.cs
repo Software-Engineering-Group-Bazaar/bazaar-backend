@@ -240,5 +240,35 @@ namespace Catalog.Services
 
             return products;
         }
+        public async Task<bool> UpdateProductAvailabilityAsync(string sellerUserId, int productId, bool isAvailable)
+{
+    var store = await _context.Stores
+        .FirstOrDefaultAsync(s => s.SellerUserId == sellerUserId);
+
+    if (store == null)
+        throw new InvalidOperationException("Seller nema registrovanu prodavnicu.");
+
+    var product = await _context.Products
+        .FirstOrDefaultAsync(p => p.Id == productId);
+
+    if (product == null)
+        return false;
+
+    if (product.StoreId != store.Id)
+        return false; // Nije vlasnik
+
+    product.IsAvailable = isAvailable;
+
+    try
+    {
+        await _context.SaveChangesAsync();
+        return true;
+    }
+    catch (DbUpdateException ex)
+    {
+        throw new InvalidOperationException("Greška prilikom ažuriranja dostupnosti proizvoda.", ex);
+    }
+}
+
     }
 }
