@@ -10,7 +10,6 @@ namespace Catalog.Models
         : base(options)
         {
         }
-        internal readonly object Store;
 
         // DbSet properties for each entity
         public DbSet<Product> Products { get; set; }

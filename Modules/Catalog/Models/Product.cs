@@ -47,6 +47,8 @@ namespace Catalog.Models
         [Required]
         public int StoreId { get; set; }
 
+        public bool IsActive { get; set; } = true;
+
         public virtual ICollection<ProductPicture> Pictures { get; set; } = new List<ProductPicture>();
     }
 }

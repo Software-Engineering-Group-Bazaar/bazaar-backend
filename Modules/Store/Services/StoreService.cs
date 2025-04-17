@@ -70,8 +70,8 @@ namespace Store.Services
                 store.name = name;
             if (category is not null)
                 store.category = category;
-            if (address is not null)
-                store.address = address;
+            // if (address is not null)
+            //     store.address = address;
             if (description is not null)
                 store.description = description;
             if (isActive is not null)
