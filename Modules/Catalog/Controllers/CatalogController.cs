@@ -453,7 +453,7 @@ namespace Catalog.Controllers
             return Ok(productsDto);
         }
 
-        [HttpPut("products/{Id:int}/pricing")]
+        [HttpPut("products/{productId:int}/pricing")]
         [Authorize(Roles = "Seller,Admin")]
         [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
