@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Catalog.DTO;
+using Catalog.Dtos;
 using Catalog.Models;
 
 namespace Catalog.Services
@@ -15,5 +17,7 @@ namespace Catalog.Services
         Task<bool> DeleteProductAsync(int id);
         Task<bool> DeleteProductFromStoreAsync(int storeId);
         Task<IEnumerable<Product>> SearchProductsByNameAsync(string searchTerm);
+        Task<ProductGetDto?> UpdateProductPricingAsync(string sellerUserId, int productId, UpdateProductPricingRequestDto pricingData);
+
     }
 }

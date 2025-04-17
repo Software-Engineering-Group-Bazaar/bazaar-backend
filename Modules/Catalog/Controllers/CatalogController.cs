@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Catalog.DTO;
 using Catalog.Dtos;
 using Catalog.Models;
 using Catalog.Services;
@@ -220,6 +222,7 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
@@ -252,6 +255,7 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
@@ -292,6 +296,7 @@ namespace Catalog.Controllers
                         Name = "nezz"
                     },
                     RetailPrice = createProductDto.RetailPrice,
+                    WholesaleThreshold = createProductDto.WholesaleThreshold,
                     WholesalePrice = createProductDto.WholesalePrice,
                     Weight = createProductDto.Weight,
                     WeightUnit = createProductDto.WeightUnit,
@@ -307,6 +312,7 @@ namespace Catalog.Controllers
                     Name = product.Name,
                     ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                     RetailPrice = product.RetailPrice,
+                    WholesaleThreshold = product.WholesaleThreshold,
                     WholesalePrice = product.WholesalePrice,
                     Weight = product.Weight,
                     WeightUnit = product.WeightUnit,
@@ -363,6 +369,7 @@ namespace Catalog.Controllers
                 product.Name = productDto.Name;
                 product.ProductCategory = category;
                 product.RetailPrice = productDto.RetailPrice;
+                product.WholesaleThreshold = productDto.WholesaleThreshold;
                 product.WholesalePrice = productDto.WholesalePrice;
                 product.Weight = productDto.Weight;
                 product.WeightUnit = productDto.WeightUnit;
@@ -433,6 +440,7 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
@@ -444,8 +452,63 @@ namespace Catalog.Controllers
 
             return Ok(productsDto);
         }
+
+        [HttpPut("products/{productId:int}/pricing")]
+        [Authorize(Roles = "Seller,Admin")]
+        [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateProductPricing(int productId, [FromBody] UpdateProductPricingRequestDto pricingData)
+        {
+            // Osnovna validacija ID-ja iz rute
+            if (productId <= 0)
+            {
+                return BadRequest("Invalid Product ID provided in URL.");
+            }
+            // Validacija DTO objekta (npr. [Range] atributi) će se izvršiti automatski
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            // Dobij ID korisnika koji šalje zahtjev
+            var requestingUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(requestingUserId))
+            {
+                return Unauthorized("User identifier not found.");
+            }
+
+            try
+            {
+                var updatedProductDto = await _productService.UpdateProductPricingAsync(requestingUserId, productId, pricingData);
+
+                if (updatedProductDto == null)
+                {
+                    return NotFound($"Product with ID {productId} not found.");
+                }
+                return Ok(updatedProductDto);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Forbid();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "User validation error during pricing update.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating product pricing.");
+            }
+        }
     }
-
-
-
 }
+
+

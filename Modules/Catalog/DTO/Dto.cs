@@ -8,6 +8,7 @@ namespace Catalog.Dtos
         public string Name { get; set; } = string.Empty;
         public required int ProductCategoryId { get; set; }
         public decimal RetailPrice { get; set; }
+        public int? WholesaleThreshold { get; set; }
         public decimal WholesalePrice { get; set; }
         public decimal? Weight { get; set; }
         public string? WeightUnit { get; set; }
@@ -23,7 +24,8 @@ namespace Catalog.Dtos
         public string Name { get; set; } = string.Empty;
         public ProductCategoryGetDto ProductCategory { get; set; } = new ProductCategoryGetDto { Id = 0, Name = "undefined" };
         public decimal RetailPrice { get; set; }
-        public decimal WholesalePrice { get; set; }
+        public int? WholesaleThreshold { get; set; }
+        public decimal? WholesalePrice { get; set; }
         public decimal? Weight { get; set; }
         public string? WeightUnit { get; set; }
         public decimal? Volume { get; set; }
