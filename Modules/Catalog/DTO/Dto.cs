@@ -1,4 +1,6 @@
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Catalog.Dtos
 {
 
@@ -15,6 +17,7 @@ namespace Catalog.Dtos
         public decimal? Volume { get; set; }
         public string? VolumeUnit { get; set; }
         public required int StoreId { get; set; }
+        public bool IsActive { get; set; } = true;
         public List<IFormFile>? Files { get; set; }
     }
 
@@ -30,9 +33,18 @@ namespace Catalog.Dtos
         public string? WeightUnit { get; set; }
         public decimal? Volume { get; set; }
         public string? VolumeUnit { get; set; }
+
+        public bool IsActive { get; set; } = true;
         public int StoreId { get; set; }
 
         public List<string>? Photos { get; set; } = new List<string>();
+    }
+
+    public class UpdateProductAvailabilityRequestDto
+    {
+
+        [Required(ErrorMessage = "Availability status is required.")]
+        public bool IsActive { get; set; }
     }
 
     public class ProductCategoryDto
