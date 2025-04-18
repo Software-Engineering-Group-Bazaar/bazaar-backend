@@ -1,5 +1,6 @@
 using System.Text;
 using Amazon.S3;
+using Amazon.SimpleNotificationService;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
@@ -9,7 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Notifications.Interfaces;
 using Notifications.Models;
+using Notifications.Services;
 using Order.Interface;
 using Order.Models;
 using Order.Services;
@@ -24,6 +27,7 @@ using Users.Interface;
 using Users.Interfaces;
 using Users.Models;
 using Users.Services;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -101,6 +105,8 @@ builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddScoped<IStoreCategoryService, StoreCategoryService>();
 
 builder.Services.AddScoped<IUserService, UserService>();
+
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderItemService, OrderItemService>();
@@ -186,25 +192,26 @@ if (builder.Environment.IsDevelopment())
     var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
     builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
     builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
+    builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
     // --------------------------------------------------
 
     // Registruj S3 implementaciju kao Singleton
     builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    builder.Services.AddSingleton<SnsNotificationService>();
 }
 else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing")) // Pokriva Production i ostala okruženja
 {
-    // --- AWS Konfiguracija SAMO za Non-Development ---
     var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
     builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
     builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
+    builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
     // --------------------------------------------------
 
     // Registruj S3 implementaciju kao Singleton
     builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    builder.Services.AddSingleton<SnsNotificationService>();
     // Ne treba logovanje ovdje ako pravi probleme
 }
-
-
 
 // --- Build the App ---
 var app = builder.Build();
