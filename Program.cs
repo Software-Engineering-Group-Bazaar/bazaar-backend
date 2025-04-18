@@ -1,13 +1,11 @@
 using System.Text;
 using Amazon.S3;
-using Amazon.SimpleNotificationService;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Notifications.Interfaces;
@@ -111,6 +109,8 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderItemService, OrderItemService>();
 
+builder.Services.AddSingleton<FcmPushNotificationService>();
+
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"];
@@ -192,24 +192,20 @@ if (builder.Environment.IsDevelopment())
     var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
     builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
     builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
-    builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
     // --------------------------------------------------
 
     // Registruj S3 implementaciju kao Singleton
     builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
-    builder.Services.AddSingleton<SnsNotificationService>();
 }
 else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing")) // Pokriva Production i ostala okruženja
 {
     var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
     builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
     builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
-    builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
     // --------------------------------------------------
 
     // Registruj S3 implementaciju kao Singleton
     builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
-    builder.Services.AddSingleton<SnsNotificationService>();
     // Ne treba logovanje ovdje ako pravi probleme
 }
 

@@ -27,6 +27,10 @@ nupkg/
 *.userosscache
 *.sln.docstates
 
+Secrets/
+**/Secrets/
+bazaar-system-firebase-adminsdk-fbsvc-850143c1dc.json
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
