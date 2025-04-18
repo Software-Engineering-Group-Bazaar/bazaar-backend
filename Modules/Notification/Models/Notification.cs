@@ -25,8 +25,5 @@ namespace Notifications.Models
         public string? RelatedEntityType { get; set; } // Npr. "Order"
 
         public int? RelatedEntityId { get; set; } // Npr. OrderId
-
-        [MaxLength(2048)] // URL može biti duži
-        public string? LinkUrl { get; set; }
     }
 }

@@ -8,10 +8,11 @@ using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Notifications.Interfaces;
 
 namespace Notifications.Services
 {
-    public class FcmPushNotificationService
+    public class FcmPushNotificationService : IPushNotificationService
     {
         private readonly ILogger<FcmPushNotificationService> _logger;
         private readonly IConfiguration _configuration;
