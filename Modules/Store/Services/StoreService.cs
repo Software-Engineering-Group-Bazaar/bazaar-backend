@@ -43,13 +43,15 @@ namespace Store.Services
         // Get all stores
         public IEnumerable<StoreModel> GetAllStores()
         {
-            return _context.Stores.Include(s => s.category).ToList();
+            return _context.Stores.Include(s => s.category).Include(s => s.place)
+                .Include(s => s.place.Region).ToList();
         }
 
         // Get a store by ID
         public StoreModel? GetStoreById(int id)
         {
-            return _context.Stores.Include(s => s.category).FirstOrDefault(s => s.id == id);
+            return _context.Stores.Include(s => s.category).Include(s => s.place)
+                .Include(s => s.place.Region).FirstOrDefault(s => s.id == id);
         }
 
         // Update a store
@@ -119,16 +121,52 @@ namespace Store.Services
 
             if (string.IsNullOrWhiteSpace(query))
             {
-                return await _context.Stores.Include(s => s.category).ToListAsync();
+                return await _context.Stores.Include(s => s.category).Include(s => s.place)
+                .Include(s => s.place.Region).ToListAsync();
             }
 
             var normalizedSearchTerm = query.Trim().ToLower();
 
             var stores = await _context.Stores
                 .Include(s => s.category)
+                .Include(s => s.place)
+                .Include(s => s.place.Region)
                 .Where(s => s.name.ToLower().Contains(normalizedSearchTerm))
                 .ToListAsync();
 
+            return stores;
+        }
+
+        public async Task<IEnumerable<StoreModel>> GetAllStoresInRegion(int regionId)
+        {
+            var region = await _context.Regions.FirstOrDefaultAsync(r => r.Id == regionId);
+            if (region is null)
+            {
+                throw new ArgumentException("Region not found.");
+            }
+            var places = await _context.Places.Include(p => p.Region).Where(p => p.RegionId == regionId).ToListAsync();
+            if (places is null)
+            {
+                return new List<StoreModel>();
+            }
+            var tasks = places.Select(p => GetAllStoresInPlace(p.Id));
+
+            // Wait for all of them
+            var results = await Task.WhenAll(tasks);
+
+            // Flatten the list of lists
+            var allItems = results.SelectMany(r => r).ToList();
+            return allItems;
+        }
+
+        public async Task<IEnumerable<StoreModel>> GetAllStoresInPlace(int placeId)
+        {
+            var stores = await _context.Stores
+                .Include(s => s.category)
+                .Include(s => s.place)
+                .Include(s => s.place.Region)
+                .Where(s => s.placeId == placeId)
+                .ToListAsync();
             return stores;
         }
     }

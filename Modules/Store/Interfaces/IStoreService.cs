@@ -23,5 +23,7 @@ namespace Store.Interface
         Task<bool> DeleteStoreAsync(int id);
 
         Task<IEnumerable<StoreModel>> SearchStoresAsync(string query);
+        Task<IEnumerable<StoreModel>> GetAllStoresInRegion(int regionId);
+        Task<IEnumerable<StoreModel>> GetAllStoresInPlace(int placeId);
     }
 }

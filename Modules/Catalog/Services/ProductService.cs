@@ -236,6 +236,7 @@ namespace Catalog.Services
 
         public async Task<ProductGetDto?> UpdateProductPricingAsync(string sellerUserId, int productId, UpdateProductPricingRequestDto pricingData)
         {
+            // TODO: los stil je baciti izuzetak ako se proizvod ne nadje, to nije IZUZETNA situacija vratite null
             if (productId <= 0) throw new ArgumentException("Product ID must be positive.", nameof(productId));
             if (pricingData == null) throw new ArgumentNullException(nameof(pricingData));
             if (string.IsNullOrWhiteSpace(sellerUserId)) throw new ArgumentNullException(nameof(sellerUserId));
@@ -246,7 +247,10 @@ namespace Catalog.Services
                 .Include(p => p.ProductCategory)
                 .Include(p => p.Pictures)
                 .FirstOrDefaultAsync(p => p.Id == productId);
-
+            if (product is null)
+            {
+                throw new KeyNotFoundException("Requesting user not found.");
+            }
             // 2. *** ISPRAVNA PROVJERA VLASNIŠTVA ***
             // Pronađi korisnika (Sellera) koji je poslao zahtjev
             var requestingSeller = await _userManager.FindByIdAsync(sellerUserId);
@@ -299,7 +303,7 @@ namespace Catalog.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateConcurrencyException ex)
+            catch (DbUpdateConcurrencyException)
             {
                 if (!await _context.Products.AnyAsync(p => p.Id == productId)) return null;
                 else throw;
@@ -358,7 +362,7 @@ namespace Catalog.Services
                 await _context.SaveChangesAsync();
                 return true; // Uspjeh
             }
-            catch (DbUpdateConcurrencyException ex)
+            catch (DbUpdateConcurrencyException)
             {
                 if (!await _context.Products.AnyAsync(p => p.Id == productId)) return false; // Više ne postoji
                 else throw;
