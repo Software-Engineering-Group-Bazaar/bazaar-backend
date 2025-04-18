@@ -1,4 +1,4 @@
-using System;
+/*using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -146,15 +146,9 @@ namespace Order.Controllers
 
             try
             {
-                // TODO: Validacija da li StoreId postoji? Da li Buyer može naručiti?
-                // Servis prima int ID, ne string
-                if (!int.TryParse(buyerUserId, out int buyerIdInt)) // Ovo neće raditi ako User ID nije int! Identity User ID je string (GUID ili int)
-                {
-                    _logger.LogError("Could not parse Buyer User ID '{BuyerUserId}' to int.", buyerUserId);
-                    return StatusCode(StatusCodes.Status500InternalServerError, "User ID format error.");
-                }
 
-                var createdOrder = await _orderService.CreateOrderAsync(buyerIdInt, createDto.StoreId);
+
+                var createdOrder = await _orderService.CreateOrderAsync(buyerUserId, createDto.StoreId);
 
                 return CreatedAtAction(nameof(GetOrderDetailsForSeller), new { orderId = createdOrder.Id }, createdOrder);
             }
@@ -404,3 +398,4 @@ namespace Order.Controllers
         }
     }
 }
+*/

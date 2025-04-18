@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AdminApi.DTOs; // Your DTOs namespace (Ensure this namespace is correct)
-using AdminApi.DTOs.Order;
 using Catalog.Dtos;
 using Catalog.Models;
 using Catalog.Services;
@@ -12,9 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
-using Order.DTOs;
 using Order.Interface;
-using Order.Models;
 using SharedKernel;
 using Store.Interface;
 using Store.Models;
@@ -578,7 +575,7 @@ namespace Admin.Controllers
                     IsActive = store.isActive,
                     CategoryName = category.name,
                     PlaceName = store.place.Name,
-                    RegionName = store.place.Region.Name
+                    RegionName = "store.place.Region.Name"
                 };
 
                 _logger.LogInformation("Successfully created store with ID {StoreId}.", store.id);
@@ -1030,477 +1027,257 @@ namespace Admin.Controllers
         }
 
         // ==================================================
-        //                  ORDER ENDPOINTS
+        // ORDER MANAGEMENT Endpoints
         // ==================================================
 
-
-
-        // GET /api/admin/order/all
-        [HttpGet("order/all")]
-        // *** Use OrderSummaryDto ***
-        [ProducesResponseType(typeof(IEnumerable<OrderSummaryDto>), StatusCodes.Status200OK)]
+        // GET /api/admin/order
+        [HttpGet("order")]
+        [ProducesResponseType(typeof(IEnumerable<OrderGetDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<OrderSummaryDto>>> GetAllOrders()
+        public async Task<ActionResult<IEnumerable<OrderGetDto>>> GetAllOrders()
         {
-            _logger.LogInformation("Admin requesting all orders.");
+            _logger.LogInformation("Attempting to retrieve all orders.");
             try
             {
                 var orders = await _orderService.GetAllOrdersAsync();
 
-                // *** Map directly to OrderSummaryDto ***
-                var dtos = orders.Select(o => new OrderSummaryDto
+                var orderDtos = orders.Select(o => new OrderGetDto
                 {
-                    OrderId = o.Id,
-                    OrderDate = o.Time,
-                    TotalAmount = o.Total ?? 0,
-                    Status = o.Status // Keep as Enum
-                });
-                _logger.LogInformation("Retrieved {OrderCount} orders for admin.", dtos.Count());
-                return Ok(dtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving all orders for admin.");
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving orders.");
-            }
-        }
-
-        // GET /api/admin/order (Alias)
-        [HttpGet("order")]
-        [ApiExplorerSettings(IgnoreApi = true)]
-        // *** Use OrderSummaryDto ***
-        [ProducesResponseType(typeof(IEnumerable<OrderSummaryDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<OrderSummaryDto>>> GetOrdersAlias()
-        {
-            return await GetAllOrders();
-        }
-
-
-        // POST /api/admin/order
-        // *** Use custom AdminCreateOrderDto (needed BuyerId) ***
-        // *** Return OrderSummaryDto ***
-        [HttpPost("order")]
-        [ProducesResponseType(typeof(OrderSummaryDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<OrderSummaryDto>> CreateOrder([FromBody] AdminCreateOrderDto createDto) // Using specific Admin DTO
-        {
-            _logger.LogInformation("Admin attempting to create order for BuyerId: {BuyerId}, StoreId: {StoreId}", createDto.BuyerId, createDto.StoreId);
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            try
-            {
-                // Add validation (e.g., check if BuyerId and StoreId exist) if needed
-                var order = await _orderService.CreateOrderAsync(createDto.BuyerId, createDto.StoreId);
-
-                // *** Map to OrderSummaryDto for response ***
-                var dto = new OrderSummaryDto
-                {
-                    OrderId = order.Id,
-                    OrderDate = order.Time,
-                    TotalAmount = order.Total ?? 0,
-                    Status = order.Status
-                };
-
-                _logger.LogInformation("Admin successfully created Order {OrderId}", order.Id);
-                return CreatedAtAction(nameof(GetOrderDetails), new { orderId = order.Id }, dto);
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Invalid arguments during admin order creation: {Message}", ex.Message);
-                return BadRequest(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during admin order creation for BuyerId: {BuyerId}, StoreId: {StoreId}", createDto.BuyerId, createDto.StoreId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the order.");
-            }
-        }
-
-
-        // GET /api/admin/order/{orderId}/details
-        // *** Use OrderDetailDto ***
-        [HttpGet("order/{orderId}/details")]
-        [ProducesResponseType(typeof(OrderDetailDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<OrderDetailDto>> GetOrderDetails(int orderId)
-        {
-            _logger.LogInformation("Admin requesting details for OrderId: {OrderId}", orderId);
-            if (orderId <= 0)
-            {
-                return BadRequest("Invalid Order ID.");
-            }
-
-            try
-            {
-                var order = await _orderService.GetOrderByIdAsync(orderId); // Ensure this includes items
-                if (order == null)
-                {
-                    _logger.LogWarning("Order {OrderId} not found for admin detail view.", orderId);
-                    return NotFound($"Order with ID {orderId} not found.");
-                }
-
-                // --- Fetch Additional Details ---
-                var buyer = await _userManager.FindByIdAsync(order.BuyerId.ToString());
-                var buyerInfoDto = buyer != null ? new OrderUserInfoDto { Id = buyer.Id, UserName = buyer.UserName, Email = buyer.Email } : null;
-
-                // --- Fetch Product Info for Items (Using loop with GetProductByIdAsync) ---
-                var productIds = order.OrderItems.Select(oi => oi.ProductId).Distinct().ToList();
-                var productsDict = new Dictionary<int, Product?>(); // Use Product from Catalog.Models
-                if (productIds.Any())
-                {
-                    // *** Loop through IDs and fetch individually ***
-                    foreach (var productId in productIds)
-                    {
-                        if (!productsDict.ContainsKey(productId)) // Avoid fetching the same product multiple times if duplicated in order items
-                        {
-                            var product = await _productService.GetProductByIdAsync(productId);
-                            productsDict.Add(productId, product); // Add even if null, to know we tried
-                        }
-                    }
-                    // *** End of loop ***
-                }
-
-                // Map OrderItems to OrderItemDto, including product details
-                var orderItemsDto = order.OrderItems.Select(oi =>
-                {
-                    productsDict.TryGetValue(oi.ProductId, out var product); // Look up in the dictionary
-                    return new OrderItemDto
+                    Id = o.Id,
+                    BuyerId = o.BuyerId,
+                    StoreId = o.StoreId,
+                    Status = o.Status,
+                    Time = o.Time,
+                    Total = o.Total,
+                    OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
                     {
                         Id = oi.Id,
                         ProductId = oi.ProductId,
-                        ProductName = product?.Name ?? "Product Not Found",
-                        Quantity = oi.Quantity,
-                        PricePerProduct = oi.Price,
-                        Subtotal = oi.Quantity * oi.Price,
-                        ProductImageUrl = product?.Pictures?.FirstOrDefault()?.Url
-                    };
+                        Price = oi.Price,
+                        Quantity = oi.Quantity
+                    }).ToList()
                 }).ToList();
 
-                // --- Map to OrderDetailDto ---
-                var dto = new OrderDetailDto
-                {
-                    Id = order.Id,
-                    OrderDate = order.Time,
-                    Status = order.Status.ToString(),
-                    TotalAmount = order.Total ?? 0m,
-                    StoreId = order.StoreId,
-                    BuyerInfo = buyerInfoDto,
-                    ShippingAddress = null,
-                    Items = orderItemsDto
-                };
-
-                return Ok(dto);
+                _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
+                return Ok(orderDtos);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving details for OrderId: {OrderId} for admin.", orderId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving order details.");
+                _logger.LogError(ex, "An error occurred while retrieving all orders.");
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while retrieving orders.");
             }
         }
 
-        // POST /api/admin/order/status
-        // *** Use UpdateOrderStatusRequestDto ***
-        [HttpPost("order/status")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        // GET /api/admin/order/{id}
+        [HttpGet("order/{id}")]
+        [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateOrderStatus([FromBody] UpdateOrderStatusRequestDto updateDto) // *** Use existing DTO ***
+        public async Task<ActionResult<OrderGetDto>> GetOrderById(int id)
         {
-            _logger.LogInformation("Admin attempting to update status for OrderId: {OrderId} to {NewStatus}", updateDto.OrderId, updateDto.NewStatus);
+            _logger.LogInformation("Attempting to retrieve order with ID: {OrderId}", id);
+            if (id <= 0)
+            {
+                _logger.LogWarning("GetOrderById request failed validation: Invalid ID {OrderId}", id);
+                return BadRequest("Invalid Order ID provided.");
+            }
+
+            try
+            {
+                var order = await _orderService.GetOrderByIdAsync(id);
+
+                if (order == null)
+                {
+                    _logger.LogWarning("Order with ID {OrderId} not found.", id);
+                    return NotFound($"Order with ID {id} not found.");
+                }
+
+                var orderDto = new OrderGetDto
+                {
+                    Id = order.Id,
+                    BuyerId = order.BuyerId,
+                    StoreId = order.StoreId,
+                    Status = order.Status,
+                    Time = order.Time,
+                    Total = order.Total,
+                    OrderItems = order.OrderItems.Select(oi => new OrderItemGetDto
+                    {
+                        Id = oi.Id,
+                        ProductId = oi.ProductId,
+                        Price = oi.Price,
+                        Quantity = oi.Quantity
+                    }).ToList()
+                };
+
+                _logger.LogInformation("Successfully retrieved order with ID: {OrderId}", id);
+                return Ok(orderDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving order with ID: {OrderId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while retrieving the order.");
+            }
+        }
+
+        // POST /api/admin/order/create
+        [HttpPost("order/create")]
+        [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<OrderGetDto>> CreateOrder([FromBody] OrderCreateDto createDto)
+        {
+            _logger.LogInformation("Attempting to create a new order for BuyerId: {BuyerId}, StoreId: {StoreId}", createDto.BuyerId, createDto.StoreId);
+
             if (!ModelState.IsValid)
             {
+                _logger.LogWarning("Create order request failed model validation. Errors: {@ModelState}", ModelState.Values.SelectMany(v => v.Errors));
                 return BadRequest(ModelState);
             }
 
-            // *** Status string validation and parsing ***
-            if (!Enum.TryParse<OrderStatus>(updateDto.NewStatus, true, out var newStatusEnum))
-            {
-                _logger.LogWarning("Invalid status value '{NewStatus}' provided by admin for Order {OrderId}.", updateDto.NewStatus, updateDto.OrderId);
-                // Provide valid statuses in the error message
-                return BadRequest($"Invalid status value: {updateDto.NewStatus}. Valid statuses are: {string.Join(", ", Enum.GetNames(typeof(OrderStatus)))}");
-            }
+            // Optional: Add validation to check if BuyerId and StoreId actually exist
+            // var buyerExists = await _userManager.FindByIdAsync(createDto.BuyerId) != null;
+            // var storeExists = _storeService.GetStoreById(createDto.StoreId) != null; // Assuming synchronous version exists or make async
+            // if (!buyerExists) return BadRequest($"Buyer with ID {createDto.BuyerId} not found.");
+            // if (!storeExists) return BadRequest($"Store with ID {createDto.StoreId} not found.");
 
             try
             {
-                // Consider adding transition validation logic if not present/sufficient in the service
-                // var currentOrder = await _orderService.GetOrderByIdAsync(updateDto.OrderId); // Fetch to check current status
-                // if (currentOrder != null && !_orderService.IsValidStatusTransition(currentOrder.Status, newStatusEnum)) // Needs public helper or logic here
-                // {
-                //     return BadRequest($"Cannot change order status from {currentOrder.Status} to {newStatusEnum}.");
-                // }
-
-                var success = await _orderService.UpdateOrderStatusAsync(updateDto.OrderId, newStatusEnum);
-
-                if (!success)
+                var createdOrder = await _orderService.CreateOrderAsync(createDto.BuyerId, createDto.StoreId);
+                var listitems = new List<OrderItemGetDto>();
+                foreach (var item in createDto.OrderItems)
                 {
-                    _logger.LogWarning("Failed to update status for OrderId {OrderId} by admin. Order might not exist or concurrency issue.", updateDto.OrderId);
-                    return NotFound($"Order with ID {updateDto.OrderId} not found or update failed.");
-                }
-
-                _logger.LogInformation("Admin successfully updated status for OrderId {OrderId} to {NewStatus}", updateDto.OrderId, newStatusEnum);
-                return Ok($"Status for Order {updateDto.OrderId} updated to {newStatusEnum}.");
-            }
-            catch (InvalidOperationException ex) // Catch specific exceptions like invalid transitions if thrown
-            {
-                _logger.LogWarning(ex, "Invalid operation during admin status update for Order {OrderId}.", updateDto.OrderId);
-                return BadRequest(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating status for OrderId: {OrderId} by admin.", updateDto.OrderId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the order status.");
-            }
-        }
-
-        // DELETE /api/admin/order/{orderId}
-        [HttpDelete("order/{orderId}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteOrder(int orderId)
-        {
-            // No DTO changes needed for this action
-            _logger.LogInformation("Admin attempting to delete OrderId: {OrderId}", orderId);
-            if (orderId <= 0)
-            {
-                return BadRequest("Invalid Order ID.");
-            }
-            // ... (rest of the implementation remains the same)
-            try
-            {
-                var success = await _orderService.DeleteOrderAsync(orderId);
-                if (!success)
-                {
-                    _logger.LogWarning("Order {OrderId} not found for deletion by admin.", orderId);
-                    return NotFound($"Order with ID {orderId} not found.");
-                }
-                _logger.LogInformation("Admin successfully deleted OrderId {OrderId}", orderId);
-                return NoContent();
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Database error deleting OrderId: {OrderId} by admin. It might be referenced elsewhere.", orderId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the order. It might have dependencies.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting OrderId: {OrderId} by admin.", orderId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the order.");
-            }
-        }
-
-
-        // ==================================================
-        //                ORDER ITEM ENDPOINTS
-        // ==================================================
-
-        // GET /api/admin/order/{orderId}/items
-        // *** Use OrderItemDto ***
-        [HttpGet("order/{orderId}/items")]
-        [ProducesResponseType(typeof(IEnumerable<OrderItemDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<OrderItemDto>>> GetOrderItems(int orderId)
-        {
-            _logger.LogInformation("Admin requesting items for OrderId: {OrderId}", orderId);
-            if (orderId <= 0) return BadRequest("Invalid Order ID.");
-
-            try
-            {
-                var orderExists = await _orderService.GetOrderByIdAsync(orderId) != null;
-                if (!orderExists)
-                {
-                    _logger.LogWarning("Order {OrderId} not found when requesting items by admin.", orderId);
-                    return NotFound($"Order with ID {orderId} not found.");
-                }
-
-                var items = await _orderItemService.GetOrderItemsByOrderIdAsync(orderId);
-
-                // --- Fetch Product Details for Items (Using loop with GetProductByIdAsync) ---
-                var productIds = items.Select(oi => oi.ProductId).Distinct().ToList();
-                var productsDict = new Dictionary<int, Product?>();
-                if (productIds.Any())
-                {
-                    // *** Loop through IDs and fetch individually ***
-                    foreach (var productId in productIds)
+                    var x = await _orderItemService.CreateOrderItemAsync(createdOrder.Id, item.ProductId, item.Quantity);
+                    listitems.Add(new OrderItemGetDto
                     {
-                        if (!productsDict.ContainsKey(productId))
-                        {
-                            var product = await _productService.GetProductByIdAsync(productId);
-                            productsDict.Add(productId, product);
-                        }
-                    }
-                    // *** End of loop ***
+                        Id = x.Id,
+                        ProductId = x.ProductId,
+                        Price = x.Price,
+                        Quantity = x.Quantity,
+                    });
                 }
-
-                // *** Map to OrderItemDto ***
-                var dtos = items.Select(oi =>
-                 {
-                     productsDict.TryGetValue(oi.ProductId, out var product);
-                     return new OrderItemDto
-                     {
-                         Id = oi.Id,
-                         ProductId = oi.ProductId,
-                         ProductName = product?.Name ?? "Product Not Found",
-                         Quantity = oi.Quantity,
-                         PricePerProduct = oi.Price,
-                         Subtotal = oi.Quantity * oi.Price,
-                         ProductImageUrl = product?.Pictures?.FirstOrDefault()?.Url
-                     };
-                 });
-
-                _logger.LogInformation("Retrieved {ItemCount} items for OrderId {OrderId} for admin.", dtos.Count(), orderId);
-                return Ok(dtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving items for OrderId: {OrderId} for admin.", orderId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving order items.");
-            }
-        }
-
-        // POST /api/admin/order/{orderId}/items
-        // *** Use CreateOrderItemDto for input ***
-        // *** Use OrderItemDto for output ***
-        [HttpPost("order/{orderId}/items")]
-        [ProducesResponseType(typeof(OrderItemDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<OrderItemDto>> AddOrderItem(int orderId, [FromBody] CreateOrderItemDto createDto) // *** Use existing DTO ***
-        {
-            _logger.LogInformation("Admin attempting to add item (Product: {ProductId}, Qty: {Quantity}) to OrderId: {OrderId}",
-                createDto.ProductId, createDto.Quantity, orderId);
-
-            if (orderId <= 0) return BadRequest("Invalid Order ID.");
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            try
-            {
-                var newItem = await _orderItemService.CreateOrderItemAsync(orderId, createDto.ProductId, createDto.Quantity);
-
-                // --- Fetch Product Details for Response ---
-                var product = await _productService.GetProductByIdAsync(newItem.ProductId); // Fetch details
-
-                // *** Map to OrderItemDto ***
-                var dto = new OrderItemDto
+                // Map the created order (which won't have items yet) to the DTO
+                var orderDto = new OrderGetDto
                 {
-                    Id = newItem.Id,
-                    ProductId = newItem.ProductId,
-                    ProductName = product?.Name ?? "Product Not Found",
-                    Quantity = newItem.Quantity,
-                    PricePerProduct = newItem.Price, // Price from the created item
-                    Subtotal = newItem.Quantity * newItem.Price,
-                    ProductImageUrl = product?.Pictures?.FirstOrDefault()?.Url
+                    Id = createdOrder.Id,
+                    BuyerId = createdOrder.BuyerId,
+                    StoreId = createdOrder.StoreId,
+                    Status = createdOrder.Status,
+                    Time = createdOrder.Time,
+                    Total = createdOrder.Total, // Will likely be null or 0 initially
+                    OrderItems = listitems // Empty list
                 };
 
-                _logger.LogInformation("Admin successfully added OrderItem {OrderItemId} to Order {OrderId}", newItem.Id, orderId);
-                return CreatedAtAction(nameof(GetOrderItems), new { orderId = orderId }, dto);
+                _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder.Id);
+                // Return 201 Created with the location of the newly created resource and the resource itself
+                return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException ex) // Catch specific exceptions from the service if possible
             {
-                _logger.LogWarning(ex, "Invalid argument adding item to Order {OrderId} by admin: {Message}", orderId, ex.Message);
-                return BadRequest(ex.Message);
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Operation error adding item to Order {OrderId} by admin: {Message}", orderId, ex.Message);
-                if (ex.Message.Contains($"Order with Id {orderId} not found"))
-                {
-                    return NotFound($"Order with ID {orderId} not found.");
-                }
+                _logger.LogWarning(ex, "Failed to create order due to invalid arguments (BuyerId: {BuyerId}, StoreId: {StoreId})", createDto.BuyerId, createDto.StoreId);
                 return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error adding item (Product: {ProductId}) to OrderId: {OrderId} by admin.", createDto.ProductId, orderId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while adding the order item.");
+                _logger.LogError(ex, "An error occurred while creating an order for BuyerId: {BuyerId}, StoreId: {StoreId}", createDto.BuyerId, createDto.StoreId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while creating the order.");
             }
         }
 
-        // PUT /api/admin/order/items/{orderItemId}
-        // *** Use UpdateOrderItemDto ***
-        [HttpPut("order/items/{orderItemId}")]
+        // PUT /api/admin/order/update/{id} --> Primarily for updating Status
+        [HttpPut("order/update/{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateOrderItem(int orderItemId, [FromBody] UpdateOrderItemDto updateDto) // *** Use existing DTO ***
+        public async Task<IActionResult> UpdateOrderStatus(int id, [FromBody] OrderUpdateStatusDto updateDto)
         {
-            _logger.LogInformation("Admin attempting to update OrderItem {OrderItemId} to Product: {ProductId}, Qty: {Quantity}",
-                orderItemId, updateDto.ProductId, updateDto.Quantity);
+            _logger.LogInformation("Attempting to update status for order ID: {OrderId} to {NewStatus}", id, updateDto.NewStatus);
 
-            if (orderItemId <= 0) return BadRequest("Invalid Order Item ID.");
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (id <= 0)
+            {
+                _logger.LogWarning("UpdateOrderStatus request failed validation: Invalid ID {OrderId}", id);
+                return BadRequest("Invalid Order ID provided.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Update order status request failed model validation for Order ID {OrderId}. Errors: {@ModelState}", id, ModelState.Values.SelectMany(v => v.Errors));
+                return BadRequest(ModelState);
+            }
 
             try
             {
-                // Service already uses ProductId and Quantity
-                var success = await _orderItemService.UpdateOrderItemAsync(orderItemId, updateDto.Quantity, updateDto.ProductId);
+                var success = await _orderService.UpdateOrderStatusAsync(id, updateDto.NewStatus);
+
                 if (!success)
                 {
-                    _logger.LogWarning("Failed to update OrderItem {OrderItemId} by admin. Item might not exist or concurrency issue.", orderItemId);
-                    return NotFound($"Order Item with ID {orderItemId} not found or update failed.");
+                    // Could be NotFound or a concurrency issue, service layer logs details
+                    _logger.LogWarning("Failed to update status for order ID: {OrderId}. Order might not exist or a concurrency issue occurred.", id);
+                    // Check if the order actually exists to return a more specific error
+                    var orderExists = await _orderService.GetOrderByIdAsync(id) != null;
+                    if (!orderExists)
+                    {
+                        return NotFound($"Order with ID {id} not found.");
+                    }
+                    // If it exists, it might be a concurrency issue or other update failure
+                    return BadRequest($"Failed to update status for order ID: {id}. See logs for details.");
                 }
-                _logger.LogInformation("Admin successfully updated OrderItem {OrderItemId}", orderItemId);
-                return NoContent();
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Invalid argument updating OrderItem {OrderItemId} by admin: {Message}", orderItemId, ex.Message);
-                return BadRequest(ex.Message);
+
+                _logger.LogInformation("Successfully updated status for order ID: {OrderId} to {NewStatus}", id, updateDto.NewStatus);
+                return NoContent(); // Standard success response for PUT when no content is returned
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating OrderItem {OrderItemId} by admin.", orderItemId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the order item.");
+                _logger.LogError(ex, "An error occurred while updating status for order ID: {OrderId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while updating the order status.");
             }
         }
 
-        // DELETE /api/admin/order/items/{orderItemId}
-        [HttpDelete("order/items/{orderItemId}")]
+        // DELETE /api/admin/order/{id}
+        [HttpDelete("order/{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteOrderItem(int orderItemId)
+        public async Task<IActionResult> DeleteOrder(int id)
         {
-            // No DTO changes needed
-            _logger.LogInformation("Admin attempting to delete OrderItem {OrderItemId}", orderItemId);
-            if (orderItemId <= 0) return BadRequest("Invalid Order Item ID.");
-            // ... (rest of the implementation remains the same)
+            _logger.LogInformation("Attempting to delete order with ID: {OrderId}", id);
+
+            if (id <= 0)
+            {
+                _logger.LogWarning("DeleteOrder request failed validation: Invalid ID {OrderId}", id);
+                return BadRequest("Invalid Order ID provided.");
+            }
+
             try
             {
-                var success = await _orderItemService.DeleteOrderItemAsync(orderItemId);
+                var success = await _orderService.DeleteOrderAsync(id);
+
                 if (!success)
                 {
-                    _logger.LogWarning("OrderItem {OrderItemId} not found for deletion by admin.", orderItemId);
-                    return NotFound($"Order Item with ID {orderItemId} not found.");
+                    // Service logs if not found
+                    _logger.LogWarning("Failed to delete order with ID: {OrderId}. Order might not exist.", id);
+                    return NotFound($"Order with ID {id} not found."); // Return 404 if the delete operation indicated not found
                 }
-                _logger.LogInformation("Admin successfully deleted OrderItem {OrderItemId}", orderItemId);
-                return NoContent();
+
+                _logger.LogInformation("Successfully deleted order with ID: {OrderId}", id);
+                return NoContent(); // Standard success response for DELETE
             }
-            catch (DbUpdateException ex)
+            catch (DbUpdateException dbEx) // Catch potential FK constraint issues if cascade delete isn't set up perfectly
             {
-                _logger.LogError(ex, "Database error deleting OrderItem {OrderItemId} by admin.", orderItemId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the order item.");
+                _logger.LogError(dbEx, "Database error occurred while deleting order ID: {OrderId}. It might be referenced elsewhere.", id);
+                // Consider returning 409 Conflict if it's due to dependencies
+                return StatusCode(StatusCodes.Status500InternalServerError, $"An error occurred while deleting order {id}. It might have related data preventing deletion.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting OrderItem {OrderItemId} by admin.", orderItemId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the order item.");
+                _logger.LogError(ex, "An unexpected error occurred while deleting order ID: {OrderId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while deleting the order.");
             }
         }
+
+
         // Helper method to add errors to ModelState
         private void AddErrors(IdentityResult result)
         {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Catalog.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Make sure you have this using for ILogger
 using Order.Interface;
@@ -12,10 +13,12 @@ namespace Order.Services
     public class OrderItemService : IOrderItemService
     {
         private readonly OrdersDbContext _context;
+        private readonly CatalogDbContext _catalog;
         private readonly ILogger<OrderItemService> _logger;
 
-        public OrderItemService(OrdersDbContext context, ILogger<OrderItemService> logger)
+        public OrderItemService(OrdersDbContext context, ILogger<OrderItemService> logger, CatalogDbContext catalog)
         {
+            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -36,7 +39,7 @@ namespace Order.Services
 
             // --- Find Product and Price ---
             // Fetch the product to get its price and validate existence/status
-            var product = await _context.Products.FindAsync(productId);
+            var product = await _catalog.Products.FindAsync(productId);
             if (product == null)
             {
                 throw new ArgumentException($"Product with Id {productId} not found.", nameof(productId));
@@ -102,7 +105,7 @@ namespace Order.Services
 
             // --- Find Product and Price ---
             // Fetch the product for the potentially new ProductId
-            var product = await _context.Products.FindAsync(productId);
+            var product = await _catalog.Products.FindAsync(productId);
             if (product == null)
             {
                 throw new ArgumentException($"Product with Id {productId} not found.", nameof(productId));
