@@ -2,10 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Make sure you have this using for ILogger
+using Order.DTOs;
 using Order.Interface;
 using Order.Models;
+using Store.Models;
+using Users.Models;
 
 namespace Order.Services
 {
@@ -15,14 +19,16 @@ namespace Order.Services
     public class OrderService : IOrderService
     {
         private readonly OrdersDbContext _context;
+        private readonly UserManager<User> _userManager;
+
         private readonly ILogger<OrderService> _logger;
 
-        public OrderService(OrdersDbContext context, ILogger<OrderService> logger)
+        public OrderService(OrdersDbContext ordersContext, UserManager<User> userManager, ILogger<OrderService> logger)
         {
-            _context = context ?? throw new ArgumentNullException(nameof(context));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _context = ordersContext;
+            _userManager = userManager;
+            _logger = logger;
         }
-
         public async Task<OrderModel> CreateOrderAsync(int buyerId, int storeId)
         {
             // --- Validation ---
@@ -154,6 +160,38 @@ namespace Order.Services
                 return false;
             }
         }
+
+
+
+        public async Task<IEnumerable<OrderSummaryDto>> GetOrdersForSellerAsync(string sellerUserId)
+        {
+            _logger.LogInformation("Dohvatanje narudžbi za sellerUserId {SellerUserId}", sellerUserId);
+
+            var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Id == sellerUserId);
+
+            if (user == null || user.StoreId == null)
+            {
+                _logger.LogWarning("Korisnik nije pronađen ili nema StoreId: {SellerUserId}", sellerUserId);
+                return Enumerable.Empty<OrderSummaryDto>();
+            }
+
+            int storeId = user.StoreId.Value;
+
+            var orders = await _context.Orders
+                .Where(o => o.StoreId == storeId)
+                .Select(o => new OrderSummaryDto
+                {
+                    OrderId = o.Id,
+                    OrderDate = o.Time,
+                    TotalAmount = o.Total ?? 0
+                })
+                .ToListAsync();
+
+            _logger.LogInformation("Vraćeno {Count} narudžbi za StoreId {StoreId}", orders.Count, storeId);
+
+            return orders;
+        }
+
 
     }
 }

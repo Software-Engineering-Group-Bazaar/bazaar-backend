@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Order.DTOs;
 using Order.Models;
 
 namespace Order.Interface
@@ -14,5 +15,6 @@ namespace Order.Interface
         Task<IEnumerable<OrderModel>> GetOrdersByStoreAsync(int storeId);
         Task<bool> UpdateOrderStatusAsync(int orderId, OrderStatus newStatus);
         Task<bool> DeleteOrderAsync(int orderId);
+        Task<IEnumerable<OrderSummaryDto>> GetOrdersForSellerAsync(string sellerUserId);
     }
 }
