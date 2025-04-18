@@ -21,5 +21,7 @@ namespace Store.Interface
         // Delete a store
         bool DeleteStore(int id);
         Task<bool> DeleteStoreAsync(int id);
+
+        Task<IEnumerable<StoreModel>> SearchStoresAsync(string query);
     }
 }

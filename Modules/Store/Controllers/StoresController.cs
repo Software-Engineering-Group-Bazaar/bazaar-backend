@@ -334,7 +334,46 @@ namespace Store.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while creating the category.");
             }
         }
-    }
 
+        [HttpGet("search")] // Defines the route: /api/Stores/search
+        [ProducesResponseType(typeof(IEnumerable<StoreGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult<IEnumerable<StoreGetDto>>> SearchStores([FromQuery] string query = "") // Takes query param from URL
+        {
+            _logger.LogInformation("[StoresController] Attempting to search stores with query: '{Query}'", query);
+
+            try
+            {
+                var stores = await _storeService.SearchStoresAsync(query);
+
+                if (stores == null || !stores.Any())
+                {
+                    _logger.LogInformation("[StoresController] No stores found matching query: '{Query}'", query);
+                    return Ok(new List<StoreGetDto>()); // Return empty list for no results
+                }
+
+                // Map StoreModel results to StoreGetDto
+                var storeDtos = stores.Select(store => new StoreGetDto
+                {
+                    Id = store.id,
+                    Name = store.name,
+                    Address = store.address,
+                    Description = store.description,
+                    IsActive = store.isActive,
+                    CategoryName = store.category?.name ?? "N/A" // Safely access category name
+                }).ToList();
+
+                _logger.LogInformation("[StoresController] Successfully found {StoreCount} stores matching query: '{Query}'", storeDtos.Count, query);
+                return Ok(storeDtos);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[StoresController] An error occurred while searching stores with query: '{Query}'", query);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while searching for stores.");
+            }
+        }
+    }
 
 }
