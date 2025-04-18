@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Notifications.Models;
 using Order.Interface;
 using Order.Models;
 using Order.Services;
@@ -79,6 +80,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<StoreDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("StoreConnection")));
     builder.Services.AddDbContext<CatalogDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("CatalogConnection")));
     builder.Services.AddDbContext<OrdersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("OrderConnection")));
+    builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("NotificationsConnection")));
 }
 
 builder.Services.AddHttpClient();
