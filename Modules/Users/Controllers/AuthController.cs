@@ -14,7 +14,7 @@ namespace Users.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IGoogleSignInService _googleSignInService;
-         private readonly IFacebookSignInService _facebookSignInService;
+        private readonly IFacebookSignInService _facebookSignInService;
 
         public AuthController(IAuthService authService, IGoogleSignInService googleSignInService, IFacebookSignInService facebookSignInService)
         {
@@ -79,7 +79,7 @@ namespace Users.Controllers
 
         }
 
-         // api/auth/login/facebook
+        // api/auth/login/facebook
         [AllowAnonymous]
         [HttpPost("login/facebook")]
         public async Task<ActionResult<string>> SignFacebookUser([FromBody] FacebookSignInRequestDto request)

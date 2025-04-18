@@ -422,7 +422,9 @@ namespace Admin.Controllers
                     Address = store.address,
                     Description = store.description,
                     IsActive = store.isActive,
-                    CategoryName = store.category.name
+                    CategoryName = store.category.name,
+                    PlaceName = store.place.Name,
+                    RegionName = store.place.Region.Name
                 }).ToList();
 
                 _logger.LogInformation("Successfully retrieved {StoreCount} stores.", storeDtos.Count);
@@ -458,7 +460,9 @@ namespace Admin.Controllers
                     CategoryName = stores.category.name,
                     IsActive = stores.isActive,
                     Description = stores.description,
-                    Name = stores.name
+                    Name = stores.name,
+                    PlaceName = stores.place.Name,
+                    RegionName = stores.place.Region.Name
                 };
 
                 return Ok(storeDto);
@@ -563,7 +567,7 @@ namespace Admin.Controllers
                     return BadRequest($"Category with ID {dto.CategoryId} does not exist.");
                 }
 
-                var store = _storeService.CreateStore(dto.Name, dto.CategoryId, dto.Address, dto.Description);
+                var store = _storeService.CreateStore(dto.Name, dto.CategoryId, dto.Address, dto.Description, dto.PlaceId);
 
                 var storeDto = new StoreGetDto
                 {
@@ -572,7 +576,9 @@ namespace Admin.Controllers
                     Address = store.address,
                     Description = store.description,
                     IsActive = store.isActive,
-                    CategoryName = category.name
+                    CategoryName = category.name,
+                    PlaceName = store.place.Name,
+                    RegionName = store.place.Region.Name
                 };
 
                 _logger.LogInformation("Successfully created store with ID {StoreId}.", store.id);

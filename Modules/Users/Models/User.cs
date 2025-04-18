@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 
 namespace Users.Models
@@ -7,6 +8,9 @@ namespace Users.Models
         public bool IsApproved { get; set; }
         public bool IsActive { get; set; }
         public int? StoreId { get; set; }
+
+        [MaxLength(500)]
+        public string? FcmDeviceToken { get; set; }
         public ICollection<PasswordResetRequest> Posts { get; } = new List<PasswordResetRequest>();
     }
 }

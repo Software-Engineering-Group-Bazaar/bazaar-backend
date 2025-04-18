@@ -18,10 +18,15 @@ namespace Store.Services
         }
 
         // Create a new store
-        public StoreModel CreateStore(string _name, int _categoryId, string _address, string _description)
+        public StoreModel CreateStore(string _name, int _categoryId, string _address, string _description, int placeId)
         {
             var _category = _context.StoreCategories.Find(_categoryId);
+            var _place = _context.Places.Find(placeId);
             if (_category == null)
+            {
+                throw new ArgumentException("Category not found.");
+            }
+            if (_place == null)
             {
                 throw new ArgumentException("Category not found.");
             }
@@ -32,6 +37,7 @@ namespace Store.Services
                 category = _category,
                 address = _address,
                 description = _description,
+                place = _place,
                 isActive = true // Default value for new stores
             };
 
