@@ -101,6 +101,7 @@ builder.Services.AddScoped<IFacebookSignInService, FacebookSignInService>();
 
 builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddScoped<IStoreCategoryService, StoreCategoryService>();
+builder.Services.AddScoped<IGeographyService, GeographyService>();
 
 builder.Services.AddScoped<IUserService, UserService>();
 
@@ -218,6 +219,7 @@ await SeedRolesAsync(app);
 if (app.Environment.IsDevelopment())
 {
     await UserDataSeeder.SeedDevelopmentUsersAsync(app);
+    await GeographyDataSeeder.SeedGeographyAsync(app);
 }
 
 // --- Configure the HTTP Request Pipeline (Middleware) ---
