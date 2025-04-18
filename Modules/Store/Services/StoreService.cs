@@ -113,5 +113,23 @@ namespace Store.Services
             await _context.SaveChangesAsync();
             return true;
         }
+
+        public async Task<IEnumerable<StoreModel>> SearchStoresAsync(string query)
+        {
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return await _context.Stores.Include(s => s.category).ToListAsync();
+            }
+
+            var normalizedSearchTerm = query.Trim().ToLower();
+
+            var stores = await _context.Stores
+                .Include(s => s.category)
+                .Where(s => s.name.ToLower().Contains(normalizedSearchTerm))
+                .ToListAsync();
+
+            return stores;
+        }
     }
 }
