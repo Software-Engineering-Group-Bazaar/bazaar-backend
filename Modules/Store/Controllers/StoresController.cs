@@ -153,7 +153,7 @@ namespace Store.Controllers
                     return BadRequest(ModelState); // 400 Bad Request
                 }
 
-                createdStore = _storeService.CreateStore(dto.Name, dto.CategoryId, dto.Address, dto.Description);
+                createdStore = _storeService.CreateStore(dto.Name, dto.CategoryId, dto.Address, dto.Description, dto.PlaceId);
                 _logger.LogInformation("[StoresController] CreateStore - Store {StoreId} created in database for User {UserId}.", createdStore.id, userId);
                 // --- Kraj dela za kreiranje prodavnice ---
 
@@ -198,6 +198,8 @@ namespace Store.Controllers
                     Address = createdStore.address,
                     Description = createdStore.description,
                     IsActive = createdStore.isActive,
+                    PlaceName = createdStore.place.Name,
+                    RegionName = createdStore.place.Region.Name,
                     CategoryName = category.name // Koristi kategoriju dobijenu ranije
                 };
 
@@ -269,6 +271,8 @@ namespace Store.Controllers
                     Address = store.address,
                     Description = store.description,
                     IsActive = store.isActive,
+                    PlaceName = store.place.Name,
+                    RegionName = store.place.Region.Name,
                     CategoryName = store.category?.name ?? "N/A"
                 };
 
@@ -362,6 +366,8 @@ namespace Store.Controllers
                     Address = store.address,
                     Description = store.description,
                     IsActive = store.isActive,
+                    PlaceName = store.place.Name,
+                    RegionName = store.place.Region.Name,
                     CategoryName = store.category?.name ?? "N/A" // Safely access category name
                 }).ToList();
 

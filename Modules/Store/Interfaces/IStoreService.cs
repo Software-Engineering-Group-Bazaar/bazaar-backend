@@ -7,7 +7,7 @@ namespace Store.Interface
     public interface IStoreService //TODO: Make async methods
     {
         // Create a new store
-        StoreModel CreateStore(string name, int categoryId, string address, string description);
+        StoreModel CreateStore(string name, int categoryId, string address, string description, int placeId);
 
         // Get all stores
         IEnumerable<StoreModel> GetAllStores();

@@ -559,7 +559,7 @@ namespace Catalog.Controllers
 
                 return NoContent();
             }
-            catch (UnauthorizedAccessException ex)
+            catch (UnauthorizedAccessException)
             {
                 // Vrati ProblemDetails za 403 radi konzistentnosti sa ValidationProblem
                 return Problem(detail: "User is not authorized to update availability for this product.", statusCode: StatusCodes.Status403Forbidden, title: "Forbidden");
@@ -569,12 +569,12 @@ namespace Catalog.Controllers
                 // Vrati ProblemDetails
                 return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
             }
-            catch (KeyNotFoundException ex) // Ako servis ne nađe korisnika
+            catch (KeyNotFoundException) // Ako servis ne nađe korisnika
             {
                 // Vrati ProblemDetails za 500
                 return Problem(detail: "User validation error during availability update.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
             }
-            catch (Exception ex) // Sve ostale greške
+            catch (Exception) // Sve ostale greške
             {
                 // Vrati ProblemDetails za 500
                 return Problem(detail: "An error occurred while updating product availability.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
