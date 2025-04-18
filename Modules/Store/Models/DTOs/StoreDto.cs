@@ -8,5 +8,7 @@ namespace AdminApi.DTOs
         public string? Description { get; set; }
         public bool IsActive { get; set; }
         public string CategoryName { get; set; } = default!;
+        public string PlaceName { get; set; } = default!;
+        public string RegionName { get; set; } = default!;
     }
 }
