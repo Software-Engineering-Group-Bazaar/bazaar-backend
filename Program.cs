@@ -190,13 +190,16 @@ builder.Services.AddSwaggerGen(options =>
 
 if (builder.Environment.IsDevelopment())
 {
-    var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
-    builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
-    builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
-    // --------------------------------------------------
+    // var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
+    // builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
+    // builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
+    // // --------------------------------------------------
 
-    // Registruj S3 implementaciju kao Singleton
-    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    // // Registruj S3 implementaciju kao Singleton
+    // builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    // znc if development aws i else aws, a mi ostali nemamo aws (i ne bi trebali ni imati)...
+    builder.Services.AddSingleton<IImageStorageService, FileImageStorageService>();
+    builder.Services.AddSingleton<IPushNotificationService, DevPushNotificationService>();
 }
 else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing")) // Pokriva Production i ostala okruženja
 {
