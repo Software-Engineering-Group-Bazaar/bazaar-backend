@@ -229,6 +229,7 @@ namespace Catalog.Controllers
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
+                IsActive = product.IsActive,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             }).ToList();
 
@@ -262,6 +263,7 @@ namespace Catalog.Controllers
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
+                IsActive = product.IsActive,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             };
 
@@ -302,7 +304,8 @@ namespace Catalog.Controllers
                     WeightUnit = createProductDto.WeightUnit,
                     Volume = createProductDto.Volume,
                     VolumeUnit = createProductDto.VolumeUnit,
-                    StoreId = createProductDto.StoreId
+                    StoreId = createProductDto.StoreId,
+                    IsActive = createProductDto.IsActive
                 };
 
                 var createdProduct = await _productService.CreateProductAsync(product, createProductDto.Files);
@@ -319,6 +322,7 @@ namespace Catalog.Controllers
                     Volume = product.Volume,
                     VolumeUnit = product.VolumeUnit,
                     StoreId = product.StoreId,
+                    IsActive = product.IsActive,
                     Photos = product.Pictures.Select(photo => photo.Url).ToList()
                 };
 
@@ -376,6 +380,7 @@ namespace Catalog.Controllers
                 product.Volume = productDto.Volume;
                 product.VolumeUnit = productDto.VolumeUnit;
                 product.StoreId = productDto.StoreId;
+                product.IsActive = productDto.IsActive;
 
                 var success = await _productService.UpdateProductAsync(product);
                 if (!success)
@@ -447,6 +452,7 @@ namespace Catalog.Controllers
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
+                IsActive = product.IsActive,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             }).ToList();
 
@@ -551,34 +557,28 @@ namespace Catalog.Controllers
                     return NotFound($"Product with ID {productId} not found."); // 404 Not Found
                 }
 
-                // ➤➤➤ Return za uspjeh je SADA UNUTAR TRY bloka ➤➤➤
-                return NoContent(); // 204 No Content - Uspješno ažurirano
+                return NoContent();
             }
             catch (UnauthorizedAccessException ex)
             {
                 // Vrati ProblemDetails za 403 radi konzistentnosti sa ValidationProblem
                 return Problem(detail: "User is not authorized to update availability for this product.", statusCode: StatusCodes.Status403Forbidden, title: "Forbidden");
-                // return Forbid(); // Alternativa
             }
             catch (ArgumentException ex)
             {
                 // Vrati ProblemDetails
                 return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
-                // return BadRequest(new { message = ex.Message }); // Alternativa
             }
             catch (KeyNotFoundException ex) // Ako servis ne nađe korisnika
             {
                 // Vrati ProblemDetails za 500
                 return Problem(detail: "User validation error during availability update.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
-                // return StatusCode(StatusCodes.Status500InternalServerError, "User validation error during availability update."); // Alternativa
             }
             catch (Exception ex) // Sve ostale greške
             {
                 // Vrati ProblemDetails za 500
                 return Problem(detail: "An error occurred while updating product availability.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
-                // return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating product availability."); // Alternativa
             }
-            // Kompajler sada zna da će se ILI vratiti nešto unutar try ILI unutar nekog od catch blokova.
         }
     }
 }
