@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Order.DTOs;
 using Order.Models;
 
 namespace Order.Interface
@@ -12,4 +13,5 @@ namespace Order.Interface
         Task<IEnumerable<OrderItem>> GetOrderItemsByOrderIdAsync(int orderId);
         Task<bool> DeleteOrderItemAsync(int orderItemId);
     }
+
 }
