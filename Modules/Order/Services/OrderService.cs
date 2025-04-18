@@ -187,7 +187,8 @@ namespace Order.Services
                 {
                     OrderId = o.Id,
                     OrderDate = o.Time,
-                    TotalAmount = o.Total ?? 0
+                    TotalAmount = o.Total ?? 0,
+                    Status = o.Status
                 })
                 .ToListAsync();
 
