@@ -341,11 +341,11 @@ namespace Order.Services
 
             // 4. Dohvati dodatne podatke (npr. Buyer info, Product info)
             // --- Dohvat informacija o kupcu ---
-            UserInfoDto? buyerInfoDto = null;
+            OrderUserInfoDto? buyerInfoDto = null;
             var buyer = await _userManager.FindByIdAsync(order.BuyerId.ToString()); // Pazi na tip ID-ja! Možda ne treba ToString() ako je BuyerId string
             if (buyer != null)
             {
-                buyerInfoDto = new UserInfoDto { Id = buyer.Id, UserName = buyer.UserName, Email = buyer.Email };
+                buyerInfoDto = new OrderUserInfoDto { Id = buyer.Id, UserName = buyer.UserName, Email = buyer.Email };
             }
 
             // --- Dohvat informacija o proizvodima za stavke ---

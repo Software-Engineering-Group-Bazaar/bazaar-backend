@@ -27,7 +27,7 @@ namespace Order.DTOs
         public decimal TotalAmount { get; set; }
         public int StoreId { get; set; }
         // Informacije o kupcu (može biti poseban DTO)
-        public UserInfoDto? BuyerInfo { get; set; }
+        public OrderUserInfoDto? BuyerInfo { get; set; }
         // Informacije o adresi dostave (ako postoji)
         public ShippingAddressDto? ShippingAddress { get; set; } // String ili strukturirano?
         // Lista stavki narudžbe
@@ -35,7 +35,7 @@ namespace Order.DTOs
     }
 
     // Pomoćni DTO za informacije o korisniku (možda već postoji u Users modulu?)
-    public class UserInfoDto
+    public class OrderUserInfoDto
     {
         public string Id { get; set; } = string.Empty;
         public string? UserName { get; set; }
