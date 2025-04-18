@@ -2,6 +2,7 @@
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
+using SharedKernel;
 using Users.Dtos;
 using Users.Interfaces;
 using Users.Models;
@@ -52,14 +53,31 @@ namespace Users.Services
                     await _userManager.AddToRoleAsync(user, Role.Buyer.ToString());
                 else
                     await _userManager.AddToRoleAsync(user, Role.Seller.ToString());
+
+                throw new InvalidOperationException($"Access denied: User account is unapproved.");
+            }
+
+            if (!user.IsApproved)
+            {
+                throw new InvalidOperationException($"Access denied: User account is unapproved.");
+            }
+
+            if (!user.IsActive)
+            {
+                throw new InvalidOperationException($"Access denied: User account is inactive.");
             }
 
             var roles = await _userManager.GetRolesAsync(user);
+            if (!roles.Contains(Utils.FirstLetterToUpper(app)))
+            {
+                throw new InvalidOperationException($"Access denied: User account is registered with another role.");
+            }
+
             var (token, _) = await _jwtService.GenerateTokenAsync(user, roles);
 
             return new LoginResponseDto
             {
-                Email = user.Email,
+                Email = userInfo.Email,
                 Token = token
             };
         }

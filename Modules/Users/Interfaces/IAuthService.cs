@@ -7,7 +7,7 @@ namespace Users.Interfaces
     {
         Task<string> RegisterAsync(RegisterDto dto);
 
-        Task<LoginResponseDto> LoginAsync(LoginDto dto);
+        Task<LoginResponseDto?> LoginAsync(LoginDto dto);
 
         Task LogoutAsync();
     }

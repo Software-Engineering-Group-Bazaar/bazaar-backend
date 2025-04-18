@@ -1,9 +1,10 @@
-﻿using Users.Interfaces;
+﻿using System.Net;
 using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
-using System.Net;
-using Users.Models.Dtos;
+using SharedKernel;
+using Users.Interfaces;
 using Users.Models;
+using Users.Models.Dtos;
 
 namespace Users.Services
 {
@@ -30,7 +31,7 @@ namespace Users.Services
             _jwtService = jwtService;
         }
 
-        public async Task<string> SignInAsync(GoogleSignInRequestDto request)
+        public async Task<string?> SignInAsync(GoogleSignInRequestDto request)
         {
             //validate token
             GoogleUserInfoDto? googleUser = null;
@@ -62,7 +63,22 @@ namespace Users.Services
                 var user = await _userManager.FindByEmailAsync(googleUser.Email);
                 if (user != null)
                 {
+                    if (!user.IsApproved)
+                    {
+                        throw new InvalidOperationException($"Access denied: User account is unapproved.");
+                    }
+
+                    if (!user.IsActive)
+                    {
+                        throw new InvalidOperationException($"Access denied: User account is inactive.");
+                    }
+
                     var roles = await _userManager.GetRolesAsync(user);
+                    if (!roles.Contains(Utils.FirstLetterToUpper(request.App)))
+                    {
+                        throw new InvalidOperationException($"Access denied: User account is registered with another role.");
+                    }
+
                     var (token, _) = await _jwtService.GenerateTokenAsync(user, roles);
                     return token;
                 }
@@ -82,21 +98,24 @@ namespace Users.Services
                         return null;
                     }
 
-                    if(request.App.Equals("buyer"))
+                    if (request.App.Equals("buyer"))
                     {
                         await _userManager.AddToRoleAsync(user, Role.Buyer.ToString());
-                    } 
+                    }
                     else
                     {
                         await _userManager.AddToRoleAsync(user, Role.Seller.ToString());
                     }
-                        var roles = await _userManager.GetRolesAsync(user);
-                    var (token, _) = await _jwtService.GenerateTokenAsync(user, roles);
 
-                    return token;
+                    throw new InvalidOperationException($"Access denied: User account is unapproved.");
+
+                    // var roles = await _userManager.GetRolesAsync(user);
+                    // var (token, _) = await _jwtService.GenerateTokenAsync(user, roles);
+
+                    // return token;
                 }
             }
-           
+
             return null;
 
         }
