@@ -385,7 +385,33 @@ namespace Admin.Controllers
             // but returning 200 OK with a message is also acceptable and sometimes preferred for clarity.
             return Ok($"User with ID {id} successfully deleted.");
         }
+        [HttpGet("products")] // GET /api/catalog/products?categoryId=2&storeId=10
+        [ProducesResponseType(typeof(IEnumerable<ProductGetDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetProducts(int storeId)
+        {
+            IEnumerable<Product> products;
 
+            products = await _productService.GetProductsByStoreIdAsync(storeId);
+
+            var productsDto = products.Select(product => new ProductGetDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
+                RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
+                WholesalePrice = product.WholesalePrice,
+                Weight = product.Weight,
+                WeightUnit = product.WeightUnit,
+                Volume = product.Volume,
+                VolumeUnit = product.VolumeUnit,
+                StoreId = product.StoreId,
+                IsActive = product.IsActive,
+                Photos = product.Pictures.Select(photo => photo.Url).ToList()
+            }).ToList();
+
+            return Ok(productsDto);
+        }
 
 
         // GET /api/Admin/stores
