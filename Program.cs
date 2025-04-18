@@ -216,6 +216,7 @@ await SeedRolesAsync(app);
 if (app.Environment.IsDevelopment())
 {
     await UserDataSeeder.SeedDevelopmentUsersAsync(app);
+    await GeographyDataSeeder.SeedGeographyAsync(app);
 }
 
 // --- Configure the HTTP Request Pipeline (Middleware) ---
