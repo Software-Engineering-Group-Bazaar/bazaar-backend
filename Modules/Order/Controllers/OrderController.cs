@@ -79,35 +79,49 @@ namespace Order.Controllers
             }
         }
 
-        // GET /api/order/{orderId} - Dohvati detalje specifične narudžbe
-        [HttpGet("{orderId:int}")]
-        [Authorize(Roles = "Seller,Admin,Buyer")]
-        [ProducesResponseType(typeof(OrderModel), StatusCodes.Status200OK)]
+        // GET /api/order/{orderId}/details 
+        [HttpGet("{orderId:int}/details")]
+        [Authorize(Roles = "Seller,Admin")]
+        [ProducesResponseType(typeof(OrderDetailDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)] // Ako user nema pristup ovoj narudžbi
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetOrderDetails(int orderId)
+        public async Task<IActionResult> GetOrderDetailsForSeller(int orderId)
         {
             if (orderId <= 0) return BadRequest("Invalid Order ID.");
 
-            var requestingUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
-            if (string.IsNullOrEmpty(requestingUserId)) return Unauthorized();
+            var sellerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(sellerUserId)) return Unauthorized("User ID claim not found.");
 
-            _logger.LogInformation("User {UserId} retrieving details for Order {OrderId}", requestingUserId, orderId);
+            _logger.LogInformation("Seller {UserId} retrieving details for Order {OrderId}", sellerUserId, orderId);
 
             try
             {
-                var order = await _orderService.GetOrderByIdAsync(orderId); // Dohvati order
-                if (order == null) return NotFound($"Order with ID {orderId} not found.");
+                var orderDetailsDto = await _orderService.GetOrderDetailsForSellerAsync(sellerUserId, orderId);
 
-                return Ok(order);
+                if (orderDetailsDto == null)
+                {
+                    // Servis vraća null ako order nije nađen
+                    return NotFound($"Order with ID {orderId} not found.");
+                }
+
+                return Ok(orderDetailsDto);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Forbidden attempt by User {UserId} to access details for Order {OrderId}", sellerUserId, orderId);
+                return Forbid(); // 403 Forbidden
+            }
+            catch (KeyNotFoundException ex) // Ako user nije nađen u servisu
+            {
+                _logger.LogError(ex, "User not found exception during GetOrderDetails for User ID {UserId}", sellerUserId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "User validation error.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving details for Order {OrderId}", orderId);
+                _logger.LogError(ex, "Error retrieving details for Order {OrderId} for Seller {UserId}", orderId, sellerUserId);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred retrieving order details.");
             }
         }
@@ -142,7 +156,7 @@ namespace Order.Controllers
 
                 var createdOrder = await _orderService.CreateOrderAsync(buyerIdInt, createDto.StoreId);
 
-                return CreatedAtAction(nameof(GetOrderDetails), new { orderId = createdOrder.Id }, createdOrder);
+                return CreatedAtAction(nameof(GetOrderDetailsForSeller), new { orderId = createdOrder.Id }, createdOrder);
             }
             catch (ArgumentException ex)
             {
