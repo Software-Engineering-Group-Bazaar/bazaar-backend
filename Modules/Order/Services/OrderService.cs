@@ -193,5 +193,113 @@ namespace Order.Services
         }
 
 
+          public async Task<bool> UpdateOrderStatusForSellerAsync(string sellerUserId, UpdateOrderStatusRequestDto updateDto)
+        {
+            if (updateDto == null) throw new ArgumentNullException(nameof(updateDto));
+            if (string.IsNullOrWhiteSpace(sellerUserId)) throw new ArgumentNullException(nameof(sellerUserId));
+            if (updateDto.OrderId <= 0) throw new ArgumentException("Invalid Order ID.", nameof(updateDto.OrderId));
+            if (string.IsNullOrWhiteSpace(updateDto.NewStatus)) throw new ArgumentException("New status is required.", nameof(updateDto.NewStatus));
+
+            _logger.LogInformation("Attempting to update status for Order {OrderId} to {NewStatus} by User {UserId}",
+                updateDto.OrderId, updateDto.NewStatus, sellerUserId);
+
+            // 1. Provjeri vlasništvo Sellera nad prodavnicom ove narudžbe
+            var sellerUser = await _userManager.FindByIdAsync(sellerUserId);
+            if (sellerUser == null || !sellerUser.StoreId.HasValue)
+            {
+                _logger.LogWarning("UpdateOrderStatus: Seller {UserId} not found or does not have an associated store.", sellerUserId);
+                // Baci izuzetak da kontroler vrati 403 Forbidden ili 404 NotFound ovisno o logici
+                throw new UnauthorizedAccessException("Seller is not authorized or does not own a store.");
+            }
+            int sellerStoreId = sellerUser.StoreId.Value;
+
+            // 2. Dohvati narudžbu UKLJUČUJUĆI trenutni status
+            var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == updateDto.OrderId);
+            if (order == null)
+            {
+                _logger.LogWarning("UpdateOrderStatus: Order {OrderId} not found.", updateDto.OrderId);
+                return false; // Vrati false da kontroler može vratiti 404 Not Found
+            }
+
+            // 3. Verifikuj da narudžba pripada prodavnici ovog Sellera
+            if (order.StoreId != sellerStoreId)
+            {
+                _logger.LogWarning("Forbidden attempt by User {UserId} (Store {SellerStoreId}) to update status for Order {OrderId} belonging to Store {OrderStoreId}.",
+                    sellerUserId, sellerStoreId, updateDto.OrderId, order.StoreId);
+                // Baci izuzetak da kontroler vrati 403 Forbidden
+                throw new UnauthorizedAccessException("Seller is not authorized to update status for this order.");
+            }
+
+            // 4. Validacija Novog Statusa (string u enum)
+            if (!Enum.TryParse<OrderStatus>(updateDto.NewStatus, true, out var newStatusEnum)) // true za case-insensitive
+            {
+                _logger.LogWarning("UpdateOrderStatus: Invalid NewStatus value '{NewStatus}' provided for Order {OrderId}.", updateDto.NewStatus, updateDto.OrderId);
+                throw new ArgumentException($"Invalid status value: {updateDto.NewStatus}. Valid statuses are: {string.Join(", ", Enum.GetNames(typeof(OrderStatus)))}");
+            }
+
+            // 5. Validacija Tranzicije Statusa (Implementiraj logiku prema pravilima)
+            if (!IsValidStatusTransition(order.Status, newStatusEnum))
+            {
+                 _logger.LogWarning("UpdateOrderStatus: Invalid status transition from {CurrentStatus} to {NewStatus} for Order {OrderId}.",
+                                    order.Status, newStatusEnum, updateDto.OrderId);
+                 throw new InvalidOperationException($"Cannot change order status from {order.Status} to {newStatusEnum}.");
+            }
+
+            // 6. Ažuriraj Status
+            order.Status = newStatusEnum;
+            _context.Entry(order).State = EntityState.Modified;
+
+            // 7. Sačuvaj Promjene
+            try
+            {
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Successfully updated status for Order {OrderId} to {NewStatus} by User {UserId}",
+                                       updateDto.OrderId, newStatusEnum, sellerUserId);
+
+                // TODO: Ovdje pozvati INotificationService ako/kada bude implementiran
+                // await _notificationService.SendOrderStatusUpdateAsync(order, sellerUser); 
+
+                return true; // Uspjeh
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrency conflict updating status for OrderId {OrderId}", updateDto.OrderId);
+                // Provjeri da li order još postoji
+                if (!await _context.Orders.AnyAsync(o => o.Id == updateDto.OrderId)) return false; // Više ne postoji
+                else throw; // Baci originalnu grešku
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Error updating status for OrderId {OrderId}", updateDto.OrderId);
+                // Možda vratiti false ili baciti izuzetak
+                return false;
+            }
+        }
+
+        // Privatna helper metoda za validaciju tranzicije statusa
+        private bool IsValidStatusTransition(OrderStatus currentStatus, OrderStatus newStatus)
+        {
+            // Implementiraj pravila iz issue-a
+            switch (currentStatus)
+            {
+                case OrderStatus.Requested:
+                    return newStatus == OrderStatus.Confirmed || newStatus == OrderStatus.Rejected || newStatus == OrderStatus.Cancelled;
+                case OrderStatus.Confirmed:
+                    return newStatus == OrderStatus.Ready || newStatus == OrderStatus.Sent || newStatus == OrderStatus.Cancelled; 
+                case OrderStatus.Ready:
+                    return newStatus == OrderStatus.Delivered || newStatus == OrderStatus.Cancelled;
+                case OrderStatus.Sent: 
+                    return newStatus == OrderStatus.Delivered || newStatus == OrderStatus.Cancelled;
+                // Finalni statusi - ne mogu se mijenjati (osim možda Cancelled iz nekih?)
+                case OrderStatus.Delivered:
+                case OrderStatus.Rejected:
+                case OrderStatus.Cancelled:
+                    return false; // Ne može se promijeniti iz finalnog statusa
+                default:
+                    return false; // Nepoznat trenutni status
+            }
+        }
+
+
     }
 }

@@ -16,5 +16,7 @@ namespace Order.Interface
         Task<bool> UpdateOrderStatusAsync(int orderId, OrderStatus newStatus);
         Task<bool> DeleteOrderAsync(int orderId);
         Task<IEnumerable<OrderSummaryDto>> GetOrdersForSellerAsync(string sellerUserId);
+        Task<bool> UpdateOrderStatusForSellerAsync(string sellerUserId, UpdateOrderStatusRequestDto updateDto);
+
     }
 }
