@@ -360,7 +360,7 @@ namespace Order.Services
                     OrderId = o.Id,
                     OrderDate = o.Time,
                     TotalAmount = o.Total ?? 0m,
-                    Status = o.Status.ToString(),
+                    Status = o.Status,
                     StoreId = o.StoreId,
                     ItemCount = o.OrderItems.Count() // Izbroj iteme
                                                      // BuyerName = ... // Treba join sa UsersDbContext/UserManager
