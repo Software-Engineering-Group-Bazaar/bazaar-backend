@@ -330,5 +330,43 @@ namespace Catalog.Services
                 Photos = product.Pictures?.Select(p => p.Url).ToList() ?? new List<string>()
             };
         }
+
+        public async Task<bool> UpdateProductAvailabilityAsync(string sellerUserId, int productId, bool isActive)
+        {
+            if (productId <= 0) throw new ArgumentException("Product ID must be positive.", nameof(productId));
+            if (string.IsNullOrWhiteSpace(sellerUserId)) throw new ArgumentNullException(nameof(sellerUserId));
+
+            // 1. Dohvati Proizvod
+            var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == productId);
+            if (product == null)
+            {
+                return false;
+            }
+
+            // 2. Ažuriraj Polje
+            if (product.IsActive == isActive) // Koristimo IsActive iz modela
+            {
+                return true;
+            }
+
+            product.IsActive = isActive; // Postavi novu vrijednost
+            _context.Entry(product).State = EntityState.Modified;
+
+            // 3. Sačuvaj
+            try
+            {
+                await _context.SaveChangesAsync();
+                return true; // Uspjeh
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                if (!await _context.Products.AnyAsync(p => p.Id == productId)) return false; // Više ne postoji
+                else throw;
+            }
+            catch (DbUpdateException ex)
+            {
+                throw new Exception("Database error occurred during product availability update.", ex);
+            }
+        }
     }
 }

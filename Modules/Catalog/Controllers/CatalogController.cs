@@ -508,6 +508,78 @@ namespace Catalog.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating product pricing.");
             }
         }
+
+        // PUT /api/catalog/products/{productId}/availability
+        [HttpPut("products/{productId:int}/availability")]
+        [Authorize(Roles = "Seller,Admin")]
+        [Produces("application/json")] // Tipovi odgovora u slučaju greške
+        [ProducesResponseType(StatusCodes.Status204NoContent)] // Uspjeh
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateProductAvailability(int productId, [FromBody] UpdateProductAvailabilityRequestDto availabilityDto)
+        {
+            // Validacija ulaznih parametara
+            if (productId <= 0)
+            {
+                ModelState.AddModelError(nameof(productId), "Invalid Product ID provided in URL.");
+                return BadRequest(ValidationProblem(ModelState)); // Vrati ProblemDetails za konzistentnost
+            }
+
+            if (!ModelState.IsValid)
+            {
+                // ModelState već sadrži greške iz DTO validacije
+                return BadRequest(ValidationProblem(ModelState));
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                // Ovo je tehnički 401, ali pošto imamo [Authorize], rijetko se desi
+                return Unauthorized("User identifier not found.");
+            }
+            try
+            {
+                // Pozovi servis
+                var success = await _productService.UpdateProductAvailabilityAsync(userId, productId, availabilityDto.IsActive);
+
+                if (!success)
+                {
+                    // Servis vraća false samo ako proizvod nije nađen
+                    return NotFound($"Product with ID {productId} not found."); // 404 Not Found
+                }
+
+                // ➤➤➤ Return za uspjeh je SADA UNUTAR TRY bloka ➤➤➤
+                return NoContent(); // 204 No Content - Uspješno ažurirano
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                // Vrati ProblemDetails za 403 radi konzistentnosti sa ValidationProblem
+                return Problem(detail: "User is not authorized to update availability for this product.", statusCode: StatusCodes.Status403Forbidden, title: "Forbidden");
+                // return Forbid(); // Alternativa
+            }
+            catch (ArgumentException ex)
+            {
+                // Vrati ProblemDetails
+                return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
+                // return BadRequest(new { message = ex.Message }); // Alternativa
+            }
+            catch (KeyNotFoundException ex) // Ako servis ne nađe korisnika
+            {
+                // Vrati ProblemDetails za 500
+                return Problem(detail: "User validation error during availability update.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
+                // return StatusCode(StatusCodes.Status500InternalServerError, "User validation error during availability update."); // Alternativa
+            }
+            catch (Exception ex) // Sve ostale greške
+            {
+                // Vrati ProblemDetails za 500
+                return Problem(detail: "An error occurred while updating product availability.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
+                // return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating product availability."); // Alternativa
+            }
+            // Kompajler sada zna da će se ILI vratiti nešto unutar try ILI unutar nekog od catch blokova.
+        }
     }
 }
 
