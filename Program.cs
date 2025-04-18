@@ -99,6 +99,7 @@ builder.Services.AddScoped<IFacebookSignInService, FacebookSignInService>();
 
 builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddScoped<IStoreCategoryService, StoreCategoryService>();
+builder.Services.AddScoped<IGeographyService, GeographyService>();
 
 builder.Services.AddScoped<IUserService, UserService>();
 
