@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Notifications.Dtos
 {
@@ -8,8 +9,18 @@ namespace Notifications.Dtos
         public required string Message { get; set; }
         public bool IsRead { get; set; }
         public DateTime Timestamp { get; set; }
-        public string? RelatedEntityType { get; set; }
-        public int? RelatedEntityId { get; set; }
-        public string? LinkUrl { get; set; }
+        public int? OrderId { get; set; }
+    }
+
+    public class CreateNotificationRequestDto
+    {
+        [Required]
+        [MaxLength(450)]
+        public required string UserId { get; set; }
+
+        [Required]
+        [MaxLength(500)]
+        public required string Message { get; set; }
+
     }
 }
