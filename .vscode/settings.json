@@ -91,5 +91,5 @@
     "editor.renderControlCharacters": true,
     "dotnet.codeLens.enableReferencesCodeLens": true,
     "dotnet.formatting.organizeImportsOnFormat": true,
-    "dotnet.preferVisualStudioCodeFileSystemWatcher": true
+    "dotnet.preferVisualStudioCodeFileSystemWatcher": false
 }
