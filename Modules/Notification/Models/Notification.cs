@@ -25,5 +25,7 @@ namespace Notifications.Models
         public string? RelatedEntityType { get; set; } // Npr. "Order"
 
         public int? RelatedEntityId { get; set; } // Npr. OrderId
+
+        public string LinkUrl { get; set; }
     }
 }
