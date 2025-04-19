@@ -90,5 +90,6 @@
     "terminal.integrated.fontSize": 14,
     "editor.renderControlCharacters": true,
     "dotnet.codeLens.enableReferencesCodeLens": true,
-    "dotnet.formatting.organizeImportsOnFormat": true
+    "dotnet.formatting.organizeImportsOnFormat": true,
+    "dotnet.preferVisualStudioCodeFileSystemWatcher": true
 }

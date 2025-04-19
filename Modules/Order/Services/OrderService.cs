@@ -151,5 +151,9 @@ namespace Order.Services
             }
         }
 
+        public Task<bool> UpdateOrderAsync(int id, string? buyerId, string? storeId, OrderStatus? status, DateTime? time, decimal? total)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

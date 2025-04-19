@@ -15,11 +15,12 @@ namespace Order.Services
         private readonly OrdersDbContext _context;
         private readonly CatalogDbContext _catalog;
         private readonly ILogger<OrderItemService> _logger;
-
-        public OrderItemService(OrdersDbContext context, ILogger<OrderItemService> logger, CatalogDbContext catalog)
+        private readonly IServiceScopeFactory _scopeFactory;
+        public OrderItemService(OrdersDbContext context, ILogger<OrderItemService> logger, CatalogDbContext catalog, IServiceScopeFactory scopeFactory)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _scopeFactory = scopeFactory;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -225,6 +226,74 @@ namespace Order.Services
             }
         }
 
+        public async Task<bool> CheckValid(int id, int quantity, int productId, decimal price)
+        {
+            if (id <= 0) return false;
+            if (quantity < 0) throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be positive.");
+            if (productId < 0) throw new ArgumentException("Invalid ProductId provided.", nameof(productId));
+            if (price < 0) throw new ArgumentException(nameof(price), "Price must be positive.");
+            // --- Find Existing Item (Tracked) ---
+            var existingItem = await _context.OrderItems.FindAsync(id);
+            if (existingItem == null)
+            {
+                _logger.LogWarning("UpdateOrderItem failed: Item with Id {OrderItemId} not found.", id);
+                return false;
+            }
+            var product = await _catalog.Products.FindAsync(productId);
+            if (product == null)
+            {
+                throw new ArgumentException($"Product with Id {productId} not found.", nameof(productId));
+            }
+            if (!product.IsActive)
+            {
+                throw new ArgumentException($"Product with Id {productId} is not active.", nameof(productId));
+            }
+            return true;
+        }
 
+        public async Task<bool> ForceUpdateOrderItemAsync(int id, int quantity, int productId, decimal price)
+        {
+            // Thread safe
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+                var existingItem = await dbContext.OrderItems.FindAsync(id);
+                if (existingItem is null)
+                    throw new InvalidOperationException("item does not exist");
+                bool priceChanged = existingItem.Price != price;
+                bool quantityChanged = existingItem.Quantity != quantity;
+                bool productChanged = existingItem.ProductId != productId;
+
+                existingItem.Quantity = quantity;
+                existingItem.ProductId = productId; // Update product if changed
+                existingItem.Price = price; // Update price based on product/wholesale logic
+                var parentOrder = await dbContext.Orders
+                                                           .Include(o => o.OrderItems)
+                                                           .FirstOrDefaultAsync(o => o.Id == existingItem.OrderId);
+                if (parentOrder == null)
+                {
+                    _logger.LogError("Data Consistency Error: OrderItem {OrderItemId} exists, but parent Order {OrderId} not found.", id, existingItem.OrderId);
+                    throw new InvalidOperationException("order does not exist");
+                }
+                // --- Recalculate and Update Order Total ---
+                // Recalculate if quantity, price, or product changed, or just always recalculate for simplicity
+                if (quantityChanged || priceChanged || productChanged) // Optimization: only recalc if relevant data changed
+                {
+                    parentOrder.Total = CalculateOrderTotal(parentOrder.OrderItems);
+                    _context.Entry(parentOrder).State = EntityState.Modified; // Mark order as modified only if total might change
+                    _logger.LogInformation("Recalculating total for Order {OrderId} due to item {OrderItemId} update.", parentOrder.Id, id);
+                }
+
+
+                // --- Save Changes ---
+
+
+                await dbContext.SaveChangesAsync();
+                _logger.LogInformation("Updated OrderItem {OrderItemId} (Product {ProductId}, Quantity {Quantity}, Price {Price}) and Order {OrderId} Total if necessary.",
+                    id, productId, quantity, price, parentOrder.Id);
+                return true;
+
+            }
+        }
     }
 }

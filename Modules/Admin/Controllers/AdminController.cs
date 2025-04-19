@@ -1184,8 +1184,62 @@ namespace Admin.Controllers
             }
         }
 
-        // PUT /api/admin/order/update/{id} --> Primarily for updating Status
+        // PUT /api/admin/order/update/{id} --> update the whole thing
         [HttpPut("order/update/{id}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateOrder(int id, [FromBody] OrderUpdateDto updateDto)
+        {
+            // ako znm da ce neki item fail uraditi onda necu ni glavni update raditi
+            // also ako trb dodati item dodaj ga
+            if (updateDto.OrderItems is not null)
+            {
+                try
+                {
+                    _logger.LogInformation("Attempting to check order validity for order items");
+                    foreach (var item in updateDto.OrderItems)
+                    {
+                        var f = await _orderItemService.CheckValid(item.Id, item.Quantity, item.ProductId, item.Price);
+                        if (!f)
+                        {
+                            var orderitem = await _orderItemService.CreateOrderItemAsync(id, item.ProductId, item.Quantity);
+                            item.Id = orderitem.Id;
+                        }
+                    }
+                }
+                catch (ArgumentException a)
+                {
+                    return BadRequest($"OrderItem data invalid. {a.Message}");
+                }
+            }
+
+
+            _logger.LogInformation("Attempting to update order for order ID: {OrderId}", id);
+
+            var success = await _orderService.UpdateOrderAsync(id, updateDto.BuyerId, updateDto.StoreId, updateDto.Status, updateDto.Time, updateDto.Total);
+            if (!success)
+            {
+                return BadRequest("Order update failed.");
+            }
+            if (updateDto.OrderItems is not null)
+            {
+                var tasks = updateDto.OrderItems.Select(item =>
+                    _orderItemService.ForceUpdateOrderItemAsync(item.Id, item.Quantity, item.ProductId, item.Price)
+                );
+                var results = await Task.WhenAll(tasks);
+                var fail = results.Any(flag => !flag);
+                if (fail)
+                {
+                    return BadRequest("OrderItem update failed.");
+                }
+            }
+            return NoContent();
+        }
+
+        // PUT /api/admin/order/update/status/{id} --> Primarily for updating Status
+        [HttpPut("order/update/status/{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

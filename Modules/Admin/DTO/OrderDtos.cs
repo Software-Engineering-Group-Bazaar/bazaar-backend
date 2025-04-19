@@ -44,6 +44,23 @@ namespace AdminApi.DTOs
         // Note: OrderItems are typically added separately after the order header is created.
         // If you need to create items simultaneously, this DTO would need an OrderItems list.
     }
+    public class OrderUpdateDto
+    {
+        public string? BuyerId { get; set; }
+        public string? StoreId { get; set; }
+        public OrderStatus? Status { get; set; }
+        public DateTime? Time { get; set; }
+        public decimal? Total { get; set; }
+        public List<OrderItemGetDto>? OrderItems { get; set; }
+    }
+
+    public class OrderItemUpdateDto
+    {
+        public int Id { get; set; }
+        public int? ProductId { get; set; }
+        public decimal? Price { get; set; }
+        public int? Quantity { get; set; }
+    }
 
     // DTO for updating the status of an Order (PUT request body)
     public class OrderUpdateStatusDto

@@ -11,10 +11,12 @@ namespace Store.Services
     public class StoreService : IStoreService
     {
         private readonly StoreDbContext _context;
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public StoreService(StoreDbContext context)
+        public StoreService(StoreDbContext context, IServiceScopeFactory scopeFactory)
         {
             _context = context;
+            _scopeFactory = scopeFactory;
         }
 
         // Create a new store
@@ -167,13 +169,18 @@ namespace Store.Services
 
         public async Task<IEnumerable<StoreModel>> GetAllStoresInPlace(int placeId)
         {
-            var stores = await _context.Stores
-                .Include(s => s.category)
-                .Include(s => s.place)
-                .Include(s => s.place.Region)
-                .Where(s => s.placeId == placeId)
-                .ToListAsync();
-            return stores;
+            // thread safe
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
+                var stores = await dbContext.Stores
+                    .Include(s => s.category)
+                    .Include(s => s.place)
+                    .Include(s => s.place.Region)
+                    .Where(s => s.placeId == placeId)
+                    .ToListAsync();
+                return stores;
+            }
         }
     }
 }
