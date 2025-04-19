@@ -29,6 +29,12 @@ namespace Catalog.Services
 
             return await _context.ProductCategories.FindAsync(id);
         }
+        public async Task<ProductCategory?> GetCategoryByNameAsync(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            return await _context.ProductCategories.FirstOrDefaultAsync(c => c.Name == name);
+        }
+
 
         public async Task<ProductCategory> CreateCategoryAsync(ProductCategory category)
         {

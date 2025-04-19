@@ -25,5 +25,8 @@ namespace Store.Interface
         Task<IEnumerable<StoreModel>> SearchStoresAsync(string query);
         Task<IEnumerable<StoreModel>> GetAllStoresInRegion(int regionId);
         Task<IEnumerable<StoreModel>> GetAllStoresInPlace(int placeId);
+
+        Task<Region?> GetRegionByNameAsync(string region);
+        Task<Place?> GetPlaceByNameAsync(string place);
     }
 }
