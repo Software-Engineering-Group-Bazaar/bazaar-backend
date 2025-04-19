@@ -67,6 +67,6 @@ namespace AdminApi.DTOs
     {
         [Required]
         [EnumDataType(typeof(OrderStatus))] // Ensure valid enum value
-        public OrderStatus NewStatus { get; set; }
+        public string NewStatus { get; set; }
     }
 }

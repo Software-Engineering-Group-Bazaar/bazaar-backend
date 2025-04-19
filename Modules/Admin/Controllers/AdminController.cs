@@ -1276,7 +1276,20 @@ namespace Admin.Controllers
 
             try
             {
-                var success = await _orderService.UpdateOrderStatusAsync(id, updateDto.NewStatus);
+                OrderStatus status = OrderStatus.Requested;
+                if (updateDto.NewStatus is not null)
+                {
+                    if (Enum.TryParse(updateDto.NewStatus, true, out OrderStatus result))
+                    {
+                        status = result;
+                    }
+                    else
+                    {
+                        return BadRequest($"Nevalidan status {updateDto.NewStatus}");
+                    }
+                }
+
+                var success = await _orderService.UpdateOrderStatusAsync(id, status);
 
                 if (!success)
                 {
