@@ -23,14 +23,14 @@ namespace Store.Services
         public StoreModel CreateStore(string _name, int _categoryId, string _address, string _description, int placeId)
         {
             var _category = _context.StoreCategories.Find(_categoryId);
-            var _place = _context.Places.Find(placeId);
+            var _place = _context.Places.Include(p => p.Region).FirstOrDefault(p => p.Id == placeId);
             if (_category == null)
             {
                 throw new ArgumentException("Category not found.");
             }
             if (_place == null)
             {
-                throw new ArgumentException("Category not found.");
+                throw new ArgumentException("Place not found.");
             }
 
             var store = new StoreModel

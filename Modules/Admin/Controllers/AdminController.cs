@@ -576,7 +576,7 @@ namespace Admin.Controllers
                     IsActive = store.isActive,
                     CategoryName = category.name,
                     PlaceName = store.place.Name,
-                    RegionName = "store.place.Region.Name"
+                    RegionName = store.place.Region.Name
                 };
 
                 _logger.LogInformation("Successfully created store with ID {StoreId}.", store.id);
