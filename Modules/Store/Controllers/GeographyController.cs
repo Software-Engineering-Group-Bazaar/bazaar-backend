@@ -24,10 +24,10 @@ namespace Store.Controllers
         private readonly ILogger<GeographyController> _logger;
         private readonly IGeographyService _geographyService;
         public GeographyController(
-                    IGeographyService _geographyService,
+                    IGeographyService geographyService,
                     ILogger<GeographyController> logger)
         {
-            _geographyService = _geographyService;
+            _geographyService = geographyService;
             _logger = logger;
         }
         [HttpGet("geography")] // GET /api/catalog/categories/5

@@ -2,10 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Make sure you have this using for ILogger
 using Order.Interface;
 using Order.Models;
+using Store.Models;
+using Users.Models;
 
 namespace Order.Services
 {
@@ -15,11 +18,18 @@ namespace Order.Services
     public class OrderService : IOrderService
     {
         private readonly OrdersDbContext _context;
+        private readonly StoreDbContext _storeDbContext;
+        private readonly UserManager<User> _userManager;
         private readonly ILogger<OrderService> _logger;
 
-        public OrderService(OrdersDbContext context, ILogger<OrderService> logger)
+        public OrderService(OrdersDbContext context,
+                            StoreDbContext storeDbContext,
+                            UserManager<User> userManager,
+                            ILogger<OrderService> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _storeDbContext = storeDbContext;
+            _userManager = userManager;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -151,9 +161,34 @@ namespace Order.Services
             }
         }
 
-        public Task<bool> UpdateOrderAsync(int id, string? buyerId, string? storeId, OrderStatus? status, DateTime? time, decimal? total)
+        public async Task<bool> UpdateOrderAsync(int id, string? buyerId, int? storeId, OrderStatus? status, DateTime? time, decimal? total)
         {
-            throw new NotImplementedException();
+            var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == id);
+            if (order is null)
+            {
+                throw new InvalidDataException("ne postoji taj id");
+            }
+            if (buyerId != null)
+            {
+                var buyer = await _userManager.FindByIdAsync(buyerId);
+                if (buyer is null)
+                    throw new InvalidDataException("ne postoji taj kupac");
+            }
+            if (storeId != null)
+            {
+                var store = await _storeDbContext.Stores.FirstOrDefaultAsync(s => s.id == storeId);
+                if (store is null)
+                    throw new InvalidDataException("ne postoji ta prodavnica");
+            }
+
+            if (buyerId != null && order.BuyerId != buyerId) order.BuyerId = buyerId;
+            if (storeId != null && order.StoreId != storeId) order.StoreId = (int)storeId;
+            if (status != null && order.Status != status) order.Status = (OrderStatus)status;
+            if (time != null && order.Time != time) order.Time = (DateTime)time;
+            if (total != null && order.Total != total) order.Total = total;
+            _context.Orders.Update(order);
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }

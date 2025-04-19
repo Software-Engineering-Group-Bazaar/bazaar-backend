@@ -15,6 +15,6 @@ namespace Order.Interface
         Task<IEnumerable<OrderModel>> GetOrdersByStoreAsync(int storeId);
         Task<bool> UpdateOrderStatusAsync(int orderId, OrderStatus newStatus);
         Task<bool> DeleteOrderAsync(int orderId);
-        Task<bool> UpdateOrderAsync(int id, string? buyerId, string? storeId, OrderStatus? status, DateTime? time, decimal? total);
+        Task<bool> UpdateOrderAsync(int id, string? buyerId, int? storeId, OrderStatus? status, DateTime? time, decimal? total);
     }
 }

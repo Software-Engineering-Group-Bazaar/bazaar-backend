@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
 using Order.Interface;
+using Order.Models;
 using SharedKernel;
 using Store.Interface;
 using Store.Models;
@@ -1217,8 +1218,20 @@ namespace Admin.Controllers
 
 
             _logger.LogInformation("Attempting to update order for order ID: {OrderId}", id);
+            OrderStatus status = OrderStatus.Requested;
+            if (updateDto.Status is not null)
+            {
+                if (Enum.TryParse(updateDto.Status, true, out OrderStatus result))
+                {
+                    status = result;
+                }
+                else
+                {
+                    return BadRequest($"Nevalidan status {updateDto.Status}");
+                }
+            }
 
-            var success = await _orderService.UpdateOrderAsync(id, updateDto.BuyerId, updateDto.StoreId, updateDto.Status, updateDto.Time, updateDto.Total);
+            var success = await _orderService.UpdateOrderAsync(id, updateDto.BuyerId, updateDto.StoreId, status, updateDto.Time, updateDto.Total);
             if (!success)
             {
                 return BadRequest("Order update failed.");

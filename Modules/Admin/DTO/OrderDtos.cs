@@ -47,8 +47,8 @@ namespace AdminApi.DTOs
     public class OrderUpdateDto
     {
         public string? BuyerId { get; set; }
-        public string? StoreId { get; set; }
-        public OrderStatus? Status { get; set; }
+        public int? StoreId { get; set; }
+        public string? Status { get; set; }
         public DateTime? Time { get; set; }
         public decimal? Total { get; set; }
         public List<OrderItemGetDto>? OrderItems { get; set; }
