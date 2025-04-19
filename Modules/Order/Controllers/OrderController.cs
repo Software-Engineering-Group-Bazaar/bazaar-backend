@@ -1,401 +1,334 @@
-/*using System;
+using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using AdminApi.DTOs;
 using Catalog.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Order.DTOs;
 using Order.Interface;
-using Order.Models; // 
+using Order.Models;
 
 namespace Order.Controllers
 {
-    [ApiController]
-    [Route("api/order")] // Osnovna ruta
-    // [Authorize] // Možemo staviti osnovnu autorizaciju na nivou kontrolera
+    [Route("api/[controller]")]
+
     public class OrderController : ControllerBase
     {
         private readonly IOrderService _orderService;
-        private readonly IOrderItemService _orderItemService; // Dodajemo OrderItemService
+
+        private readonly IOrderItemService _orderItemService;
+
         private readonly ILogger<OrderController> _logger;
 
-        // Injectujemo oba servisa
-        public OrderController(IOrderService orderService, IOrderItemService orderItemService, ILogger<OrderController> logger)
+        public OrderController(
+            ILogger<OrderController> logger,
+            IOrderService orderService,
+            IOrderItemService orderItemService)
+
         {
-            _orderService = orderService ?? throw new ArgumentNullException(nameof(orderService));
-            _orderItemService = orderItemService ?? throw new ArgumentNullException(nameof(orderItemService));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _logger = logger;
+            _orderService = orderService;
+            _orderItemService = orderItemService;
         }
 
-        // === Endpointi za Narudžbe (Orders) ===
-
-        // GET /api/order - Dohvati narudžbe (za Seller-a ili Admin-a?)
-        // POSTOJEĆI (za Seller-a)
-        [HttpGet]
-        [Authorize(Roles = "Admin,Seller,Buyer")] // Samo Seller vidi svoje narudžbe preko ovog endpointa
-        [ProducesResponseType(typeof(IEnumerable<OrderSummaryDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetOrdersForSeller()
-        {
-            var sellerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(sellerUserId)) return Unauthorized("User ID claim not found.");
-
-            try
-            {
-                var orders = await _orderService.GetOrdersForSellerAsync(sellerUserId);
-                return Ok(orders);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving orders for seller {SellerUserId}", sellerUserId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving orders.");
-            }
-        }
-
-        // GET /api/order/all - Dohvati SVE narudžbe 
-        [HttpGet("all")]
-        [Authorize(Roles = "Admin,Seller,Buyer")]
-        [ProducesResponseType(typeof(IEnumerable<OrderModel>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetAllOrders()
-        {
-            _logger.LogInformation("[Admin] Attempting to retrieve all orders.");
-            try
-            {
-                var orders = await _orderService.GetAllOrdersAsync();
-                // TODO: Mapirati u odgovarajući DTO ako ne želimo vraćati pune modele
-                return Ok(orders);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "[Admin] Error retrieving all orders.");
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred retrieving orders.");
-            }
-        }
-
-        // GET /api/order/{orderId}/details 
-        [HttpGet("{orderId:int}/details")]
-        [Authorize(Roles = "Seller,Admin")]
-        [ProducesResponseType(typeof(OrderDetailDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        // GET /api/admin/order/{id}
+        [HttpGet("{id}")]
+        [Authorize(Roles = "Admin, Seller")]
+        [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetOrderDetailsForSeller(int orderId)
+        public async Task<ActionResult<OrderGetDto>> GetOrderById(int id)
         {
-            if (orderId <= 0) return BadRequest("Invalid Order ID.");
-
-            var sellerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(sellerUserId)) return Unauthorized("User ID claim not found.");
-
-            _logger.LogInformation("Seller {UserId} retrieving details for Order {OrderId}", sellerUserId, orderId);
+            _logger.LogInformation("Attempting to retrieve order with ID: {OrderId}", id);
+            if (id <= 0)
+            {
+                _logger.LogWarning("GetOrderById request failed validation: Invalid ID {OrderId}", id);
+                return BadRequest("Invalid Order ID provided.");
+            }
 
             try
             {
-                var orderDetailsDto = await _orderService.GetOrderDetailsForSellerAsync(sellerUserId, orderId);
+                var order = await _orderService.GetOrderByIdAsync(id);
 
-                if (orderDetailsDto == null)
+                if (order == null)
                 {
-                    // Servis vraća null ako order nije nađen
-                    return NotFound($"Order with ID {orderId} not found.");
+                    _logger.LogWarning("Order with ID {OrderId} not found.", id);
+                    return NotFound($"Order with ID {id} not found.");
                 }
 
-                return Ok(orderDetailsDto);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.LogWarning(ex, "Forbidden attempt by User {UserId} to access details for Order {OrderId}", sellerUserId, orderId);
-                return Forbid(); // 403 Forbidden
-            }
-            catch (KeyNotFoundException ex) // Ako user nije nađen u servisu
-            {
-                _logger.LogError(ex, "User not found exception during GetOrderDetails for User ID {UserId}", sellerUserId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "User validation error.");
+                var orderDto = new OrderGetDto
+                {
+                    Id = order.Id,
+                    BuyerId = order.BuyerId,
+                    StoreId = order.StoreId,
+                    Status = order.Status,
+                    Time = order.Time,
+                    Total = order.Total,
+                    OrderItems = order.OrderItems.Select(oi => new OrderItemGetDto
+                    {
+                        Id = oi.Id,
+                        ProductId = oi.ProductId,
+                        Price = oi.Price,
+                        Quantity = oi.Quantity
+                    }).ToList()
+                };
+
+                _logger.LogInformation("Successfully retrieved order with ID: {OrderId}", id);
+                return Ok(orderDto);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving details for Order {OrderId} for Seller {UserId}", orderId, sellerUserId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred retrieving order details.");
+                _logger.LogError(ex, "An error occurred while retrieving order with ID: {OrderId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while retrieving the order.");
             }
         }
 
-        // POST /api/order - Kreiranje nove narudžbe (radi Buyer?)
-        // Metoda CreateOrderAsync prima buyerId i storeId. Pretpostavljam da ovo poziva Buyer.
-        [HttpPost]
-        [Authorize(Roles = "Admin,Seller,Buyer")] // Samo Buyer može kreirati narudžbu?
-        [ProducesResponseType(typeof(OrderModel), StatusCodes.Status201Created)] // Vraća model? Treba DTO.
+        // POST /api/admin/order/create
+        [Authorize(Roles = "Admin, Buyer")]
+        [HttpPost("create")]
+        [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequestDto createDto) // Treba DTO za ovo
+        public async Task<ActionResult<OrderGetDto>> CreateOrder([FromBody] OrderCreateDto createDto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            _logger.LogInformation("Attempting to create a new order for BuyerId: {BuyerId}, StoreId: {StoreId}", createDto.BuyerId, createDto.StoreId);
 
-            var buyerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(buyerUserId)) return Unauthorized();
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Create order request failed model validation. Errors: {@ModelState}", ModelState.Values.SelectMany(v => v.Errors));
+                return BadRequest(ModelState);
+            }
 
-            _logger.LogInformation("Buyer {BuyerId} attempting to create order for Store {StoreId}", buyerUserId, createDto.StoreId);
+            // Optional: Add validation to check if BuyerId and StoreId actually exist
+            // var buyerExists = await _userManager.FindByIdAsync(createDto.BuyerId) != null;
+            // var storeExists = _storeService.GetStoreById(createDto.StoreId) != null; // Assuming synchronous version exists or make async
+            // if (!buyerExists) return BadRequest($"Buyer with ID {createDto.BuyerId} not found.");
+            // if (!storeExists) return BadRequest($"Store with ID {createDto.StoreId} not found.");
 
             try
             {
+                var createdOrder = await _orderService.CreateOrderAsync(createDto.BuyerId, createDto.StoreId);
+                var listitems = new List<OrderItemGetDto>();
+                foreach (var item in createDto.OrderItems)
+                {
+                    var x = await _orderItemService.CreateOrderItemAsync(createdOrder.Id, item.ProductId, item.Quantity);
+                    listitems.Add(new OrderItemGetDto
+                    {
+                        Id = x.Id,
+                        ProductId = x.ProductId,
+                        Price = x.Price,
+                        Quantity = x.Quantity,
+                    });
+                }
+                // Map the created order (which won't have items yet) to the DTO
+                var orderDto = new OrderGetDto
+                {
+                    Id = createdOrder.Id,
+                    BuyerId = createdOrder.BuyerId,
+                    StoreId = createdOrder.StoreId,
+                    Status = createdOrder.Status,
+                    Time = createdOrder.Time,
+                    Total = createdOrder.Total, // Will likely be null or 0 initially
+                    OrderItems = listitems // Empty list
+                };
 
-
-                var createdOrder = await _orderService.CreateOrderAsync(buyerUserId, createDto.StoreId);
-
-                return CreatedAtAction(nameof(GetOrderDetailsForSeller), new { orderId = createdOrder.Id }, createdOrder);
+                _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder.Id);
+                // Return 201 Created with the location of the newly created resource and the resource itself
+                return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException ex) // Catch specific exceptions from the service if possible
             {
-                return BadRequest(new { message = ex.Message });
+                _logger.LogWarning(ex, "Failed to create order due to invalid arguments (BuyerId: {BuyerId}, StoreId: {StoreId})", createDto.BuyerId, createDto.StoreId);
+                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating order for Buyer {BuyerId}, Store {StoreId}", buyerUserId, createDto.StoreId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the order.");
+                _logger.LogError(ex, "An error occurred while creating an order for BuyerId: {BuyerId}, StoreId: {StoreId}", createDto.BuyerId, createDto.StoreId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while creating the order.");
             }
         }
 
-        // POST /api/order/status - Ažuriraj status narudžbe (za Sellera)
-        [HttpPost("status")]
-        [Authorize(Roles = "Admin,Seller,Buyer")]
+        // PUT /api/admin/order/update/{id} --> update the whole thing
+        [Authorize(Roles = "Admin, Seller")]
+        [HttpPut("update/{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateOrderStatus([FromBody] UpdateOrderStatusRequestDto updateDto)
+        public async Task<IActionResult> UpdateOrder(int id, [FromBody] OrderUpdateDto updateDto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            var sellerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(sellerUserId)) return Unauthorized("User ID claim not found.");
-
-            try
+            // ako znm da ce neki item fail uraditi onda necu ni glavni update raditi
+            // also ako trb dodati item dodaj ga
+            if (updateDto.OrderItems is not null)
             {
-                // Koristi novu metodu servisa koja radi autorizaciju
-                var success = await _orderService.UpdateOrderStatusForSellerAsync(sellerUserId, updateDto);
-                if (!success) return NotFound($"Order with ID {updateDto.OrderId} not found or status update failed.");
-                return NoContent();
+                try
+                {
+                    _logger.LogInformation("Attempting to check order validity for order items");
+                    foreach (var item in updateDto.OrderItems)
+                    {
+                        var f = await _orderItemService.CheckValid(item.Id, item.Quantity, item.ProductId, item.Price);
+                        if (!f)
+                        {
+                            var orderitem = await _orderItemService.CreateOrderItemAsync(id, item.ProductId, item.Quantity);
+                            item.Id = orderitem.Id;
+                            //_logger.LogInformation($"")
+                        }
+                    }
+                }
+                catch (ArgumentException a)
+                {
+                    return BadRequest($"OrderItem data invalid. {a.Message}");
+                }
             }
-            catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
-            catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); } // Ili Conflict(409)?
-            catch (UnauthorizedAccessException ex) { _logger.LogWarning(ex, "Forbidden status update attempt by {UserId} for Order {OrderId}", sellerUserId, updateDto.OrderId); return Forbid(); }
-            catch (Exception ex) { _logger.LogError(ex, "Error updating status for Order {OrderId} by User {UserId}.", updateDto.OrderId, sellerUserId); return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred."); }
+
+
+            _logger.LogInformation("Attempting to update order for order ID: {OrderId}", id);
+            OrderStatus status = OrderStatus.Requested;
+            if (updateDto.Status is not null)
+            {
+                if (Enum.TryParse(updateDto.Status, true, out OrderStatus result))
+                {
+                    status = result;
+                }
+                else
+                {
+                    return BadRequest($"Nevalidan status {updateDto.Status}");
+                }
+            }
+
+            var success = await _orderService.UpdateOrderAsync(id, updateDto.BuyerId, updateDto.StoreId, status, updateDto.Time, updateDto.Total);
+            if (!success)
+            {
+                return BadRequest("Order update failed.");
+            }
+            if (updateDto.OrderItems is not null)
+            {
+                var tasks = updateDto.OrderItems.Select(item =>
+                    _orderItemService.ForceUpdateOrderItemAsync(item.Id, item.Quantity, item.ProductId, item.Price)
+                );
+                var results = await Task.WhenAll(tasks);
+                var fail = results.Any(flag => !flag);
+                if (fail)
+                {
+                    return BadRequest("OrderItem update failed.");
+                }
+            }
+            return NoContent();
         }
 
-        // DELETE /api/order/{orderId} - Brisanje narudžbe
-        [HttpDelete("{orderId:int}")]
-        [Authorize(Roles = "Admin,Seller,Buyer")] // Samo Admin briše narudžbe?
+        // PUT /api/admin/order/update/status/{id} --> Primarily for updating Status
+        [HttpPut("update/status/{id}")]
+        [Authorize(Roles = "Admin, Seller")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteOrder(int orderId)
-        {
-            if (orderId <= 0) return BadRequest("Invalid Order ID.");
-            _logger.LogInformation("[Admin] Attempting to delete Order {OrderId}", orderId);
-            try
-            {
-                var success = await _orderService.DeleteOrderAsync(orderId);
-                if (!success) return NotFound($"Order with ID {orderId} not found.");
-                return NoContent();
-            }
-            catch (Exception ex) // Npr. DbUpdateException
-            {
-                _logger.LogError(ex, "[Admin] Error deleting Order {OrderId}", orderId);
-                // Možda Conflict(409) ako postoje reference?
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the order.");
-            }
-        }
-
-
-        // === Endpointi za Stavke Narudžbe (OrderItems) ===
-        // Ove endpoint-e stavljamo ovdje za sada radi jednostavnosti
-
-        // GET /api/order/{orderId}/items - Dohvati sve stavke za narudžbu
-        [HttpGet("{orderId:int}/items")]
-        [Authorize(Roles = "Seller,Admin,Buyer")] // Provjeriti ko smije vidjeti stavke
-        [ProducesResponseType(typeof(IEnumerable<OrderItem>), StatusCodes.Status200OK)] // Treba DTO
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)] // Ako order ne postoji
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetItemsForOrder(int orderId)
+        public async Task<IActionResult> UpdateOrderStatus(int id, [FromBody] OrderUpdateStatusDto updateDto)
         {
-            if (orderId <= 0) return BadRequest("Invalid Order ID.");
-            // TODO: Dodati autorizaciju sličnu kao u GetOrderDetails da se osigura da user smije vidjeti ovaj order
-            _logger.LogInformation("Retrieving items for Order {OrderId}", orderId);
-            try
+            _logger.LogInformation("Attempting to update status for order ID: {OrderId} to {NewStatus}", id, updateDto.NewStatus);
+
+            if (id <= 0)
             {
-                // Provjeri prvo da li order postoji i da li user ima pristup
-                var orderExists = await _orderService.GetOrderByIdAsync(orderId); // Brza provjera
-                if (orderExists == null) return NotFound($"Order with ID {orderId} not found.");
-                // Ovdje ide puna autorizaciona logika kao u GetOrderDetails...
-
-                var items = await _orderItemService.GetOrderItemsByOrderIdAsync(orderId);
-                // TODO: Mapirati u OrderItemDto
-                return Ok(items);
+                _logger.LogWarning("UpdateOrderStatus request failed validation: Invalid ID {OrderId}", id);
+                return BadRequest("Invalid Order ID provided.");
             }
-            catch (Exception ex)
+
+            if (!ModelState.IsValid)
             {
-                _logger.LogError(ex, "Error retrieving items for Order {OrderId}", orderId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred retrieving order items.");
+                _logger.LogWarning("Update order status request failed model validation for Order ID {OrderId}. Errors: {@ModelState}", id, ModelState.Values.SelectMany(v => v.Errors));
+                return BadRequest(ModelState);
             }
-        }
-
-        // POST /api/order/{orderId}/items - Dodaj novu stavku u narudžbu (radi Buyer?)
-        [HttpPost("{orderId:int}/items")]
-        [Authorize(Roles = "Admin,Seller,Buyer")] // Samo Buyer dodaje iteme?
-        [ProducesResponseType(typeof(OrderItem), StatusCodes.Status201Created)] // Treba DTO
-        [ProducesResponseType(StatusCodes.Status400BadRequest)] // Nevažeći ID-jevi, količina, nepostojeći proizvod...
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)] // Ako Buyer nije vlasnik narudžbe
-        [ProducesResponseType(StatusCodes.Status404NotFound)] // Ako order ne postoji
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddItemToOrder(int orderId, [FromBody] CreateOrderItemDto createDto) // Treba DTO
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            if (orderId <= 0) return BadRequest("Invalid Order ID.");
-
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-            _logger.LogInformation("User {UserId} attempting to add Product {ProductId} (Qty: {Quantity}) to Order {OrderId}",
-                                   userId, createDto.ProductId, createDto.Quantity, orderId);
-            try
-            {
-                // TODO: Autorizacija - provjeri da li userId posjeduje Order sa orderId
-                var order = await _orderService.GetOrderByIdAsync(orderId);
-                if (order == null) return NotFound($"Order with ID {orderId} not found.");
-                if (order.BuyerId.ToString() != userId) return Forbid("Cannot add items to another user's order."); // Pazi na tip ID-ja!
-
-                // TODO: Validacija - Da li je status narudžbe 'Requested'? Ne može se dodavati u poslate/završene.
-                if (order.Status != OrderStatus.Requested) return BadRequest("Cannot add items to an order that is not in 'Requested' status.");
-
-                // Servis prima samo ID-eve i količinu
-                var newItem = await _orderItemService.CreateOrderItemAsync(orderId, createDto.ProductId, createDto.Quantity);
-
-                // TODO: Mapirati newItem u OrderItemDto za odgovor
-                // Vratiti lokaciju? Možda GET /api/order/items/{itemId} ?
-                return CreatedAtAction(nameof(GetItemsForOrder), new { orderId = orderId }, newItem); // Vraća model, treba DTO
-            }
-            catch (ArgumentException ex) // Npr. nepostojeći ProductId, neaktivni proizvod, negativna količina...
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex) // Npr. Order ne postoji (iz servisa)
-            {
-                return NotFound(new { message = ex.Message }); // Vrati 404 ako servis javi da order ne postoji
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error adding item (Product {ProductId}) to Order {OrderId}", createDto.ProductId, orderId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while adding the item.");
-            }
-        }
-
-        // PUT /api/order/items/{orderItemId} - Ažuriraj stavku narudžbe (količinu?)
-        [HttpPut("items/{orderItemId:int}")]
-        [Authorize(Roles = "Admin,Seller,Buyer")] // Samo Buyer mijenja svoju narudžbu?
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)] // Nevažeći ID-jevi, količina...
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)] // Ako Buyer nije vlasnik
-        [ProducesResponseType(StatusCodes.Status404NotFound)] // Ako item ili order ne postoji
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateOrderItem(int orderItemId, [FromBody] UpdateOrderItemDto updateDto) // Treba DTO
-        {
-            if (orderItemId <= 0) return BadRequest("Invalid Order Item ID.");
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-            _logger.LogInformation("User {UserId} attempting to update OrderItem {OrderItemId} to Qty {Quantity}, Product {ProductId}",
-                                   userId, orderItemId, updateDto.Quantity, updateDto.ProductId);
 
             try
             {
-                // TODO: Autorizacija - Dohvati OrderItem, pa njegov Order, pa provjeri BuyerId vs userId
-                var item = await _orderItemService.GetOrderItemByIdAsync(orderItemId);
-                if (item == null) return NotFound($"Order item with ID {orderItemId} not found.");
-                var order = await _orderService.GetOrderByIdAsync(item.OrderId);
-                if (order == null || order.BuyerId.ToString() != userId) return Forbid("Cannot modify items in another user's order."); // Pazi na tip ID-ja
+                OrderStatus status = OrderStatus.Requested;
+                if (updateDto.NewStatus is not null)
+                {
+                    if (Enum.TryParse(updateDto.NewStatus, true, out OrderStatus result))
+                    {
+                        status = result;
+                    }
+                    else
+                    {
+                        return BadRequest($"Nevalidan status {updateDto.NewStatus}");
+                    }
+                }
 
-                // TODO: Validacija - Da li je status narudžbe 'Requested'?
-                if (order.Status != OrderStatus.Requested) return BadRequest("Cannot modify items in an order that is not in 'Requested' status.");
-
-                // Proslijedi podatke servisu
-                var success = await _orderItemService.UpdateOrderItemAsync(orderItemId, updateDto.Quantity, updateDto.ProductId);
+                var success = await _orderService.UpdateOrderStatusAsync(id, status);
 
                 if (!success)
                 {
-                    // Može biti NotFound za item, ili greška pri update-u
-                    return NotFound($"Order item with ID {orderItemId} not found or update failed.");
+                    // Could be NotFound or a concurrency issue, service layer logs details
+                    _logger.LogWarning("Failed to update status for order ID: {OrderId}. Order might not exist or a concurrency issue occurred.", id);
+                    // Check if the order actually exists to return a more specific error
+                    var orderExists = await _orderService.GetOrderByIdAsync(id) != null;
+                    if (!orderExists)
+                    {
+                        return NotFound($"Order with ID {id} not found.");
+                    }
+                    // If it exists, it might be a concurrency issue or other update failure
+                    return BadRequest($"Failed to update status for order ID: {id}. See logs for details.");
                 }
-                return NoContent();
+
+                _logger.LogInformation("Successfully updated status for order ID: {OrderId} to {NewStatus}", id, updateDto.NewStatus);
+                return NoContent(); // Standard success response for PUT when no content is returned
             }
-            catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating OrderItem {OrderItemId}", orderItemId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the item.");
+                _logger.LogError(ex, "An error occurred while updating status for order ID: {OrderId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while updating the order status.");
             }
         }
 
-        // DELETE /api/order/items/{orderItemId} - Obriši stavku iz narudžbe
-        [HttpDelete("items/{orderItemId:int}")]
-        [Authorize(Roles = "Admin,Seller,Buyer")] // Samo Buyer briše iz svoje narudžbe?
+        // DELETE /api/admin/order/{id}
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin, Seller")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteOrderItem(int orderItemId)
+        public async Task<IActionResult> DeleteOrder(int id)
         {
-            if (orderItemId <= 0) return BadRequest("Invalid Order Item ID.");
+            _logger.LogInformation("Attempting to delete order with ID: {OrderId}", id);
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-            _logger.LogInformation("User {UserId} attempting to delete OrderItem {OrderItemId}", userId, orderItemId);
+            if (id <= 0)
+            {
+                _logger.LogWarning("DeleteOrder request failed validation: Invalid ID {OrderId}", id);
+                return BadRequest("Invalid Order ID provided.");
+            }
 
             try
             {
-                // TODO: Autorizacija - Dohvati OrderItem, pa njegov Order, pa provjeri BuyerId vs userId
-                var item = await _orderItemService.GetOrderItemByIdAsync(orderItemId);
-                if (item == null) return NotFound($"Order item with ID {orderItemId} not found.");
-                var order = await _orderService.GetOrderByIdAsync(item.OrderId);
-                if (order == null || order.BuyerId.ToString() != userId) return Forbid("Cannot delete items from another user's order."); // Pazi na tip ID-ja
+                var success = await _orderService.DeleteOrderAsync(id);
 
-                // TODO: Validacija - Da li je status narudžbe 'Requested'?
-                if (order.Status != OrderStatus.Requested) return BadRequest("Cannot delete items from an order that is not in 'Requested' status.");
-
-                var success = await _orderItemService.DeleteOrderItemAsync(orderItemId);
                 if (!success)
                 {
-                    return NotFound($"Order item with ID {orderItemId} not found or deletion failed.");
+                    // Service logs if not found
+                    _logger.LogWarning("Failed to delete order with ID: {OrderId}. Order might not exist.", id);
+                    return NotFound($"Order with ID {id} not found."); // Return 404 if the delete operation indicated not found
                 }
-                return NoContent();
+
+                _logger.LogInformation("Successfully deleted order with ID: {OrderId}", id);
+                return NoContent(); // Standard success response for DELETE
+            }
+            catch (DbUpdateException dbEx) // Catch potential FK constraint issues if cascade delete isn't set up perfectly
+            {
+                _logger.LogError(dbEx, "Database error occurred while deleting order ID: {OrderId}. It might be referenced elsewhere.", id);
+                // Consider returning 409 Conflict if it's due to dependencies
+                return StatusCode(StatusCodes.Status500InternalServerError, $"An error occurred while deleting order {id}. It might have related data preventing deletion.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting OrderItem {OrderItemId}", orderItemId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the item.");
+                _logger.LogError(ex, "An unexpected error occurred while deleting order ID: {OrderId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while deleting the order.");
             }
         }
+
     }
 }
-*/
