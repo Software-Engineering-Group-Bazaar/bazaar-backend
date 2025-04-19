@@ -9,9 +9,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Notifications.Interfaces;
 using Order.DTOs;
 using Order.Interface;
 using Order.Models;
+using Users.Models;
 
 namespace Order.Controllers
 {
@@ -25,15 +27,24 @@ namespace Order.Controllers
 
         private readonly ILogger<OrderController> _logger;
 
+        private readonly UserManager<User> _userManager;
+
+        private readonly INotificationService _notificationService;
+
         public OrderController(
             ILogger<OrderController> logger,
             IOrderService orderService,
-            IOrderItemService orderItemService)
+            IOrderItemService orderItemService,
+            UserManager<User> userManager,
+            INotificationService notificationService
+            )
 
         {
             _logger = logger;
             _orderService = orderService;
             _orderItemService = orderItemService;
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         }
 
         // GET /api//order
@@ -176,6 +187,24 @@ namespace Order.Controllers
                     OrderItems = listitems // Empty list
                 };
 
+                var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdOrder.StoreId);
+
+                if (sellerUser != null)
+                {
+                    string notificationMessage = $"Nova narudžba #{createdOrder.Id} je kreirana za vašu prodavnicu.";
+
+                    await _notificationService.CreateNotificationAsync(
+                            sellerUser.Id,
+                            notificationMessage,
+                            createdOrder.Id
+                        );
+                    _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", sellerUser.Id, createdOrder.Id);
+                }
+                else
+                {
+                    _logger.LogWarning("Could not find seller user for StoreId {StoreId} to send new order notification for Order {OrderId}.", createdOrder.StoreId, createdOrder.Id);
+                }
+
                 _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder.Id);
                 // Return 201 Created with the location of the newly created resource and the resource itself
                 return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
@@ -302,18 +331,43 @@ namespace Order.Controllers
 
                 if (!success)
                 {
-                    // Could be NotFound or a concurrency issue, service layer logs details
                     _logger.LogWarning("Failed to update status for order ID: {OrderId}. Order might not exist or a concurrency issue occurred.", id);
-                    // Check if the order actually exists to return a more specific error
                     var orderExists = await _orderService.GetOrderByIdAsync(id) != null;
                     if (!orderExists)
                     {
                         return NotFound($"Order with ID {id} not found.");
                     }
-                    // If it exists, it might be a concurrency issue or other update failure
+
                     return BadRequest($"Failed to update status for order ID: {id}. See logs for details.");
                 }
+                try
+                {
+                    var updatedOrder = await _orderService.GetOrderByIdAsync(id);
 
+                    if (updatedOrder != null && !string.IsNullOrWhiteSpace(updatedOrder.BuyerId))
+                    {
+                        string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
+
+                        await _notificationService.CreateNotificationAsync(
+                            updatedOrder.BuyerId,
+                            notificationMessage,
+                            id
+                        );
+                        _logger.LogInformation("Notification creation task initiated for Buyer {BuyerId} for Order {OrderId} status update.", updatedOrder.BuyerId, id);
+                    }
+                    else if (updatedOrder != null)
+                    {
+                        _logger.LogWarning("Order {OrderId} was updated, but BuyerId was missing. Cannot send notification.", id);
+                    }
+                    else
+                    {
+                        _logger.LogError("Order {OrderId} was updated successfully, but could not be retrieved afterwards to send notification.", id);
+                    }
+                }
+                catch (Exception notificationEx)
+                {
+                    _logger.LogError(notificationEx, "Failed to create notification for Buyer after successfully updating status for Order {OrderId}.", id);
+                }
                 _logger.LogInformation("Successfully updated status for order ID: {OrderId} to {NewStatus}", id, updateDto.NewStatus);
                 return NoContent(); // Standard success response for PUT when no content is returned
             }
