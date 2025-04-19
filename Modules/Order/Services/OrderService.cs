@@ -186,7 +186,7 @@ namespace Order.Services
             if (status != null && order.Status != status) order.Status = (OrderStatus)status;
             if (time != null && order.Time != time) order.Time = (DateTime)time;
             if (total != null && order.Total != total) order.Total = total;
-            _context.Orders.Update(order);
+            //_context.Orders.Update(order);
             await _context.SaveChangesAsync();
             return true;
         }

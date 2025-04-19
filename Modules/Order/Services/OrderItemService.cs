@@ -280,7 +280,7 @@ namespace Order.Services
                 if (quantityChanged || priceChanged || productChanged) // Optimization: only recalc if relevant data changed
                 {
                     parentOrder.Total = CalculateOrderTotal(parentOrder.OrderItems);
-                    _context.Entry(parentOrder).State = EntityState.Modified; // Mark order as modified only if total might change
+                    //_context.Entry(parentOrder).State = EntityState.Modified; // Mark order as modified only if total might change
                     _logger.LogInformation("Recalculating total for Order {OrderId} due to item {OrderItemId} update.", parentOrder.Id, id);
                 }
 

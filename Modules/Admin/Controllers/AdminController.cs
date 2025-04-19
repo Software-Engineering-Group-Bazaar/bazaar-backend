@@ -1207,6 +1207,7 @@ namespace Admin.Controllers
                         {
                             var orderitem = await _orderItemService.CreateOrderItemAsync(id, item.ProductId, item.Quantity);
                             item.Id = orderitem.Id;
+                            //_logger.LogInformation($"")
                         }
                     }
                 }
