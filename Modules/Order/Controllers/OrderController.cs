@@ -36,7 +36,45 @@ namespace Order.Controllers
             _orderItemService = orderItemService;
         }
 
-        // GET /api/admin/order/{id}
+        // GET /api//order
+        [HttpGet]
+        [ProducesResponseType(typeof(IEnumerable<OrderGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<IEnumerable<OrderGetDto>>> GetAllOrders()
+        {
+            _logger.LogInformation("Attempting to retrieve all orders.");
+            try
+            {
+                var orders = await _orderService.GetAllOrdersAsync();
+
+                var orderDtos = orders.Select(o => new OrderGetDto
+                {
+                    Id = o.Id,
+                    BuyerId = o.BuyerId,
+                    StoreId = o.StoreId,
+                    Status = o.Status,
+                    Time = o.Time,
+                    Total = o.Total,
+                    OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                    {
+                        Id = oi.Id,
+                        ProductId = oi.ProductId,
+                        Price = oi.Price,
+                        Quantity = oi.Quantity
+                    }).ToList()
+                }).ToList();
+
+                _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
+                return Ok(orderDtos);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving all orders.");
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while retrieving orders.");
+            }
+        }
+
+        // GET /api/order/{id}
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin, Seller")]
         [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status200OK)]
@@ -89,7 +127,7 @@ namespace Order.Controllers
             }
         }
 
-        // POST /api/admin/order/create
+        // POST /api/order/create
         [Authorize(Roles = "Admin, Buyer")]
         [HttpPost("create")]
         [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status201Created)]
@@ -154,7 +192,7 @@ namespace Order.Controllers
             }
         }
 
-        // PUT /api/admin/order/update/{id} --> update the whole thing
+        // PUT /api/order/update/{id} --> update the whole thing
         [Authorize(Roles = "Admin, Seller")]
         [HttpPut("update/{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -222,7 +260,7 @@ namespace Order.Controllers
             return NoContent();
         }
 
-        // PUT /api/admin/order/update/status/{id} --> Primarily for updating Status
+        // PUT /api/order/update/status/{id} --> Primarily for updating Status
         [HttpPut("update/status/{id}")]
         [Authorize(Roles = "Admin, Seller")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -286,7 +324,7 @@ namespace Order.Controllers
             }
         }
 
-        // DELETE /api/admin/order/{id}
+        // DELETE /api/order/{id}
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin, Seller")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
