@@ -25,9 +25,7 @@ namespace Notifications.Models
 
                 entity.Property(e => e.UserId).HasMaxLength(450).IsRequired();
                 entity.Property(e => e.Message).HasMaxLength(500).IsRequired();
-                entity.Property(e => e.RelatedEntityType).HasMaxLength(50);
-                entity.Property(e => e.LinkUrl).HasMaxLength(2048);
-
+                entity.Property(e => e.OrderId).IsRequired(false);
             });
         }
     }

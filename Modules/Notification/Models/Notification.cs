@@ -21,11 +21,6 @@ namespace Notifications.Models
 
         public DateTime Timestamp { get; set; } = DateTime.UtcNow; // Vrijeme kreiranja
 
-        [MaxLength(50)]
-        public string? RelatedEntityType { get; set; } // Npr. "Order"
-
-        public int? RelatedEntityId { get; set; } // Npr. OrderId
-
-        public string LinkUrl { get; set; }
+        public int? OrderId { get; set; }
     }
 }

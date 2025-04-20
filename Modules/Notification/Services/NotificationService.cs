@@ -21,7 +21,7 @@ namespace Notifications.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task CreateNotificationAsync(string userId, string message, string? relatedEntityType = null, int? relatedEntityId = null, string? linkUrl = null)
+        public async Task CreateNotificationAsync(string userId, string message, int? orderId = null)
         {
             if (string.IsNullOrWhiteSpace(userId)) throw new ArgumentNullException(nameof(userId));
             if (string.IsNullOrWhiteSpace(message)) throw new ArgumentException("Message cannot be empty.", nameof(message));
@@ -30,18 +30,17 @@ namespace Notifications.Services
             {
                 UserId = userId,
                 Message = message,
-                RelatedEntityType = relatedEntityType,
-                RelatedEntityId = relatedEntityId,
-                LinkUrl = linkUrl,
                 IsRead = false,
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                OrderId = orderId
             };
 
             try
             {
                 _context.Notifications.Add(notification);
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("Created notification ID {NotificationId} for User {UserId}.", notification.Id, userId);
+                _logger.LogInformation("Created notification ID {NotificationId} for User {UserId}. OrderId: {OrderId}",
+                    notification.Id, userId, orderId.HasValue ? orderId.Value.ToString() : "N/A"); // Adjusted log
             }
             catch (DbUpdateException ex)
             {
@@ -81,9 +80,7 @@ namespace Notifications.Services
                 Message = n.Message,
                 IsRead = n.IsRead,
                 Timestamp = n.Timestamp,
-                RelatedEntityType = n.RelatedEntityType,
-                RelatedEntityId = n.RelatedEntityId,
-                LinkUrl = n.LinkUrl
+                OrderId = n.OrderId
             }).ToList();
         }
 
@@ -104,6 +101,7 @@ namespace Notifications.Services
             {
                 if (notificationIds == null || !notificationIds.Any())
                 {
+                    // Mark all unread as read
                     _logger.LogInformation("Marking all unread notifications as read for User {UserId}", userId);
                     updatedCount = await _context.Notifications
                                                  .Where(n => n.UserId == userId && !n.IsRead)
@@ -111,15 +109,18 @@ namespace Notifications.Services
                 }
                 else
                 {
-                    _logger.LogInformation("Marking notifications with IDs [{NotificationIds}] as read for User {UserId}", string.Join(",", notificationIds), userId);
-                    var validIds = notificationIds.Where(id => id > 0).Distinct().ToList(); // 
+                    // Mark specific IDs as read
+                    var validIds = notificationIds.Where(id => id > 0).Distinct().ToList();
+                    _logger.LogInformation("Marking notifications with IDs [{NotificationIds}] as read for User {UserId}", string.Join(",", validIds), userId);
+                    if (!validIds.Any()) return true; // Nothing to mark
+
                     updatedCount = await _context.Notifications
                                                 .Where(n => n.UserId == userId && !n.IsRead && validIds.Contains(n.Id))
                                                 .ExecuteUpdateAsync(setters => setters.SetProperty(n => n.IsRead, true));
                 }
 
                 _logger.LogInformation("Marked {Count} notifications as read for User {UserId}", updatedCount, userId);
-                return updatedCount > 0;
+                return updatedCount >= 0;
             }
             catch (Exception ex)
             {

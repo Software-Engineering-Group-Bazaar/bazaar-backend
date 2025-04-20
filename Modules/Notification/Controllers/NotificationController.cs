@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Notifications.Dtos;
 using Notifications.Interfaces;
 
+
 namespace Notifications.Controllers
 {
     [ApiController]
@@ -23,6 +24,49 @@ namespace Notifications.Controllers
         {
             _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+
+        [HttpPost("create")]
+        [Authorize(Roles = "Admin,Seller")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> CreateTestNotification([FromBody] CreateNotificationRequestDto request)
+        {
+            var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Log who initiated
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            try
+            {
+                await _notificationService.CreateNotificationAsync(
+                    request.UserId,
+                    request.Message
+                );
+
+                return StatusCode(StatusCodes.Status201Created, new { message = "Test notification created successfully." });
+            }
+            catch (ArgumentNullException ex)
+            {
+                _logger.LogWarning(ex, "Invalid argument creating notification for User {UserId}", request.UserId);
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Invalid argument creating notification for User {UserId}", request.UserId);
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating notification for User {UserId}.", request.UserId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the test notification.");
+            }
         }
 
         [HttpGet]

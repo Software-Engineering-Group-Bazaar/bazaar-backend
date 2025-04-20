@@ -110,8 +110,6 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderItemService, OrderItemService>();
 
-builder.Services.AddSingleton<FcmPushNotificationService>();
-
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"];
@@ -210,6 +208,8 @@ else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironm
 
     // Registruj S3 implementaciju kao Singleton
     builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    builder.Services.AddSingleton<IPushNotificationService, FcmPushNotificationService>();
+
     // Ne treba logovanje ovdje ako pravi probleme
 }
 
