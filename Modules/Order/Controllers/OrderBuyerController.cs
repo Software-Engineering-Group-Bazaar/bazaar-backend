@@ -30,7 +30,52 @@ namespace Order.Controllers
             _orderItemService = orderItemService;
         }
 
-        // GET /api/admin/order/{id}
+        // GET /api/OrderBuyer/order
+        [HttpGet("order")]
+        [ProducesResponseType(typeof(IEnumerable<OrderGetBuyerDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<IEnumerable<OrderGetBuyerDto>>> GetAllOrders()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogWarning("[StoresController] CreateStore - Could not find user ID claim for the authenticated user.");
+                return Unauthorized("User ID claim not found."); // 401 Unauthorized
+            }
+
+            _logger.LogInformation("Attempting to retrieve all orders of user.");
+            try
+            {
+                var orders = await _orderService.GetOrdersByBuyerAsync(userId);
+
+                var orderDtos = orders.Select(o => new OrderGetBuyerDto
+                {
+                    Id = o.Id,
+                    BuyerId = o.BuyerId,
+                    StoreId = o.StoreId,
+                    Status = o.Status,
+                    Time = o.Time,
+                    Total = o.Total,
+                    OrderItems = o.OrderItems.Select(oi => new OrderItemGetBuyerDto
+                    {
+                        Id = oi.Id,
+                        ProductId = oi.ProductId,
+                        Price = oi.Price,
+                        Quantity = oi.Quantity
+                    }).ToList()
+                }).ToList();
+
+                _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
+                return Ok(orderDtos);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving all orders.");
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while retrieving orders.");
+            }
+        }
+
+        // GET /api/OrderBuyer/order/{id}
         [HttpGet("order/{id}")]
         [ProducesResponseType(typeof(OrderGetBuyerDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -82,7 +127,7 @@ namespace Order.Controllers
             }
         }
 
-        // POST /api/admin/order/create
+        // POST /api/OrderBuyer/order/create
         [HttpPost("order/create")]
         [ProducesResponseType(typeof(OrderGetBuyerDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
