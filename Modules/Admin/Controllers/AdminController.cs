@@ -1047,7 +1047,7 @@ namespace Admin.Controllers
                     Id = o.Id,
                     BuyerId = o.BuyerId,
                     StoreId = o.StoreId,
-                    Status = o.Status,
+                    Status = o.Status.ToString(),
                     Time = o.Time,
                     Total = o.Total,
                     OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
@@ -1099,7 +1099,7 @@ namespace Admin.Controllers
                     Id = order.Id,
                     BuyerId = order.BuyerId,
                     StoreId = order.StoreId,
-                    Status = order.Status,
+                    Status = order.Status.ToString(),
                     Time = order.Time,
                     Total = order.Total,
                     OrderItems = order.OrderItems.Select(oi => new OrderItemGetDto
@@ -1163,7 +1163,7 @@ namespace Admin.Controllers
                     Id = createdOrder.Id,
                     BuyerId = createdOrder.BuyerId,
                     StoreId = createdOrder.StoreId,
-                    Status = createdOrder.Status,
+                    Status = createdOrder.Status.ToString(),
                     Time = createdOrder.Time,
                     Total = createdOrder.Total, // Will likely be null or 0 initially
                     OrderItems = listitems // Empty list
