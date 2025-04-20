@@ -22,7 +22,7 @@ namespace Users.Controllers
             _userManager = userManager;
         }
 
-        [HttpPost("me/device")]
+        [HttpPost("pushNotification")]
         [Authorize]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
