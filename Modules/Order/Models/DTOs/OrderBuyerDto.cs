@@ -22,7 +22,7 @@ namespace Order.Models.DTOs.Buyer
         // Maybe add BuyerUserName/Email here (requires user lookup)
         public int StoreId { get; set; }
         // Maybe add StoreName here (requires store lookup)
-        public OrderStatus Status { get; set; }
+        public string Status { get; set; } = string.Empty;
         public DateTime Time { get; set; }
         public decimal? Total { get; set; }
         public List<OrderItemGetBuyerDto> OrderItems { get; set; } = new List<OrderItemGetBuyerDto>();
