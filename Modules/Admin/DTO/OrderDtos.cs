@@ -24,7 +24,7 @@ namespace AdminApi.DTOs
         // Maybe add BuyerUserName/Email here (requires user lookup)
         public int StoreId { get; set; }
         // Maybe add StoreName here (requires store lookup)
-        public OrderStatus Status { get; set; }
+        public string Status { get; set; }
         public DateTime Time { get; set; }
         public decimal? Total { get; set; }
         public List<OrderItemGetDto> OrderItems { get; set; } = new List<OrderItemGetDto>();
