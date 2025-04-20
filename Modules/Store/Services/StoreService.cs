@@ -182,5 +182,22 @@ namespace Store.Services
                 return stores;
             }
         }
+
+        public async Task<Region?> GetRegionByNameAsync(string region)
+        {
+            return await _context.Regions
+                                 .Include(r => r.Places)
+                                 .FirstOrDefaultAsync(r => r.Name == region);
+        }
+
+        public async Task<Place?> GetPlaceByNameAsync(string place)
+        {
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
+                return await dbContext.Places
+                    .FirstOrDefaultAsync(p => p.Name == place);
+            }
+        }
     }
 }

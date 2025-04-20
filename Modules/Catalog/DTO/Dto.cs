@@ -56,4 +56,20 @@ namespace Catalog.Dtos
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
     }
+
+    public class FilterBodyDto
+    {
+        public string query { get; set; } = string.Empty;
+        public List<string> places { get; set; } = new List<string>();
+        public string region { get; set; } = string.Empty;
+        public string category { get; set; } = string.Empty;
+
+    }
+
+    public class ProductsByStoresGetDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public List<ProductGetDto> Products { get; set; } = new List<ProductGetDto>();
+    }
 }

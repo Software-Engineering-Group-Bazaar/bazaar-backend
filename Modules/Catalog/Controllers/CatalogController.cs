@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging; // Required for logging
 using Store.Interface;
+using Store.Models;
 
 namespace Catalog.Controllers
 {
@@ -497,7 +498,7 @@ namespace Catalog.Controllers
                 }
                 return Ok(updatedProductDto);
             }
-            catch (UnauthorizedAccessException ex)
+            catch (UnauthorizedAccessException)
             {
                 return Forbid();
             }
@@ -505,11 +506,11 @@ namespace Catalog.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
-            catch (KeyNotFoundException ex)
+            catch (KeyNotFoundException)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "User validation error during pricing update.");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating product pricing.");
             }
@@ -579,6 +580,115 @@ namespace Catalog.Controllers
                 // Vrati ProblemDetails za 500
                 return Problem(detail: "An error occurred while updating product availability.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
             }
+        }
+
+        [HttpGet("filter")] // GET api/products/filter
+        [ProducesResponseType(typeof(IEnumerable<ProductsByStoresGetDto>), 200)]
+        [ProducesResponseType(400)]
+        public async Task<ActionResult<IEnumerable<ProductsByStoresGetDto>>> FilterProducts([FromQuery] FilterBodyDto filterBodyDto)
+        {
+            int regionId = 0;
+            List<int> placesId = new List<int>();
+            int categoryId = 0;
+            filterBodyDto.query = filterBodyDto.query.Trim().ToLower();
+
+            if (!string.IsNullOrEmpty(filterBodyDto.region))
+            {
+                var reg = await _storeService.GetRegionByNameAsync(filterBodyDto.region);
+                if (reg != null)
+                {
+                    regionId = reg.Id;
+                }
+            }
+
+            if (filterBodyDto.places != null && filterBodyDto.places.Count > 0)
+            {
+
+                var listaTaskova = filterBodyDto.places
+                .Select(place => _storeService.GetPlaceByNameAsync(place))
+                .ToList();
+
+                var sviRezultati = await Task.WhenAll(listaTaskova);
+
+                placesId = sviRezultati
+                .Where(rezultat => rezultat != null)
+                .Select(rezultat => rezultat!.Id)
+                .ToList();
+            }
+
+            if (!string.IsNullOrEmpty(filterBodyDto.category))
+            {
+                var cat = await _categoryService.GetCategoryByNameAsync(filterBodyDto.category);
+
+                if (cat != null)
+                {
+                    categoryId = cat.Id;
+                }
+            }
+
+            List<StoreModel>? stores = null;
+
+            if (placesId.Count > 0)
+            {
+                var tasks = placesId.Select(p => _storeService.GetAllStoresInPlace(p));
+                var results = await Task.WhenAll(tasks);
+                stores = results.SelectMany(r => r).ToList();
+            }
+            else if (regionId != 0)
+            {
+                stores = (await _storeService.GetAllStoresInRegion(regionId)).ToList();
+            }
+            else
+            {
+                stores = _storeService.GetAllStores().ToList();
+            }
+
+            List<ProductsByStoresGetDto> productsDto = new List<ProductsByStoresGetDto>();
+
+            foreach (var store in stores)
+            {
+                var products = await _productService.GetProductsByStoreIdAsync(store.id);
+
+                if (!string.IsNullOrEmpty(filterBodyDto.query) && !string.IsNullOrWhiteSpace(filterBodyDto.query))
+                {
+                    products = products.Where(p => p.Name.ToLower().Contains(filterBodyDto.query));
+                }
+
+                if (categoryId > 0)
+                {
+                    products = products.Where(p => p.ProductCategoryId == categoryId);
+                }
+
+                var productsInDto = products.Select(product => new ProductGetDto
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
+                    RetailPrice = product.RetailPrice,
+                    WholesaleThreshold = product.WholesaleThreshold,
+                    WholesalePrice = product.WholesalePrice,
+                    Weight = product.Weight,
+                    WeightUnit = product.WeightUnit,
+                    Volume = product.Volume,
+                    VolumeUnit = product.VolumeUnit,
+                    StoreId = product.StoreId,
+                    IsActive = product.IsActive,
+                    Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                }).ToList();
+
+                if (productsInDto.Count > 0)
+                {
+                    productsDto.Add(new ProductsByStoresGetDto
+                    {
+                        Id = store.id,
+                        Name = store.name,
+                        Products = productsInDto
+                    });
+                }
+            }
+
+            return Ok(productsDto);
+
         }
     }
 }
