@@ -31,12 +31,15 @@ namespace Order.Controllers
 
         private readonly INotificationService _notificationService;
 
+        private readonly IPushNotificationService _pushNotificationService;
+
         public OrderController(
             ILogger<OrderController> logger,
             IOrderService orderService,
             IOrderItemService orderItemService,
             UserManager<User> userManager,
-            INotificationService notificationService
+            INotificationService notificationService,
+            IPushNotificationService pushNotificationService
             )
 
         {
@@ -45,6 +48,7 @@ namespace Order.Controllers
             _orderItemService = orderItemService;
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+            _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
         }
 
         // GET /api//order
@@ -199,6 +203,32 @@ namespace Order.Controllers
                             createdOrder.Id
                         );
                     _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", sellerUser.Id, createdOrder.Id);
+
+                    if (!string.IsNullOrWhiteSpace(sellerUser.FcmDeviceToken))
+                    {
+                        try
+                        {
+                            string pushTitle = "Nova Narudžba!";
+                            string pushBody = $"Dobili ste narudžbu #{createdOrder.Id}.";
+                            var pushData = new Dictionary<string, string> {
+                    { "orderId", createdOrder.Id.ToString() },
+                    { "screen", "OrderDetail" } // Primjer za frontend navigaciju
+                    };
+
+                            await _pushNotificationService.SendPushNotificationAsync(
+                                sellerUser.FcmDeviceToken,
+                                pushTitle,
+                                pushBody,
+                                pushData
+                            );
+                            _logger.LogInformation("Push Notification task initiated for Seller {SellerUserId} for new Order {OrderId}.", sellerUser.Id, createdOrder.Id);
+                        }
+                        catch (Exception pushEx)
+                        {
+                            _logger.LogError(pushEx, "Failed to send Push Notification to Seller {SellerUserId} for Order {OrderId}.", sellerUser.Id, createdOrder.Id);
+                        }
+                    }
+
                 }
                 else
                 {
@@ -344,6 +374,8 @@ namespace Order.Controllers
                 {
                     var updatedOrder = await _orderService.GetOrderByIdAsync(id);
 
+                    var buyerUser = await _userManager.FindByIdAsync(updatedOrder.BuyerId);
+
                     if (updatedOrder != null && !string.IsNullOrWhiteSpace(updatedOrder.BuyerId))
                     {
                         string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
@@ -354,14 +386,44 @@ namespace Order.Controllers
                             id
                         );
                         _logger.LogInformation("Notification creation task initiated for Buyer {BuyerId} for Order {OrderId} status update.", updatedOrder.BuyerId, id);
-                    }
-                    else if (updatedOrder != null)
-                    {
-                        _logger.LogWarning("Order {OrderId} was updated, but BuyerId was missing. Cannot send notification.", id);
-                    }
-                    else
-                    {
-                        _logger.LogError("Order {OrderId} was updated successfully, but could not be retrieved afterwards to send notification.", id);
+
+                        if (!string.IsNullOrWhiteSpace(buyerUser.FcmDeviceToken))
+                        {
+                            try
+                            {
+                                string pushTitle = "Status Narudžbe Ažuriran";
+                                string pushBody = $"Status narudžbe #{id} je sada: {status}.";
+                                // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
+                                var pushData = new Dictionary<string, string> {
+                                         { "orderId", id.ToString() },
+                                         { "screen", "OrderDetail" } // Primjer
+                                     };
+
+                                // Pozovi servis za slanje PUSH notifikacije
+                                await _pushNotificationService.SendPushNotificationAsync(
+                                    buyerUser.FcmDeviceToken,
+                                    pushTitle,
+                                    pushBody,
+                                    pushData
+                                );
+                                _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", buyerUser.Id, id);
+
+
+                            }
+                            catch (Exception pushEx)
+                            {
+                                // Loguj grešku slanja push notifikacije ali ne prekidaj izvršavanje
+                                _logger.LogError(pushEx, "Failed to send Push Notification to Buyer {BuyerId} for Order {OrderId}.", buyerUser.Id, id);
+                            }
+                        }
+                        else if (updatedOrder != null)
+                        {
+                            _logger.LogWarning("Order {OrderId} was updated, but BuyerId was missing. Cannot send notification.", id);
+                        }
+                        else
+                        {
+                            _logger.LogError("Order {OrderId} was updated successfully, but could not be retrieved afterwards to send notification.", id);
+                        }
                     }
                 }
                 catch (Exception notificationEx)
