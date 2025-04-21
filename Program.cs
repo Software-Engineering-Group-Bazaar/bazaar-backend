@@ -197,7 +197,7 @@ if (builder.Environment.IsDevelopment())
     // builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
     // znc if development aws i else aws, a mi ostali nemamo aws (i ne bi trebali ni imati)...
     builder.Services.AddSingleton<IImageStorageService, FileImageStorageService>();
-    builder.Services.AddSingleton<IPushNotificationService, DevPushNotificationService>();
+    builder.Services.AddSingleton<IPushNotificationService, FcmPushNotificationService>();
 }
 else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing")) // Pokriva Production i ostala okruženja
 {
