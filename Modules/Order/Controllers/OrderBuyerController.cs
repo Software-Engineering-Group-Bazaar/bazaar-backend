@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Notifications.Interfaces;
 using Order.Interface;
 using Order.Models;
 using Order.Models.DTOs.Buyer;
+using Users.Models;
 
 namespace Order.Controllers
 {
@@ -18,16 +20,27 @@ namespace Order.Controllers
         private readonly ILogger<OrderBuyerController> _logger;
         private readonly IOrderService _orderService;
         private readonly IOrderItemService _orderItemService;
+        private readonly UserManager<User> _userManager;
+
+        private readonly INotificationService _notificationService;
+
+        private readonly IPushNotificationService _pushNotificationService;
 
         public OrderBuyerController(
             ILogger<OrderBuyerController> logger,
             IOrderService orderService,
-            IOrderItemService orderItemService)
+            IOrderItemService orderItemService,
+            UserManager<User> userManager,
+            INotificationService notificationService,
+            IPushNotificationService pushNotificationService)
 
         {
             _logger = logger;
             _orderService = orderService;
             _orderItemService = orderItemService;
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+            _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
         }
 
         // GET /api/OrderBuyer/order
@@ -181,6 +194,50 @@ namespace Order.Controllers
                     Total = createdOrder.Total, // Will likely be null or 0 initially
                     OrderItems = listitems // Empty list
                 };
+
+                var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdOrder.StoreId);
+
+                if (sellerUser != null)
+                {
+                    string notificationMessage = $"Nova narudžba #{createdOrder.Id} je kreirana za vašu prodavnicu.";
+
+                    await _notificationService.CreateNotificationAsync(
+                            sellerUser.Id,
+                            notificationMessage,
+                            createdOrder.Id
+                        );
+                    _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", sellerUser.Id, createdOrder.Id);
+
+                    if (!string.IsNullOrWhiteSpace(sellerUser.FcmDeviceToken))
+                    {
+                        try
+                        {
+                            string pushTitle = "Nova Narudžba!";
+                            string pushBody = $"Dobili ste narudžbu #{createdOrder.Id}.";
+                            var pushData = new Dictionary<string, string> {
+                    { "orderId", createdOrder.Id.ToString() },
+                    { "screen", "OrderDetail" } // Primjer za frontend navigaciju
+                    };
+
+                            await _pushNotificationService.SendPushNotificationAsync(
+                                sellerUser.FcmDeviceToken,
+                                pushTitle,
+                                pushBody,
+                                pushData
+                            );
+                            _logger.LogInformation("Push Notification task initiated for Seller {SellerUserId} for new Order {OrderId}.", sellerUser.Id, createdOrder.Id);
+                        }
+                        catch (Exception pushEx)
+                        {
+                            _logger.LogError(pushEx, "Failed to send Push Notification to Seller {SellerUserId} for Order {OrderId}.", sellerUser.Id, createdOrder.Id);
+                        }
+                    }
+
+                }
+                else
+                {
+                    _logger.LogWarning("Could not find seller user for StoreId {StoreId} to send new order notification for Order {OrderId}.", createdOrder.StoreId, createdOrder.Id);
+                }
 
                 _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder.Id);
                 // Return 201 Created with the location of the newly created resource and the resource itself
