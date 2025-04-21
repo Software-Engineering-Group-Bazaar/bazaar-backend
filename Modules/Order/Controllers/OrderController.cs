@@ -211,8 +211,8 @@ namespace Order.Controllers
                             string pushTitle = "Nova Narudžba!";
                             string pushBody = $"Dobili ste narudžbu #{createdOrder.Id}.";
                             var pushData = new Dictionary<string, string> {
-                    { "orderId", createdOrder.Id.ToString() },
-                    { "screen", "OrderDetail" } // Primjer za frontend navigaciju
+                            { "orderId", createdOrder.Id.ToString() },
+                            { "screen", "OrderDetail" } // Primjer za frontend navigaciju
                     };
 
                             await _pushNotificationService.SendPushNotificationAsync(
@@ -484,5 +484,150 @@ namespace Order.Controllers
             }
         }
 
+        // GET /api/order/my-store-orders
+        [HttpGet("MyStore")]
+        [Authorize(Roles = "Seller,Admin")]
+        [ProducesResponseType(typeof(IEnumerable<OrderGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<IEnumerable<OrderGetDto>>> GetMyStoreOrders()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogWarning("GetMyStoreOrders failed: User ID claim not found.");
+                return Unauthorized("User ID claim not found.");
+            }
+
+            _logger.LogInformation("Seller {UserId} attempting to retrieve orders for their store.", userId);
+
+            try
+            {
+                var sellerUser = await _userManager.FindByIdAsync(userId);
+                if (sellerUser == null)
+                {
+                    _logger.LogError("GetMyStoreOrders failed: Authenticated User {UserId} not found in database.", userId);
+                    return StatusCode(StatusCodes.Status500InternalServerError, "Authenticated user could not be found.");
+                }
+
+                if (sellerUser.StoreId == null)
+                {
+                    _logger.LogWarning("Seller {UserId} attempted to get store orders, but has no StoreId assigned.", userId);
+                    return NotFound("No store is associated with your account.");
+                }
+
+                int storeId = sellerUser.StoreId.Value;
+                _logger.LogInformation("Seller {UserId} fetching orders for their StoreId {StoreId}", userId, storeId);
+
+                var orders = await _orderService.GetOrdersByStoreAsync(storeId);
+
+                var orderDtos = orders.Select(o => new OrderGetDto
+                {
+                    Id = o.Id,
+                    BuyerId = o.BuyerId,
+                    StoreId = o.StoreId,
+                    Status = o.Status.ToString(),
+                    Time = o.Time,
+                    Total = o.Total,
+                    OrderItems = o.OrderItems?.Select(oi => new OrderItemGetDto
+                    {
+                        Id = oi.Id,
+                        ProductId = oi.ProductId,
+                        Price = oi.Price,
+                        Quantity = oi.Quantity
+                    }).ToList() ?? new List<OrderItemGetDto>()
+                }).ToList();
+
+                _logger.LogInformation("Successfully retrieved {OrderCount} orders for Seller {UserId}'s Store ID {StoreId}", orderDtos.Count, userId, storeId);
+                return Ok(orderDtos);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An unexpected error occurred while retrieving orders for Seller {UserId}'s store.", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while retrieving store orders.");
+            }
+        }
+
+        // GET /api/order/store/{storeId}
+        [HttpGet("store/{storeId:int}")]
+        [Authorize(Roles = "Admin, Seller")]
+        [ProducesResponseType(typeof(IEnumerable<OrderGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<IEnumerable<OrderGetDto>>> GetOrdersForStore(int storeId)
+        {
+            _logger.LogInformation("Attempting to retrieve orders for Store ID: {StoreId}", storeId);
+
+            if (storeId <= 0)
+            {
+                _logger.LogWarning("GetOrdersForStore request failed validation: Invalid Store ID {StoreId}", storeId);
+                return BadRequest("Invalid Store ID provided.");
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized("User ID claim not found.");
+
+            try
+            {
+                var requestingUser = await _userManager.FindByIdAsync(userId);
+                if (requestingUser == null) return NotFound("Requesting user not found.");
+
+                bool isAdmin = User.IsInRole("Admin");
+                bool isSeller = User.IsInRole("Seller");
+
+                if (isSeller && !isAdmin)
+                {
+                    if (requestingUser.StoreId != storeId)
+                    {
+                        _logger.LogWarning("Forbidden: Seller {UserId} attempted to access orders for store {StoreId}, but owns store {OwnedStoreId}",
+                                           userId, storeId, requestingUser.StoreId?.ToString() ?? "None");
+                        return Forbid("You are not authorized to view orders for this store."); // 403 Forbidden
+                    }
+                    _logger.LogInformation("Seller {UserId} authorized to view orders for their store {StoreId}", userId, storeId);
+                }
+                else if (!isAdmin)
+                {
+                    _logger.LogWarning("Forbidden: User {UserId} with roles {Roles} attempted to access orders for store {StoreId}",
+                                         userId, string.Join(",", User.FindAll(ClaimTypes.Role).Select(c => c.Value)), storeId);
+                    return Forbid();
+                }
+                // Admin može nastaviti
+                if (isAdmin) _logger.LogInformation("Admin {UserId} authorized to view orders for store {StoreId}", userId, storeId);
+
+
+                var orders = await _orderService.GetOrdersByStoreAsync(storeId);
+
+                var orderDtos = orders.Select(o => new OrderGetDto
+                {
+                    Id = o.Id,
+                    BuyerId = o.BuyerId,
+                    StoreId = o.StoreId,
+                    Status = o.Status.ToString(),
+                    Time = o.Time,
+                    Total = o.Total,
+                    OrderItems = o.OrderItems?.Select(oi => new OrderItemGetDto
+                    {
+                        Id = oi.Id,
+                        ProductId = oi.ProductId,
+                        Price = oi.Price,
+                        Quantity = oi.Quantity
+                    }).ToList() ?? new List<OrderItemGetDto>()
+                }).ToList();
+
+
+                _logger.LogInformation("Successfully retrieved {OrderCount} orders for Store ID: {StoreId}", orderDtos.Count, storeId);
+                return Ok(orderDtos);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving orders for Store ID: {StoreId}", storeId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while retrieving orders.");
+            }
+        }
     }
 }
