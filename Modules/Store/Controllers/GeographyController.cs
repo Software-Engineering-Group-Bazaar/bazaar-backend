@@ -56,5 +56,36 @@ namespace Store.Controllers
             });
         }
 
+        [HttpGet("regions")] // GET /api/Geography/regions
+        [ProducesResponseType(typeof(List<RegionDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetOnlyRegions()
+        {
+            var regions = await _geographyService.GetAllRegionsAsync();
+
+            return Ok(regions.Select(r => new RegionDto
+            {
+                Id = r.Id,
+                Name = r.Name,
+                CountryCode = r.Country
+            }).ToList());
+        }
+
+        [HttpGet("region/{id}")] // GET /api/Geography/region/5
+        [ProducesResponseType(typeof(List<PlaceDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetRegionPlaces(int id)
+        {
+            var places = await _geographyService.GetAllPlacesInRegionAsync(id);
+
+            return Ok(places.Select(p => new PlaceDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                PostalCode = p.PostalCode
+            }).ToList());
+        }
     }
 }
