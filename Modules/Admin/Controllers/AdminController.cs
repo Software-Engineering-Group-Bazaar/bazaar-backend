@@ -952,7 +952,7 @@ namespace Admin.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateProduct(int id, [FromBody] ProductDto productDto)
+        public async Task<IActionResult> UpdateProduct(int id, [FromBody] UpdateProductDto productDto)
         {
             if (id <= 0 || productDto == null)
             {
@@ -982,6 +982,7 @@ namespace Admin.Controllers
                 product.Volume = productDto.Volume;
                 product.VolumeUnit = productDto.VolumeUnit;
                 product.StoreId = productDto.StoreId;
+                product.IsActive = productDto.IsActive;
 
                 var success = await _productService.UpdateProductAsync(product);
                 if (!success)
