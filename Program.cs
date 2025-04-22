@@ -218,12 +218,8 @@ var app = builder.Build();
 
 // --- Seed Data (Optional) ---
 await SeedRolesAsync(app);
-// Seedovanje dev usera ostaje samo za dev
-if (app.Environment.IsDevelopment())
-{
-    await UserDataSeeder.SeedDevelopmentUsersAsync(app);
-    await GeographyDataSeeder.SeedGeographyAsync(app);
-}
+await UserDataSeeder.SeedDevelopmentUsersAsync(app);
+await GeographyDataSeeder.SeedGeographyAsync(app);
 
 // --- Configure the HTTP Request Pipeline (Middleware) ---
 
