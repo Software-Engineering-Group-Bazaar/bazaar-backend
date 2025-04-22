@@ -36,6 +36,7 @@ namespace Admin.Controllers
         private readonly IOrderService _orderService;         // <<<--- INJECT
         private readonly IOrderItemService _orderItemService; // <<<--- INJECT
         private readonly IPushNotificationService _pushNotificationService;
+        private readonly INotificationService _notificationService;
 
         public AdminController(
             UserManager<User> userManager,
@@ -47,6 +48,7 @@ namespace Admin.Controllers
             ILogger<AdminController> logger,
             IOrderService orderService,         // <<<--- ADD to constructor parameters
             IPushNotificationService pushNotificationService,
+            INotificationService notificationService,
             IOrderItemService orderItemService) // Add logger to constructor
 
         {
@@ -59,6 +61,7 @@ namespace Admin.Controllers
             _logger = logger; // Assign injected logger
             _orderService = orderService;         // <<<--- ASSIGN injected service
             _pushNotificationService = pushNotificationService;
+            _notificationService = notificationService;
             _orderItemService = orderItemService;
         }
 
@@ -1177,7 +1180,66 @@ namespace Admin.Controllers
                 };
 
                 _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder.Id);
+                int id = createdOrder.Id;
+                string status = createdOrder.Status.ToString();
                 // Return 201 Created with the location of the newly created resource and the resource itself
+                if (createDto.BuyerId is not null)
+                {
+                    var buyer = await _userManager.FindByIdAsync(createDto.BuyerId);
+
+                    await _notificationService.CreateNotificationAsync(
+                            buyer.Id,
+                            $"Nova narudžba #{id} je kreirana za vašu prodavnicu.",
+                            id
+                        );
+                    _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
+                    string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
+                    string pushTitle = "Status Narudžbe Ažuriran";
+                    string pushBody = $"Status narudžbe #{id} je sada: {status}.";
+                    // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
+                    var pushData = new Dictionary<string, string> {
+                                         { "orderId", id.ToString() },
+                                         { "screen", "OrderDetail" } // Primjer
+                                     };
+                    if (buyer is null) return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
+                    // Pozovi servis za slanje PUSH notifikacije
+                    if (buyer.FcmDeviceToken is not null)
+                        await _pushNotificationService.SendPushNotificationAsync(
+                            buyer.FcmDeviceToken,
+                            pushTitle,
+                            pushBody,
+                            pushData
+                        );
+                    _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", buyer.Id, id);
+                }
+                if (createDto.StoreId > -1)
+                {
+                    var seller = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createDto.StoreId);
+                    await _notificationService.CreateNotificationAsync(
+                           seller.Id,
+                           $"Nova narudžba #{id} je kreirana za vašu prodavnicu.",
+                           id
+                       );
+                    string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
+                    string pushTitle = "Status Narudžbe Ažuriran";
+                    string pushBody = $"Status narudžbe #{id} je sada: {status}.";
+                    // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
+                    if (seller is null) return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
+                    var pushData = new Dictionary<string, string> {
+                                         { "orderId", id.ToString() },
+                                         { "screen", "OrderDetail" } // Primjer
+                                     };
+
+                    // Pozovi servis za slanje PUSH notifikacije
+                    if (seller.FcmDeviceToken is not null)
+                        await _pushNotificationService.SendPushNotificationAsync(
+                            seller.FcmDeviceToken,
+                            pushTitle,
+                            pushBody,
+                            pushData
+                        );
+                    _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", seller.Id, id);
+                }
                 return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
             }
             catch (ArgumentException ex) // Catch specific exceptions from the service if possible
@@ -1259,6 +1321,13 @@ namespace Admin.Controllers
             if (updateDto.BuyerId is not null)
             {
                 var buyer = await _userManager.FindByIdAsync(updateDto.BuyerId);
+
+                await _notificationService.CreateNotificationAsync(
+                        buyer.Id,
+                        $"Nova narudžba #{id} je kreirana za vašu prodavnicu.",
+                        id
+                    );
+                _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
                 string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
                 string pushTitle = "Status Narudžbe Ažuriran";
                 string pushBody = $"Status narudžbe #{id} je sada: {status}.";
@@ -1281,6 +1350,11 @@ namespace Admin.Controllers
             if (updateDto.StoreId is not null)
             {
                 var seller = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == updateDto.StoreId);
+                await _notificationService.CreateNotificationAsync(
+                       seller.Id,
+                       $"Nova narudžba #{id} je kreirana za vašu prodavnicu.",
+                       id
+                   );
                 string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
                 string pushTitle = "Status Narudžbe Ažuriran";
                 string pushBody = $"Status narudžbe #{id} je sada: {status}.";
@@ -1356,6 +1430,8 @@ namespace Admin.Controllers
                     // If it exists, it might be a concurrency issue or other update failure
                     return BadRequest($"Failed to update status for order ID: {id}. See logs for details.");
                 }
+
+
 
                 _logger.LogInformation("Successfully updated status for order ID: {OrderId} to {NewStatus}", id, updateDto.NewStatus);
                 return NoContent(); // Standard success response for PUT when no content is returned
