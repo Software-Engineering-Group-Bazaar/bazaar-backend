@@ -1193,7 +1193,7 @@ namespace Admin.Controllers
                             id
                         );
                     _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
-                    string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
+                    string notificationMessage = $"Nova narudžba #{id} je kreirana za Vas!",;
                     string pushTitle = "Status Narudžbe Ažuriran";
                     string pushBody = $"Status narudžbe #{id} je sada: {status}.";
                     // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
