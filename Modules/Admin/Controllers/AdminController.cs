@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
+using Notifications.Interfaces;
 using Order.Interface;
 using Order.Models;
 using SharedKernel;
@@ -34,6 +35,7 @@ namespace Admin.Controllers
         private readonly IProductCategoryService _productCategoryService;
         private readonly IOrderService _orderService;         // <<<--- INJECT
         private readonly IOrderItemService _orderItemService; // <<<--- INJECT
+        private readonly IPushNotificationService _pushNotificationService;
 
         public AdminController(
             UserManager<User> userManager,
@@ -44,6 +46,7 @@ namespace Admin.Controllers
             IProductCategoryService productCategoryService,
             ILogger<AdminController> logger,
             IOrderService orderService,         // <<<--- ADD to constructor parameters
+            IPushNotificationService pushNotificationService,
             IOrderItemService orderItemService) // Add logger to constructor
 
         {
@@ -55,6 +58,7 @@ namespace Admin.Controllers
             _storeCategoryService = storeCategoryService;
             _logger = logger; // Assign injected logger
             _orderService = orderService;         // <<<--- ASSIGN injected service
+            _pushNotificationService = pushNotificationService;
             _orderItemService = orderItemService;
         }
 
@@ -910,6 +914,7 @@ namespace Admin.Controllers
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
+                IsActive = product.IsActive,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             }).ToList();
 
@@ -942,6 +947,7 @@ namespace Admin.Controllers
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
+                IsActive = product.IsActive,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             };
 
@@ -1249,6 +1255,51 @@ namespace Admin.Controllers
                 {
                     return BadRequest("OrderItem update failed.");
                 }
+            }
+            if (updateDto.BuyerId is not null)
+            {
+                var buyer = await _userManager.FindByIdAsync(updateDto.BuyerId);
+                string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
+                string pushTitle = "Status Narudžbe Ažuriran";
+                string pushBody = $"Status narudžbe #{id} je sada: {status}.";
+                // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
+                var pushData = new Dictionary<string, string> {
+                                         { "orderId", id.ToString() },
+                                         { "screen", "OrderDetail" } // Primjer
+                                     };
+                if (buyer is null) return NoContent();
+                // Pozovi servis za slanje PUSH notifikacije
+                if (buyer.FcmDeviceToken is not null)
+                    await _pushNotificationService.SendPushNotificationAsync(
+                        buyer.FcmDeviceToken,
+                        pushTitle,
+                        pushBody,
+                        pushData
+                    );
+                _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", buyer.Id, id);
+            }
+            if (updateDto.StoreId is not null)
+            {
+                var seller = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == updateDto.StoreId);
+                string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
+                string pushTitle = "Status Narudžbe Ažuriran";
+                string pushBody = $"Status narudžbe #{id} je sada: {status}.";
+                // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
+                if (seller is null) return NoContent();
+                var pushData = new Dictionary<string, string> {
+                                         { "orderId", id.ToString() },
+                                         { "screen", "OrderDetail" } // Primjer
+                                     };
+
+                // Pozovi servis za slanje PUSH notifikacije
+                if (seller.FcmDeviceToken is not null)
+                    await _pushNotificationService.SendPushNotificationAsync(
+                        seller.FcmDeviceToken,
+                        pushTitle,
+                        pushBody,
+                        pushData
+                    );
+                _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", seller.Id, id);
             }
             return NoContent();
         }
