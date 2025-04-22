@@ -1192,8 +1192,8 @@ namespace Admin.Controllers
                             $"Nova narudžba #{id} je kreirana za Vas!",
                             id
                         );
-                    _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
-                    string notificationMessage = $"Nova narudžba #{id} je kreirana za Vas!",;
+                    _logger.LogInformation("Notification creation task initiated for Buyer {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
+                    string notificationMessage = $"Nova narudžba #{id} je kreirana za Vas!";
                     string pushTitle = "Status Narudžbe Ažuriran";
                     string pushBody = $"Status narudžbe #{id} je sada: {status}.";
                     // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
@@ -1238,7 +1238,7 @@ namespace Admin.Controllers
                             pushBody,
                             pushData
                         );
-                    _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", seller.Id, id);
+                    _logger.LogInformation("Push Notification task initiated for Seller {BuyerId} for Order {OrderId} status update.", seller.Id, id);
                 }
                 return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
             }
@@ -1327,7 +1327,7 @@ namespace Admin.Controllers
                         $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.",
                         id
                     );
-                _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
+                _logger.LogInformation("Notification creation task initiated for Buyer {SellerUserId} for new Order {OrderId}. samo ja logove gledam svakako", buyer.Id, id);
                 string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
                 string pushTitle = "Status Narudžbe Ažuriran";
                 string pushBody = $"Status narudžbe #{id} je sada: {status}.";
@@ -1373,7 +1373,7 @@ namespace Admin.Controllers
                         pushBody,
                         pushData
                     );
-                _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", seller.Id, id);
+                _logger.LogInformation("Push Notification task initiated for Seller {BuyerId} for Order {OrderId} status update.", seller.Id, id);
             }
             return NoContent();
         }
