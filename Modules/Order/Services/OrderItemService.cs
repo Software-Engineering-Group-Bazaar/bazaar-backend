@@ -51,7 +51,10 @@ namespace Order.Services
             }
 
             decimal itemPrice = product.RetailPrice;
-
+            if (product.WholesaleThreshold != null && product.WholesalePrice != null && quantity >= product.WholesaleThreshold)
+            {
+                itemPrice = (decimal)product.WholesalePrice;
+            }
             // --- Find Parent Order (Tracked) ---
             var parentOrder = await _context.Orders
                                             .Include(o => o.OrderItems)
@@ -117,6 +120,10 @@ namespace Order.Services
             }
 
             decimal newItemPrice = product.RetailPrice;
+            if (product.WholesaleThreshold != null && product.WholesalePrice != null && quantity >= product.WholesaleThreshold)
+            {
+                newItemPrice = (decimal)product.WholesalePrice;
+            }
 
             var parentOrder = await _context.Orders
                                            .Include(o => o.OrderItems)
