@@ -1194,7 +1194,7 @@ namespace Admin.Controllers
                         );
                     _logger.LogInformation("Notification creation task initiated for Buyer {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
                     string notificationMessage = $"Nova narudžba #{id} je kreirana za Vas!";
-                    string pushTitle = "Status Narudžbe Ažuriran";
+                    string pushTitle = "Status Narudžbe Kreiran";
                     string pushBody = $"Status narudžbe #{id} je sada: {status}.";
                     // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
                     var pushData = new Dictionary<string, string> {
@@ -1221,7 +1221,7 @@ namespace Admin.Controllers
                            id
                        );
                     string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
-                    string pushTitle = "Status Narudžbe Ažuriran";
+                    string pushTitle = "Status Narudžbe Kreiran";
                     string pushBody = $"Status narudžbe #{id} je sada: {status}.";
                     // Opcionalno: Dodaj podatke za navigaciju u aplikaciji
                     if (seller is null) return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
