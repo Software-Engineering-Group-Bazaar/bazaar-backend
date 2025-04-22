@@ -1189,7 +1189,7 @@ namespace Admin.Controllers
 
                     await _notificationService.CreateNotificationAsync(
                             buyer.Id,
-                            $"Nova narudžba #{id} je kreirana za vašu prodavnicu.",
+                            $"Nova narudžba #{id} je kreirana za Vas!",
                             id
                         );
                     _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
@@ -1324,7 +1324,7 @@ namespace Admin.Controllers
 
                 await _notificationService.CreateNotificationAsync(
                         buyer.Id,
-                        $"Nova narudžba #{id} je kreirana za vašu prodavnicu.",
+                        $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.",
                         id
                     );
                 _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {OrderId}.", buyer.Id, id);
@@ -1352,8 +1352,8 @@ namespace Admin.Controllers
                 var seller = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == updateDto.StoreId);
                 await _notificationService.CreateNotificationAsync(
                        seller.Id,
-                       $"Nova narudžba #{id} je kreirana za vašu prodavnicu.",
-                       id
+                       $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.",
+                        id
                    );
                 string notificationMessage = $"Status Vaše narudžbe #{id} je ažuriran na '{status}'.";
                 string pushTitle = "Status Narudžbe Ažuriran";
