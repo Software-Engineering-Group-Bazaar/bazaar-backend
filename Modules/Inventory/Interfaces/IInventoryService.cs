@@ -15,8 +15,4 @@ namespace Inventory.Interfaces
         Task<bool> DeleteInventoryAsync(string requestingUserId, bool isAdmin, int inventoryId);
 
     }
-
-    public class UpdateInventoryQuantityRequestDto
-    {
-    }
 }

@@ -124,5 +124,55 @@ namespace Inventory.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving inventory data.");
             }
         }
+
+        // PUT /api/Inventory/update/quantity
+        [HttpPut("update/quantity")]
+        [Authorize(Roles = "Admin, Seller")]
+        [ProducesResponseType(typeof(InventoryDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)] // Ako inventory zapis ne postoji
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<InventoryDto>> UpdateInventoryQuantity([FromBody] UpdateInventoryQuantityRequestDto updateDto)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized("User ID claim not found.");
+
+            bool isAdmin = User.IsInRole("Admin");
+
+            _logger.LogInformation("API: User {UserId} (IsAdmin: {IsAdmin}) attempting to update inventory quantity.", userId, isAdmin);
+
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("API: Update inventory quantity request failed model validation for User {UserId}. Errors: {@ModelState}", userId, ModelState.Values.SelectMany(v => v.Errors));
+                return BadRequest(ModelState);
+            }
+            try
+            {
+                var updatedInventoryDto = await _inventoryService.UpdateQuantityAsync(userId, isAdmin, updateDto);
+
+                if (updatedInventoryDto == null)
+                {
+                    _logger.LogWarning("API: Inventory record not found or update failed (concurrency?) for ProductId {ProductId}, StoreId {StoreId}, requested by User {UserId}.",
+                                       updateDto.ProductId, updateDto.StoreId, userId);
+                    return NotFound($"Inventory record not found for Product ID {updateDto.ProductId} in Store ID {updateDto.StoreId}.");
+                }
+
+                _logger.LogInformation("API: Successfully updated inventory quantity for record ID {InventoryId}, requested by User {UserId}.", updatedInventoryDto.Id, userId);
+                return Ok(updatedInventoryDto);
+
+            }
+            catch (ArgumentNullException ex) { _logger.LogWarning(ex, "API: Null argument during inventory update by User {UserId}.", userId); return BadRequest(new { message = ex.Message }); }
+            catch (ArgumentException ex) { _logger.LogWarning(ex, "API: Invalid argument during inventory update by User {UserId}.", userId); return BadRequest(new { message = ex.Message }); }
+            catch (KeyNotFoundException ex) { _logger.LogWarning(ex, "API: Entity not found during inventory update by User {UserId}.", userId); return NotFound(new { message = ex.Message }); }
+            catch (UnauthorizedAccessException ex) { _logger.LogWarning(ex, "API: Unauthorized inventory update attempt by User {UserId}.", userId); return Forbid(ex.Message); }
+            catch (DbUpdateException ex) { _logger.LogError(ex, "API: Database error during inventory update by User {UserId}.", userId); return StatusCode(StatusCodes.Status500InternalServerError, "Database error during update."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "API: Unexpected error during inventory update by User {UserId}.", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
+            }
+        }
     }
 }
