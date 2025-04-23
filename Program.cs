@@ -3,6 +3,7 @@ using Amazon.S3;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
+using Inventory.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -83,6 +84,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<CatalogDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("CatalogConnection")));
     builder.Services.AddDbContext<OrdersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("OrderConnection")));
     builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("NotificationsConnection")));
+    builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("InventoryConnection")));
 }
 
 builder.Services.AddHttpClient();
