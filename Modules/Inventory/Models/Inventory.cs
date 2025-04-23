@@ -29,11 +29,5 @@ namespace Inventory.Models
 
         [Required]
         public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
-
-        [ForeignKey("ProductId")]
-        public virtual Product? Product { get; set; }
-
-        [ForeignKey("StoreId")]
-        public virtual StoreModel? Store { get; set; }
     }
 }

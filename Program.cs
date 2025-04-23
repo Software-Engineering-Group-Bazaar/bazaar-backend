@@ -3,7 +3,9 @@ using Amazon.S3;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
+using Inventory.Interfaces;
 using Inventory.Models;
+using Inventory.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -111,6 +113,8 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderItemService, OrderItemService>();
+
+builder.Services.AddScoped<IInventoryService, InventoryService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
