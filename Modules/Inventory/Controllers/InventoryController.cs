@@ -74,5 +74,55 @@ namespace Inventory.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
             }
         }
+
+        // GET /api/Inventory
+        [HttpGet]
+        [Authorize(Roles = "Admin, Seller")]
+        [ProducesResponseType(typeof(IEnumerable<InventoryDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)] // Ako su filteri nevalidni (npr. negativni ID)
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)] // Ako korisnik nema pravu rolu
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<IEnumerable<InventoryDto>>> GetInventory(
+            [FromQuery] int? productId = null,
+            [FromQuery] int? storeId = null)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized("User ID claim not found.");
+
+            bool isAdmin = User.IsInRole("Admin");
+
+            _logger.LogInformation("API: User {UserId} (IsAdmin: {IsAdmin}) getting inventory. Filters - ProductId: {ProductId}, StoreId: {StoreId}",
+                                   userId, isAdmin, productId?.ToString() ?? "N/A", storeId?.ToString() ?? "N/A");
+
+            if (productId.HasValue && productId.Value <= 0)
+            {
+                _logger.LogWarning("API: Get inventory request failed validation: Invalid ProductId {ProductId}", productId.Value);
+                return BadRequest("Invalid Product ID provided.");
+            }
+            if (storeId.HasValue && storeId.Value <= 0)
+            {
+                _logger.LogWarning("API: Get inventory request failed validation: Invalid StoreId {StoreId}", storeId.Value);
+                return BadRequest("Invalid Store ID provided.");
+            }
+
+            try
+            {
+                var inventoryDtos = await _inventoryService.GetInventoryAsync(userId, isAdmin, productId, storeId);
+
+                _logger.LogInformation("API: Successfully retrieved {Count} inventory records for User {UserId}.", inventoryDtos.Count(), userId);
+                return Ok(inventoryDtos);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "API: Unauthorized inventory access attempt by User {UserId}.", userId);
+                return Forbid(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "API: Error retrieving inventory for User {UserId}.", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving inventory data.");
+            }
+        }
     }
 }

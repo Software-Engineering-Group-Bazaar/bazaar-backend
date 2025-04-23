@@ -133,9 +133,99 @@ namespace Inventory.Services
             }
         }
 
-        public Task<IEnumerable<InventoryDto>> GetInventoryAsync(string requestingUserId, bool isAdmin, int? productId = null, int? storeId = null)
+        public async Task<IEnumerable<InventoryDto>> GetInventoryAsync(string requestingUserId, bool isAdmin, int? productId = null, int? storeId = null)
         {
-            throw new NotImplementedException();
+            _logger.LogInformation("Attempting to get inventory by User {UserId} (IsAdmin: {IsAdmin}). Filters - ProductId: {ProductId}, StoreId: {StoreId}",
+                                   requestingUserId, isAdmin, productId?.ToString() ?? "N/A", storeId?.ToString() ?? "N/A");
+
+            // --- Autorizacija i određivanje ciljanog StoreId ---
+            int? targetStoreId = storeId;
+
+            if (!isAdmin)
+            {
+                var sellerUser = await _userManager.FindByIdAsync(requestingUserId);
+                if (!sellerUser.StoreId.HasValue)
+                {
+                    _logger.LogWarning("Seller {UserId} attempted to get inventory but has no StoreId assigned.", requestingUserId);
+                    return Enumerable.Empty<InventoryDto>();
+                }
+
+                if (targetStoreId.HasValue && targetStoreId.Value != sellerUser.StoreId.Value)
+                {
+                    _logger.LogWarning("Seller {UserId} attempted to filter inventory for StoreId {FilterStoreId}, but owns StoreId {OwnedStoreId}. Forcing own StoreId.",
+                                       requestingUserId, targetStoreId.Value, sellerUser.StoreId.Value);
+                    targetStoreId = sellerUser.StoreId.Value;
+                }
+                else if (!targetStoreId.HasValue)
+                {
+                    targetStoreId = sellerUser.StoreId.Value;
+                    _logger.LogInformation("Seller {UserId} getting inventory for their StoreId {StoreId}.", requestingUserId, targetStoreId);
+                }
+            }
+
+            var query = _context.Inventories
+                              .AsNoTracking();
+
+            if (productId.HasValue)
+            {
+                query = query.Where(inv => inv.ProductId == productId.Value);
+                _logger.LogInformation("Applying filter: ProductId = {ProductId}", productId.Value);
+            }
+
+            if (targetStoreId.HasValue)
+            {
+                query = query.Where(inv => inv.StoreId == targetStoreId.Value);
+                _logger.LogInformation("Applying filter: StoreId = {StoreId}", targetStoreId.Value);
+            }
+
+            // --- Izvršavanje Upita za Inventory ---
+            List<Models.Inventory> inventoryList;
+            try
+            {
+                inventoryList = await query.ToListAsync();
+                _logger.LogInformation("Retrieved {Count} inventory records matching criteria.", inventoryList.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving inventory records for User {UserId} with filters ProductId={ProductId}, StoreId={StoreId}.",
+                              requestingUserId, productId?.ToString() ?? "N/A", storeId?.ToString() ?? "N/A");
+                throw;
+            }
+
+            if (!inventoryList.Any())
+            {
+                return Enumerable.Empty<InventoryDto>();
+            }
+            var productIds = inventoryList.Select(inv => inv.ProductId).Distinct().ToList();
+
+            Dictionary<int, string> productNames = new Dictionary<int, string>();
+            try
+            {
+                productNames = await _catalogContext.Products
+                                       .Where(p => productIds.Contains(p.Id))
+                                       .AsNoTracking()
+                                       .Select(p => new { p.Id, p.Name })
+                                       .ToDictionaryAsync(p => p.Id, p => p.Name ?? "N/A");
+                _logger.LogInformation("Retrieved names for {Count} products.", productNames.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving product names for inventory list.");
+            }
+
+            // --- Mapiranje u DTO ---
+            var dtoList = inventoryList.Select(inv => new InventoryDto
+            {
+                Id = inv.Id,
+                ProductId = inv.ProductId,
+                StoreId = inv.StoreId,
+                Quantity = inv.Quantity,
+                OutOfStock = inv.OutOfStock,
+                LastUpdated = inv.LastUpdated,
+                ProductName = productNames.TryGetValue(inv.ProductId, out var name) ? name : "N/A"
+            }).ToList();
+
+            return dtoList;
         }
 
         public Task<InventoryDto?> UpdateQuantityAsync(string requestingUserId, bool isAdmin, UpdateInventoryQuantityRequestDto updateDto)
