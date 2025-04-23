@@ -205,6 +205,10 @@ namespace bazaar.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("FcmDeviceToken")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 

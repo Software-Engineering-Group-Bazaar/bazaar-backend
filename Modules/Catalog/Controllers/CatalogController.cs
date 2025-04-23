@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Catalog.DTO;
 using Catalog.Dtos;
 using Catalog.Models;
 using Catalog.Services;
@@ -8,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging; // Required for logging
 using Store.Interface;
+using Store.Models;
 
 namespace Catalog.Controllers
 {
@@ -220,12 +223,14 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
+                IsActive = product.IsActive,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             }).ToList();
 
@@ -252,12 +257,14 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
+                IsActive = product.IsActive,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             };
 
@@ -292,12 +299,14 @@ namespace Catalog.Controllers
                         Name = "nezz"
                     },
                     RetailPrice = createProductDto.RetailPrice,
+                    WholesaleThreshold = createProductDto.WholesaleThreshold,
                     WholesalePrice = createProductDto.WholesalePrice,
                     Weight = createProductDto.Weight,
                     WeightUnit = createProductDto.WeightUnit,
                     Volume = createProductDto.Volume,
                     VolumeUnit = createProductDto.VolumeUnit,
-                    StoreId = createProductDto.StoreId
+                    StoreId = createProductDto.StoreId,
+                    IsActive = createProductDto.IsActive
                 };
 
                 var createdProduct = await _productService.CreateProductAsync(product, createProductDto.Files);
@@ -307,12 +316,14 @@ namespace Catalog.Controllers
                     Name = product.Name,
                     ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                     RetailPrice = product.RetailPrice,
+                    WholesaleThreshold = product.WholesaleThreshold,
                     WholesalePrice = product.WholesalePrice,
                     Weight = product.Weight,
                     WeightUnit = product.WeightUnit,
                     Volume = product.Volume,
                     VolumeUnit = product.VolumeUnit,
                     StoreId = product.StoreId,
+                    IsActive = product.IsActive,
                     Photos = product.Pictures.Select(photo => photo.Url).ToList()
                 };
 
@@ -363,12 +374,14 @@ namespace Catalog.Controllers
                 product.Name = productDto.Name;
                 product.ProductCategory = category;
                 product.RetailPrice = productDto.RetailPrice;
+                product.WholesaleThreshold = productDto.WholesaleThreshold;
                 product.WholesalePrice = productDto.WholesalePrice;
                 product.Weight = productDto.Weight;
                 product.WeightUnit = productDto.WeightUnit;
                 product.Volume = productDto.Volume;
                 product.VolumeUnit = productDto.VolumeUnit;
                 product.StoreId = productDto.StoreId;
+                product.IsActive = productDto.IsActive;
 
                 var success = await _productService.UpdateProductAsync(product);
                 if (!success)
@@ -433,19 +446,251 @@ namespace Catalog.Controllers
                 Name = product.Name,
                 ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
                 RetailPrice = product.RetailPrice,
+                WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
                 Weight = product.Weight,
                 WeightUnit = product.WeightUnit,
                 Volume = product.Volume,
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
+                IsActive = product.IsActive,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             }).ToList();
 
             return Ok(productsDto);
         }
+
+        [HttpPut("products/{productId:int}/pricing")]
+        [Authorize(Roles = "Seller,Admin")]
+        [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateProductPricing(int productId, [FromBody] UpdateProductPricingRequestDto pricingData)
+        {
+            // Osnovna validacija ID-ja iz rute
+            if (productId <= 0)
+            {
+                return BadRequest("Invalid Product ID provided in URL.");
+            }
+            // Validacija DTO objekta (npr. [Range] atributi) će se izvršiti automatski
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            // Dobij ID korisnika koji šalje zahtjev
+            var requestingUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(requestingUserId))
+            {
+                return Unauthorized("User identifier not found.");
+            }
+
+            try
+            {
+                var updatedProductDto = await _productService.UpdateProductPricingAsync(requestingUserId, productId, pricingData);
+
+                if (updatedProductDto == null)
+                {
+                    return NotFound($"Product with ID {productId} not found.");
+                }
+                return Ok(updatedProductDto);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "User validation error during pricing update.");
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating product pricing.");
+            }
+        }
+
+        // PUT /api/catalog/products/{productId}/availability
+        [HttpPut("products/{productId:int}/availability")]
+        [Authorize(Roles = "Seller,Admin")]
+        [Produces("application/json")] // Tipovi odgovora u slučaju greške
+        [ProducesResponseType(StatusCodes.Status204NoContent)] // Uspjeh
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateProductAvailability(int productId, [FromBody] UpdateProductAvailabilityRequestDto availabilityDto)
+        {
+            // Validacija ulaznih parametara
+            if (productId <= 0)
+            {
+                ModelState.AddModelError(nameof(productId), "Invalid Product ID provided in URL.");
+                return BadRequest(ValidationProblem(ModelState)); // Vrati ProblemDetails za konzistentnost
+            }
+
+            if (!ModelState.IsValid)
+            {
+                // ModelState već sadrži greške iz DTO validacije
+                return BadRequest(ValidationProblem(ModelState));
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                // Ovo je tehnički 401, ali pošto imamo [Authorize], rijetko se desi
+                return Unauthorized("User identifier not found.");
+            }
+            try
+            {
+                // Pozovi servis
+                var success = await _productService.UpdateProductAvailabilityAsync(userId, productId, availabilityDto.IsActive);
+
+                if (!success)
+                {
+                    // Servis vraća false samo ako proizvod nije nađen
+                    return NotFound($"Product with ID {productId} not found."); // 404 Not Found
+                }
+
+                return NoContent();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Vrati ProblemDetails za 403 radi konzistentnosti sa ValidationProblem
+                return Problem(detail: "User is not authorized to update availability for this product.", statusCode: StatusCodes.Status403Forbidden, title: "Forbidden");
+            }
+            catch (ArgumentException ex)
+            {
+                // Vrati ProblemDetails
+                return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
+            }
+            catch (KeyNotFoundException) // Ako servis ne nađe korisnika
+            {
+                // Vrati ProblemDetails za 500
+                return Problem(detail: "User validation error during availability update.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
+            }
+            catch (Exception) // Sve ostale greške
+            {
+                // Vrati ProblemDetails za 500
+                return Problem(detail: "An error occurred while updating product availability.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
+            }
+        }
+
+        [HttpGet("filter")] // GET api/products/filter
+        [ProducesResponseType(typeof(IEnumerable<ProductsByStoresGetDto>), 200)]
+        [ProducesResponseType(400)]
+        public async Task<ActionResult<IEnumerable<ProductsByStoresGetDto>>> FilterProducts([FromQuery] FilterBodyDto filterBodyDto)
+        {
+            int regionId = 0;
+            List<int> placesId = new List<int>();
+            int categoryId = 0;
+            filterBodyDto.query = filterBodyDto.query.Trim().ToLower();
+
+            if (!string.IsNullOrEmpty(filterBodyDto.region))
+            {
+                var reg = await _storeService.GetRegionByNameAsync(filterBodyDto.region);
+                if (reg != null)
+                {
+                    regionId = reg.Id;
+                }
+            }
+
+            if (filterBodyDto.places != null && filterBodyDto.places.Count > 0)
+            {
+
+                var listaTaskova = filterBodyDto.places
+                .Select(place => _storeService.GetPlaceByNameAsync(place))
+                .ToList();
+
+                var sviRezultati = await Task.WhenAll(listaTaskova);
+
+                placesId = sviRezultati
+                .Where(rezultat => rezultat != null)
+                .Select(rezultat => rezultat!.Id)
+                .ToList();
+            }
+
+            if (!string.IsNullOrEmpty(filterBodyDto.category))
+            {
+                var cat = await _categoryService.GetCategoryByNameAsync(filterBodyDto.category);
+
+                if (cat != null)
+                {
+                    categoryId = cat.Id;
+                }
+            }
+
+            List<StoreModel>? stores = null;
+
+            if (placesId.Count > 0)
+            {
+                var tasks = placesId.Select(p => _storeService.GetAllStoresInPlace(p));
+                var results = await Task.WhenAll(tasks);
+                stores = results.SelectMany(r => r).ToList();
+            }
+            else if (regionId != 0)
+            {
+                stores = (await _storeService.GetAllStoresInRegion(regionId)).ToList();
+            }
+            else
+            {
+                stores = _storeService.GetAllStores().ToList();
+            }
+
+            List<ProductsByStoresGetDto> productsDto = new List<ProductsByStoresGetDto>();
+
+            foreach (var store in stores)
+            {
+                var products = await _productService.GetProductsByStoreIdAsync(store.id);
+
+                if (!string.IsNullOrEmpty(filterBodyDto.query) && !string.IsNullOrWhiteSpace(filterBodyDto.query))
+                {
+                    products = products.Where(p => p.Name.ToLower().Contains(filterBodyDto.query));
+                }
+
+                if (categoryId > 0)
+                {
+                    products = products.Where(p => p.ProductCategoryId == categoryId);
+                }
+
+                var productsInDto = products.Select(product => new ProductGetDto
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
+                    RetailPrice = product.RetailPrice,
+                    WholesaleThreshold = product.WholesaleThreshold,
+                    WholesalePrice = product.WholesalePrice,
+                    Weight = product.Weight,
+                    WeightUnit = product.WeightUnit,
+                    Volume = product.Volume,
+                    VolumeUnit = product.VolumeUnit,
+                    StoreId = product.StoreId,
+                    IsActive = product.IsActive,
+                    Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                }).ToList();
+
+                if (productsInDto.Count > 0)
+                {
+                    productsDto.Add(new ProductsByStoresGetDto
+                    {
+                        Id = store.id,
+                        Name = store.name,
+                        Products = productsInDto
+                    });
+                }
+            }
+
+            return Ok(productsDto);
+
+        }
     }
-
-
-
 }
+
+

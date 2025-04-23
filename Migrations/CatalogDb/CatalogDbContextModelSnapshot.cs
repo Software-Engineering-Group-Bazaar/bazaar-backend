@@ -29,6 +29,9 @@ namespace bazaar.Migrations.CatalogDb
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -59,6 +62,9 @@ namespace bazaar.Migrations.CatalogDb
 
                     b.Property<decimal>("WholesalePrice")
                         .HasColumnType("decimal(18, 2)");
+
+                    b.Property<int?>("WholesaleThreshold")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

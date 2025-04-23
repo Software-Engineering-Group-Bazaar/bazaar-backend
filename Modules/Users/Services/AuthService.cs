@@ -46,27 +46,44 @@ namespace Users.Services
             return "Registracija uspješna.";
         }
 
-        public async Task<LoginResponseDto> LoginAsync(LoginDto dto)
+        public async Task<LoginResponseDto?> LoginAsync(LoginDto dto)
         {
             // Pronaći korisnika po emailu
             var user = await _userManager.FindByEmailAsync(dto.Email);
-            if (user == null || !user.IsApproved)
-                return null;
+            if (user == null)
+            {
+                throw new InvalidOperationException($"Access denied: No user account with email address.");
+            }
+
+            if (!user.IsApproved)
+            {
+                throw new InvalidOperationException($"Access denied: User account is unapproved.");
+            }
+
+            if (!user.IsActive)
+            {
+                throw new InvalidOperationException($"Access denied: User account is inactive.");
+            }
 
             // Provjera ispravnosti lozinke
             var result = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, false);
             if (!result.Succeeded)
+            {
                 return null;
+            }
 
             // Dobijanje uloga korisnika
             var roles = await _userManager.GetRolesAsync(user);
             if (!roles.Contains(Utils.FirstLetterToUpper(dto.App)))
-                return null;
+            {
+                throw new InvalidOperationException($"Access denied: User account is registered with another role.");
+            }
+
             var (token, _) = await _jwtService.GenerateTokenAsync(user, roles);
 
             return new LoginResponseDto
             {
-                Email = user.Email,
+                Email = dto.Email,
                 Token = token
             };
         }

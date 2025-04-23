@@ -1,4 +1,4 @@
-namespace Admin.Dto
+namespace AdminApi.DTOs
 {
     public class StoreDto
     {

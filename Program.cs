@@ -6,9 +6,14 @@ using Catalog.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Notifications.Interfaces;
+using Notifications.Models;
+using Notifications.Services;
+using Order.Interface;
+using Order.Models;
+using Order.Services;
 using SharedKernel;
 using SharedKernel.Interfaces;
 using SharedKernel.Models;
@@ -20,6 +25,7 @@ using Users.Interface;
 using Users.Interfaces;
 using Users.Models;
 using Users.Services;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -75,6 +81,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<UsersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
     builder.Services.AddDbContext<StoreDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("StoreConnection")));
     builder.Services.AddDbContext<CatalogDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("CatalogConnection")));
+    builder.Services.AddDbContext<OrdersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("OrderConnection")));
+    builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("NotificationsConnection")));
 }
 
 builder.Services.AddHttpClient();
@@ -93,8 +101,14 @@ builder.Services.AddScoped<IFacebookSignInService, FacebookSignInService>();
 
 builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddScoped<IStoreCategoryService, StoreCategoryService>();
+builder.Services.AddScoped<IGeographyService, GeographyService>();
 
 builder.Services.AddScoped<IUserService, UserService>();
+
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IOrderItemService, OrderItemService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -174,17 +188,19 @@ builder.Services.AddSwaggerGen(options =>
 
 if (builder.Environment.IsDevelopment())
 {
-    var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
-    builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
-    builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
-    // --------------------------------------------------
+    // var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
+    // builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
+    // builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
+    // // --------------------------------------------------
 
-    // Registruj S3 implementaciju kao Singleton
-    builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    // // Registruj S3 implementaciju kao Singleton
+    // builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    // znc if development aws i else aws, a mi ostali nemamo aws (i ne bi trebali ni imati)...
+    builder.Services.AddSingleton<IImageStorageService, FileImageStorageService>();
+    builder.Services.AddSingleton<IPushNotificationService, FcmPushNotificationService>();
 }
 else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing")) // Pokriva Production i ostala okruženja
 {
-    // --- AWS Konfiguracija SAMO za Non-Development ---
     var awsOptions = builder.Configuration.GetAWSOptions(); // Čita "AWS" sekciju iz appsettings
     builder.Services.AddDefaultAWSOptions(awsOptions);      // Postavlja default region itd.
     builder.Services.AddAWSService<IAmazonS3>();            // Registruje S3 klijent (Singleton by default)
@@ -192,21 +208,18 @@ else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironm
 
     // Registruj S3 implementaciju kao Singleton
     builder.Services.AddSingleton<IImageStorageService, S3ImageStorageService>();
+    builder.Services.AddSingleton<IPushNotificationService, FcmPushNotificationService>();
+
     // Ne treba logovanje ovdje ako pravi probleme
 }
-
-
 
 // --- Build the App ---
 var app = builder.Build();
 
 // --- Seed Data (Optional) ---
 await SeedRolesAsync(app);
-// Seedovanje dev usera ostaje samo za dev
-if (app.Environment.IsDevelopment())
-{
-    await UserDataSeeder.SeedDevelopmentUsersAsync(app);
-}
+await UserDataSeeder.SeedDevelopmentUsersAsync(app);
+await GeographyDataSeeder.SeedGeographyAsync(app);
 
 // --- Configure the HTTP Request Pipeline (Middleware) ---
 

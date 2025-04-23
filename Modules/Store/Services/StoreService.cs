@@ -11,19 +11,26 @@ namespace Store.Services
     public class StoreService : IStoreService
     {
         private readonly StoreDbContext _context;
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public StoreService(StoreDbContext context)
+        public StoreService(StoreDbContext context, IServiceScopeFactory scopeFactory)
         {
             _context = context;
+            _scopeFactory = scopeFactory;
         }
 
         // Create a new store
-        public StoreModel CreateStore(string _name, int _categoryId, string _address, string _description)
+        public StoreModel CreateStore(string _name, int _categoryId, string _address, string _description, int placeId)
         {
             var _category = _context.StoreCategories.Find(_categoryId);
+            var _place = _context.Places.Include(p => p.Region).FirstOrDefault(p => p.Id == placeId);
             if (_category == null)
             {
                 throw new ArgumentException("Category not found.");
+            }
+            if (_place == null)
+            {
+                throw new ArgumentException("Place not found.");
             }
 
             var store = new StoreModel
@@ -32,6 +39,7 @@ namespace Store.Services
                 category = _category,
                 address = _address,
                 description = _description,
+                place = _place,
                 isActive = true // Default value for new stores
             };
 
@@ -43,13 +51,15 @@ namespace Store.Services
         // Get all stores
         public IEnumerable<StoreModel> GetAllStores()
         {
-            return _context.Stores.Include(s => s.category).ToList();
+            return _context.Stores.Include(s => s.category).Include(s => s.place)
+                .Include(s => s.place.Region).ToList();
         }
 
         // Get a store by ID
         public StoreModel? GetStoreById(int id)
         {
-            return _context.Stores.Include(s => s.category).FirstOrDefault(s => s.id == id);
+            return _context.Stores.Include(s => s.category).Include(s => s.place)
+                .Include(s => s.place.Region).FirstOrDefault(s => s.id == id);
         }
 
         // Update a store
@@ -70,8 +80,8 @@ namespace Store.Services
                 store.name = name;
             if (category is not null)
                 store.category = category;
-            if (address is not null)
-                store.address = address;
+            // if (address is not null)
+            //     store.address = address;
             if (description is not null)
                 store.description = description;
             if (isActive is not null)
@@ -112,6 +122,82 @@ namespace Store.Services
             _context.Stores.Remove(store);
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<IEnumerable<StoreModel>> SearchStoresAsync(string query)
+        {
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return await _context.Stores.Include(s => s.category).Include(s => s.place)
+                .Include(s => s.place.Region).ToListAsync();
+            }
+
+            var normalizedSearchTerm = query.Trim().ToLower();
+
+            var stores = await _context.Stores
+                .Include(s => s.category)
+                .Include(s => s.place)
+                .Include(s => s.place.Region)
+                .Where(s => s.name.ToLower().Contains(normalizedSearchTerm))
+                .ToListAsync();
+
+            return stores;
+        }
+
+        public async Task<IEnumerable<StoreModel>> GetAllStoresInRegion(int regionId)
+        {
+            var region = await _context.Regions.FirstOrDefaultAsync(r => r.Id == regionId);
+            if (region is null)
+            {
+                throw new ArgumentException("Region not found.");
+            }
+            var places = await _context.Places.Include(p => p.Region).Where(p => p.RegionId == regionId).ToListAsync();
+            if (places is null)
+            {
+                return new List<StoreModel>();
+            }
+            var tasks = places.Select(p => GetAllStoresInPlace(p.Id));
+
+            // Wait for all of them
+            var results = await Task.WhenAll(tasks);
+
+            // Flatten the list of lists
+            var allItems = results.SelectMany(r => r).ToList();
+            return allItems;
+        }
+
+        public async Task<IEnumerable<StoreModel>> GetAllStoresInPlace(int placeId)
+        {
+            // thread safe
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
+                var stores = await dbContext.Stores
+                    .Include(s => s.category)
+                    .Include(s => s.place)
+                    .Include(s => s.place.Region)
+                    .Where(s => s.placeId == placeId)
+                    .ToListAsync();
+                return stores;
+            }
+        }
+
+        public async Task<Region?> GetRegionByNameAsync(string region)
+        {
+            return await _context.Regions
+                                 .Include(r => r.Places)
+                                 .FirstOrDefaultAsync(r => r.Name == region);
+        }
+
+        public async Task<Place?> GetPlaceByNameAsync(string place)
+        {
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
+                return await dbContext.Places
+                    .FirstOrDefaultAsync(p => p.Name == place);
+            }
         }
     }
 }

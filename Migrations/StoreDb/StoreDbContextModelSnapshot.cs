@@ -21,6 +21,52 @@ namespace bazaar.Migrations.StoreDb
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Store.Models.Place", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PostalCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("RegionId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegionId");
+
+                    b.ToTable("Places");
+                });
+
+            modelBuilder.Entity("Store.Models.Region", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Country")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Regions");
+                });
+
             modelBuilder.Entity("Store.Models.StoreCategory", b =>
                 {
                     b.Property<int>("id")
@@ -65,11 +111,27 @@ namespace bazaar.Migrations.StoreDb
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<int>("placeId")
+                        .HasColumnType("integer");
+
                     b.HasKey("id");
 
                     b.HasIndex("categoryid");
 
+                    b.HasIndex("placeId");
+
                     b.ToTable("Stores");
+                });
+
+            modelBuilder.Entity("Store.Models.Place", b =>
+                {
+                    b.HasOne("Store.Models.Region", "Region")
+                        .WithMany("Places")
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Region");
                 });
 
             modelBuilder.Entity("Store.Models.StoreModel", b =>
@@ -80,7 +142,25 @@ namespace bazaar.Migrations.StoreDb
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Store.Models.Place", "place")
+                        .WithMany("Stores")
+                        .HasForeignKey("placeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("category");
+
+                    b.Navigation("place");
+                });
+
+            modelBuilder.Entity("Store.Models.Place", b =>
+                {
+                    b.Navigation("Stores");
+                });
+
+            modelBuilder.Entity("Store.Models.Region", b =>
+                {
+                    b.Navigation("Places");
                 });
 
             modelBuilder.Entity("Store.Models.StoreCategory", b =>

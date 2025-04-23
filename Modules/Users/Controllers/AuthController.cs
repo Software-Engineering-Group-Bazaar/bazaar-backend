@@ -14,7 +14,7 @@ namespace Users.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IGoogleSignInService _googleSignInService;
-         private readonly IFacebookSignInService _facebookSignInService;
+        private readonly IFacebookSignInService _facebookSignInService;
 
         public AuthController(IAuthService authService, IGoogleSignInService googleSignInService, IFacebookSignInService facebookSignInService)
         {
@@ -45,14 +45,22 @@ namespace Users.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<LoginResponseDto>> Login([FromBody] LoginDto loginDto)
         {
-            var response = await _authService.LoginAsync(loginDto);
-            if (response == null)
+            try
             {
-                return Unauthorized(new { message = "Neispravni podaci" });
-            }
+                var response = await _authService.LoginAsync(loginDto);
+                if (response == null)
+                {
+                    return Unauthorized(new { message = "Neispravni podaci" });
+                }
 
-            // Vraćamo odgovor sa tokenom
-            return Ok(response);
+                // Vraćamo odgovor sa tokenom
+                return Ok(response);
+
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
         }
 
         // api/auth/logout
@@ -79,7 +87,7 @@ namespace Users.Controllers
 
         }
 
-         // api/auth/login/facebook
+        // api/auth/login/facebook
         [AllowAnonymous]
         [HttpPost("login/facebook")]
         public async Task<ActionResult<string>> SignFacebookUser([FromBody] FacebookSignInRequestDto request)
