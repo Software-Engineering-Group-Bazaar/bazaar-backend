@@ -174,5 +174,66 @@ namespace Inventory.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
             }
         }
+
+        // DELETE /api/Inventory/{id}
+        [HttpDelete("{id:int}")]
+        [Authorize(Roles = "Admin, Seller")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)] // Nevalidan ID
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)] // Seller pokušava obrisati tuđi
+        [ProducesResponseType(StatusCodes.Status404NotFound)] // Zapis ne postoji
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteInventoryRecord(int id)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized("User ID claim not found.");
+
+            bool isAdmin = User.IsInRole("Admin");
+
+            _logger.LogInformation("API: User {UserId} (IsAdmin: {IsAdmin}) attempting to delete inventory record ID {InventoryId}.", userId, isAdmin, id);
+
+            // Osnovna validacija ID-a
+            if (id <= 0)
+            {
+                _logger.LogWarning("API: Delete inventory request failed validation: Invalid InventoryId {InventoryId}", id);
+                return BadRequest("Invalid Inventory ID provided.");
+            }
+
+            try
+            {
+                var success = await _inventoryService.DeleteInventoryAsync(userId, isAdmin, id);
+
+                if (!success)
+                {
+                    _logger.LogWarning("API: Inventory record ID {InventoryId} not found for deletion by User {UserId}.", id, userId);
+                    return NotFound($"Inventory record with ID {id} not found.");
+                }
+
+                _logger.LogInformation("API: Successfully deleted inventory record ID {InventoryId} by User {UserId}.", id, userId);
+                return NoContent();
+
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "API: Unauthorized inventory deletion attempt for ID {InventoryId} by User {UserId}.", id, userId);
+                return Forbid("You are not authorized to delete this inventory record.");
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "API: Invalid argument during inventory deletion for ID {InventoryId} by User {UserId}.", id, userId);
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "API: Database error during inventory deletion for ID {InventoryId} by User {UserId}.", id, userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Database error during deletion.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "API: Unexpected error during inventory deletion for ID {InventoryId} by User {UserId}.", id, userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
+            }
+        }
     }
 }

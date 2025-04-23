@@ -381,9 +381,64 @@ namespace Inventory.Services
                 throw;
             }
         }
-        public Task<bool> DeleteInventoryAsync(string requestingUserId, bool isAdmin, int inventoryId)
+        public async Task<bool> DeleteInventoryAsync(string requestingUserId, bool isAdmin, int inventoryId)
         {
-            throw new NotImplementedException();
+            _logger.LogInformation("Attempting to delete inventory record ID {InventoryId} by User {UserId} (IsAdmin: {IsAdmin}).",
+                                   inventoryId, requestingUserId, isAdmin);
+
+            if (inventoryId <= 0)
+            {
+                _logger.LogWarning("Invalid Inventory ID provided: {InventoryId}", inventoryId);
+                throw new ArgumentException("Invalid Inventory ID.", nameof(inventoryId));
+            }
+
+            var inventoryToDelete = await _context.Inventories
+                                                .FirstOrDefaultAsync(inv => inv.Id == inventoryId);
+
+            if (inventoryToDelete == null)
+            {
+                _logger.LogWarning("Inventory record with ID {InventoryId} not found for deletion.", inventoryId);
+                return false;
+            }
+
+            // --- Autorizacija ---
+            if (!isAdmin)
+            {
+                var sellerUser = await _userManager.FindByIdAsync(requestingUserId);
+                if (sellerUser == null) throw new KeyNotFoundException("Requesting user not found.");
+
+                if (!sellerUser.StoreId.HasValue || sellerUser.StoreId.Value != inventoryToDelete.StoreId)
+                {
+                    _logger.LogWarning("Forbidden: Seller {UserId} attempted to delete inventory record {InventoryId} belonging to StoreId {RecordStoreId}. Seller owns StoreId {OwnedStoreId}.",
+                                       requestingUserId, inventoryId, inventoryToDelete.StoreId, sellerUser.StoreId?.ToString() ?? "None");
+                    throw new UnauthorizedAccessException("Seller is not authorized to delete this inventory record.");
+                }
+                _logger.LogInformation("Seller {UserId} authorized to delete inventory record {InventoryId} for their StoreId {StoreId}.",
+                                       requestingUserId, inventoryId, inventoryToDelete.StoreId);
+            }
+            else
+            {
+                _logger.LogInformation("Admin {UserId} authorized to delete inventory record {InventoryId} for StoreId {StoreId}.",
+                                       requestingUserId, inventoryId, inventoryToDelete.StoreId);
+            }
+
+            try
+            {
+                _context.Inventories.Remove(inventoryToDelete);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Successfully deleted Inventory record ID {InventoryId}.", inventoryId);
+                return true;
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Database error deleting inventory record ID {InventoryId}.", inventoryId);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Generic error deleting inventory record ID {InventoryId}.", inventoryId);
+                throw;
+            }
         }
     }
 }
