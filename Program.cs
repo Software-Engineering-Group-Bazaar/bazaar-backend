@@ -17,6 +17,9 @@ using Notifications.Services;
 using Order.Interface;
 using Order.Models;
 using Order.Services;
+using Review.Interfaces;
+using Review.Models;
+using Review.Services;
 using SharedKernel;
 using SharedKernel.Interfaces;
 using SharedKernel.Models;
@@ -39,6 +42,7 @@ builder.Services.AddTransient<IMailService, MailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
 
 
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
@@ -87,6 +91,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<OrdersDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("OrderConnection")));
     builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("NotificationsConnection")));
     builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("InventoryConnection")));
+    builder.Services.AddDbContext<ReviewDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ReviewConnection")));
 }
 
 builder.Services.AddHttpClient();
