@@ -39,12 +39,17 @@ namespace Review.Services
                 .AsNoTracking() // Dobra praksa za read-only upite
                 .ToListAsync();
 
-            // Mapiranje u ReviewWithResponse model
-            // return reviews.Select(r => new ReviewWithResponse
-            // {
-            //     Review = r,
-            //     Response = r.Response
-            // }).ToList();
+            return reviews;
+        }
+
+        public async Task<IEnumerable<ReviewModel>> GetStoreApprovedReviewsAsync(int storeId)
+        {
+            _logger.LogInformation("Fetching approved reviews for StoreId: {StoreId}", storeId);
+            var reviews = await _context.Reviews
+                .Where(r => r.StoreId == storeId && r.IsApproved)
+                .Include(r => r.Response) // Eager load odgovora ako postoji navigaciona osobina
+                .AsNoTracking() // Dobra praksa za read-only upite
+                .ToListAsync();
 
             return reviews;
         }
@@ -66,12 +71,6 @@ namespace Review.Services
                 _logger.LogInformation("Approved review for OrderId: {OrderId} not found.", orderId);
                 return null;
             }
-
-            // return new ReviewWithResponse
-            // {
-            //     Review = review,
-            //     Response = review.Response
-            // };
 
             return review;
         }

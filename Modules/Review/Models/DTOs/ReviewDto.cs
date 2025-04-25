@@ -9,6 +9,6 @@ namespace Review.Models.DTOs
         public int Rating { get; set; }
         public string Comment { get; set; } = string.Empty;
         public DateTime DateTime { get; set; }
-        // IsApproved se ne prikazuje
+        public bool IsApproved { get; set; }
     }
 }

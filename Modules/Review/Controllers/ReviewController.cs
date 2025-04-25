@@ -45,8 +45,51 @@ namespace Review.Controllers // Namespace promenjen
                     OrderId = review.OrderId,
                     Rating = review.Rating,
                     Comment = review.Comment,
-                    DateTime = review.DateTime
-                    // IsApproved se ne mapira
+                    DateTime = review.DateTime,
+                    IsApproved = review.IsApproved
+                };
+
+                ReviewResponseDto? responseDto = null;
+                if (review.Response != null)
+                {
+                    responseDto = new ReviewResponseDto
+                    {
+                        Id = review.Response.Id,
+                        ReviewId = review.Response.ReviewId,
+                        Response = review.Response.Response,
+                        DateTime = review.Response.DateTime
+                    };
+                }
+
+                dtos.Add(new ReviewWithResponseDto { Review = reviewDto, Response = responseDto });
+            }
+
+            return Ok(dtos);
+        }
+
+        // GET api/Review/store/{id}/approved
+        [HttpGet("store/{id:int}/approved")]
+        [ProducesResponseType(typeof(IEnumerable<ReviewWithResponseDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<IEnumerable<ReviewWithResponseDto>>> GetStoreApprovedReviews(int id)
+        {
+            var reviews = await _reviewService.GetStoreApprovedReviewsAsync(id);
+            var dtos = new List<ReviewWithResponseDto>();
+
+            foreach (var review in reviews)
+            {
+                // Mapiranje u DTO unutar kontrolera
+                var buyer = await _userService.GetUserWithIdAsync(review.BuyerId);
+
+                var reviewDto = new ReviewDto
+                {
+                    Id = review.Id,
+                    BuyerUsername = (buyer != null && buyer.UserName != null) ? buyer.UserName : "Unknown UserName",
+                    StoreId = review.StoreId,
+                    OrderId = review.OrderId,
+                    Rating = review.Rating,
+                    Comment = review.Comment,
+                    DateTime = review.DateTime,
+                    IsApproved = review.IsApproved
                 };
 
                 ReviewResponseDto? responseDto = null;
@@ -121,7 +164,8 @@ namespace Review.Controllers // Namespace promenjen
                 OrderId = review.OrderId,
                 Rating = review.Rating,
                 Comment = review.Comment,
-                DateTime = review.DateTime
+                DateTime = review.DateTime,
+                IsApproved = review.IsApproved
             };
 
             ReviewResponseDto? responseDto = null;
@@ -189,7 +233,8 @@ namespace Review.Controllers // Namespace promenjen
                 OrderId = createdReviewModel.OrderId,
                 Rating = createdReviewModel.Rating,
                 Comment = createdReviewModel.Comment,
-                DateTime = createdReviewModel.DateTime
+                DateTime = createdReviewModel.DateTime,
+                IsApproved = createdReviewModel.IsApproved
             };
 
             _logger.LogInformation("Review {ReviewId} created successfully for order {OrderId} by user {BuyerId}", createdReviewModel.Id, requestDto.OrderId, buyerId);
