@@ -79,6 +79,48 @@ namespace Store.Controllers
             }
         }
 
+        // GET /api/Stores/{id}
+        [HttpGet("{id}")]
+        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)] // Dobra praksa je dodati i ovo
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]   // I ovo, ako korisnik nema traženu ulogu
+        public ActionResult<IEnumerable<StoreGetDto>> GetStoreById(int id)
+        {
+
+            _logger.LogInformation("[StoresController] Attempting to retrieve store by id.");
+            if (id <= 0)
+            {
+                _logger.LogInformation("[StoresController] GetStoreById - Invalid id {UserId}", id);
+                return NotFound($"Invalid id");
+            }
+
+            var store = _storeService.GetStoreById(id);
+
+            if (store == null)
+            {
+                _logger.LogError("[StoresController] GetStoreById - Store {id} was not found.", id);
+                return NotFound($"The store (ID: {id}) was not found."); // 404 Not Found
+            }
+
+            var storeDto = new StoreGetDto
+            {
+                Id = store.id,
+                Name = store.name,
+                Address = store.address,
+                Description = store.description,
+                IsActive = store.isActive,
+                PlaceName = store.place.Name,
+                RegionName = store.place.Region.Name,
+                CategoryName = store.category?.name ?? "N/A"
+            };
+
+            _logger.LogInformation("[StoresController] GetStoreById - Successfully retrieved store {StoreId}", store.id);
+
+            return Ok(storeDto);
+        }
+
+
         // GET /api/Stores/Categories
         [HttpGet("Categories")]
         [ProducesResponseType(typeof(IEnumerable<StoreCategoryDto>), StatusCodes.Status200OK)]
