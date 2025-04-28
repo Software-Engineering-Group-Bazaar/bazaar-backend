@@ -38,5 +38,14 @@ namespace Users.Services
                 .Where(u => u.StoreId == storeId)
                 .ToList();
         }
+        public async Task<User?> GetUserWithIdAsync(string userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User with ID {userId} not found.");
+            }
+            return user;
+        }
     }
 }
