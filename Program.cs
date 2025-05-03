@@ -164,6 +164,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Bazaar API", Version = "v1" });
+    options.CustomSchemaIds(type => type.FullName);
 
     // 1. Define the Security Scheme (How Authentication Works)
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
