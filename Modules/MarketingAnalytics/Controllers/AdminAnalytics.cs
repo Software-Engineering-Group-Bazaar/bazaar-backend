@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using MarketingAnalytics.Dtos;
+using MarketingAnalytics.DTOs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services.DTOs;
@@ -34,9 +36,9 @@ namespace MarketingAnalytics.Controllers
         /// </summary>
         /// <returns>A list of advertisements.</returns>
         [HttpGet("advertisements")] // GET api/adminanalytics/advertisements
-        [ProducesResponseType(typeof(IEnumerable<Advertisment>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(IEnumerable<AdvertismentDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<Advertisment>>> GetAllAdvertisements()
+        public async Task<ActionResult<IEnumerable<AdvertismentDto>>> GetAllAdvertisements()
         {
             try
             {
@@ -56,10 +58,10 @@ namespace MarketingAnalytics.Controllers
         /// <param name="id">The ID of the advertisement to retrieve.</param>
         /// <returns>The requested advertisement.</returns>
         [HttpGet("advertisements/{id:int}", Name = "GetAdvertisementById")] // GET api/adminanalytics/advertisements/5
-        [ProducesResponseType(typeof(Advertisment), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AdvertismentDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<Advertisment>> GetAdvertisementById(int id)
+        public async Task<ActionResult<AdvertismentDto>> GetAdvertisementById(int id)
         {
             try
             {
@@ -85,10 +87,10 @@ namespace MarketingAnalytics.Controllers
         /// <returns>The newly created advertisement.</returns>
         [HttpPost("advertisements")] // POST api/adminanalytics/advertisements
         [Consumes("multipart/form-data")] // Specify consumption type due to IFormFile
-        [ProducesResponseType(typeof(Advertisment), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(AdvertismentDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<Advertisment>> CreateAdvertisement([FromForm] CreateAdvertismentRequestDto request)
+        public async Task<ActionResult<AdvertismentDto>> CreateAdvertisement([FromForm] CreateAdvertismentRequestDto request)
         {
             // Basic check, model state validation handles more via [ApiController]
             if (request?.AdDataItems == null)
@@ -129,11 +131,11 @@ namespace MarketingAnalytics.Controllers
         /// <returns>The updated advertisement.</returns>
         [HttpPut("advertisements/{advertismentId:int}")] // PUT api/adminanalytics/advertisements/5
         [Consumes("multipart/form-data")] // Needed if NewAdDataItems can contain files
-        [ProducesResponseType(typeof(Advertisment), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AdvertismentDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<Advertisment>> UpdateAdvertisement(int advertismentId, [FromForm] UpdateAdvertismentRequestDto request)
+        public async Task<ActionResult<AdvertismentDto>> UpdateAdvertisement(int advertismentId, [FromForm] UpdateAdvertismentRequestDto request)
         {
             try
             {
@@ -200,11 +202,11 @@ namespace MarketingAnalytics.Controllers
         /// <returns>The updated AdData item.</returns>
         [HttpPut("data/{adDataId:int}")] // PUT api/adminanalytics/data/10
         [Consumes("multipart/form-data")] // Needed as DTO contains IFormFile
-        [ProducesResponseType(typeof(AdData), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AdDataDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<AdData>> UpdateAdData(int adDataId, [FromForm] UpdateAdDataRequestDto request)
+        public async Task<ActionResult<AdDataDto>> UpdateAdData(int adDataId, [FromForm] UpdateAdDataRequestDto request)
         {
             try
             {
