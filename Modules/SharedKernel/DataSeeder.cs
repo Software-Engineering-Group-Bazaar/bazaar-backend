@@ -156,6 +156,30 @@ namespace SharedKernel
                 {
                     logger.LogInformation("User {Email} created successfully.", email);
 
+                    // *** START: Update CreatedAt ***
+                    // Retrieve the user we just created to update its timestamp
+                    var createdUser = await userManager.FindByEmailAsync(email);
+                    if (createdUser != null)
+                    {
+                        // Generate a random date (e.g., within the last 10 years)
+                        createdUser.CreatedAt = DateTime.UtcNow.AddDays(-Random.Shared.Next(1, 366 * 10)).AddHours(-Random.Shared.Next(0, 24));
+                        var updateResult = await userManager.UpdateAsync(createdUser);
+                        if (updateResult.Succeeded)
+                        {
+                            logger.LogDebug("Successfully updated CreatedAt for user {Email} to {CreatedAt}", email, createdUser.CreatedAt);
+                        }
+                        else
+                        {
+                            logger.LogWarning("Failed to update CreatedAt for user {Email}. Errors: {Errors}", email, string.Join(", ", updateResult.Errors.Select(e => e.Description)));
+                            // Continue with role assignment even if timestamp update fails? Or handle differently?
+                        }
+                    }
+                    else
+                    {
+                        logger.LogWarning("Could not retrieve newly created user {Email} to update CreatedAt.", email);
+                    }
+                    // *** END: Update CreatedAt ***
+
                     // Assign roles to the user
                     // Ensure the roles actually exist (should be guaranteed by the Role Seeder)
                     var rolesResult = await userManager.AddToRolesAsync(user, roles);
