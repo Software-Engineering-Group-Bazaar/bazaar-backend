@@ -40,6 +40,7 @@ namespace Store.Services
                 address = _address,
                 description = _description,
                 place = _place,
+                createdAt = new DateTime(),
                 isActive = true // Default value for new stores
             };
 

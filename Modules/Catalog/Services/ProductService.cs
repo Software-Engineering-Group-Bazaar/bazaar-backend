@@ -98,7 +98,7 @@ namespace Catalog.Services
 
             product.Id = 0;
             product.ProductCategory = existingCategory;
-
+            product.CreatedAt = new DateTime();
             await _context.Products.AddAsync(product);
             try
             {
