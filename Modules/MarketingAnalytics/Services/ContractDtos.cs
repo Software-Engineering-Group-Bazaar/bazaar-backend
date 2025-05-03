@@ -27,7 +27,6 @@ namespace MarketingAnalytics.Services.DTOs
         // public bool IsActive { get; set; } // Often determined by Start/End time
 
         [Required]
-        [MinLength(1, ErrorMessage = "At least one AdData item is required.")]
         public List<AdDataInputDto> AdDataItems { get; set; } = new List<AdDataInputDto>();
     }
 
