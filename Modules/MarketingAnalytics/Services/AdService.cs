@@ -146,7 +146,9 @@ namespace MarketingAnalytics.Services
                     StoreId = adDataItemDto.StoreId,
                     ProductId = adDataItemDto.ProductId,
                     ImageUrl = imageUrl, // Assign the uploaded URL or null
-                    Advertisment = newAdvertisment // Associate with the parent Advertisment
+                    Advertisment = newAdvertisment, // Associate with 
+                    // the parent Advertisment
+                    Description = adDataItemDto.Description
                     // EF Core will automatically set AdvertismentId when saving
                 };
                 adDataEntities.Add(adDataEntity);
@@ -241,7 +243,8 @@ namespace MarketingAnalytics.Services
                         StoreId = newItemDto.StoreId,
                         ProductId = newItemDto.ProductId,
                         ImageUrl = imageUrl,
-                        AdvertismentId = advertismentId // Explicitly set FK
+                        AdvertismentId = advertismentId, // Explicitly set FK
+                        Description = newItemDto.Description
                         // Or fetch Advertisment with Include(a=>a.AdData) and add to collection: advertisment.AdData.Add(newAdData);
                     };
                     _context.AdData.Add(newAdData); // Add new AdData to context
@@ -405,6 +408,7 @@ namespace MarketingAnalytics.Services
             // Update other AdData properties
             adData.StoreId = request.StoreId;
             adData.ProductId = request.ProductId;
+            adData.Description = request.Description;
 
             try
             {

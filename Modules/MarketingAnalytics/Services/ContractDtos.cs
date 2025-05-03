@@ -8,6 +8,7 @@ namespace MarketingAnalytics.Services.DTOs
     {
         public int? StoreId { get; set; }
         public int? ProductId { get; set; }
+        public string? Description { get; set; }
         public IFormFile? ImageFile { get; set; } // The uploaded image file, if any
         // Add any other relevant properties that are provided during creation
     }
@@ -51,7 +52,7 @@ namespace MarketingAnalytics.Services.DTOs
         // Include fields that can be updated for an AdData
         public int? StoreId { get; set; }
         public int? ProductId { get; set; }
-
+        public string? Description { get; set; }
         // Optional: Provide a new image file to replace the existing one (if any)
         public IFormFile? ImageFile { get; set; }
 
