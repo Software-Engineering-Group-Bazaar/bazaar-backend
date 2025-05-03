@@ -1,5 +1,6 @@
 using Catalog.Interfaces;
 using Catalog.Services;
+using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services.DTOs;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ using Users.Interface;
 namespace MarketingAnalytics.Services
 {
 
-    public class AdService
+    public class AdService : IAdService
     {
         private readonly AdDbContext _context;
         private readonly IImageStorageService _imageStorageService;
