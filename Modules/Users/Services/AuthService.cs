@@ -32,6 +32,7 @@ namespace Users.Services
             {
                 UserName = dto.Username,
                 Email = dto.Email,
+                CreatedAt = new DateTime(),
                 IsApproved = false  // korisnik nije odobren odmah
             };
 

@@ -6,6 +6,9 @@ using Catalog.Services;
 using Inventory.Interfaces;
 using Inventory.Models;
 using Inventory.Services;
+using MarketingAnalytics.Interfaces;
+using MarketingAnalytics.Models;
+using MarketingAnalytics.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -92,6 +95,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("NotificationsConnection")));
     builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("InventoryConnection")));
     builder.Services.AddDbContext<ReviewDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ReviewConnection")));
+    builder.Services.AddDbContext<AdDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("AdvertismentConnection")));
 }
 
 builder.Services.AddHttpClient();
@@ -120,6 +124,7 @@ builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderItemService, OrderItemService>();
 
 builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<IAdService, AdService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -159,6 +164,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Bazaar API", Version = "v1" });
+    options.CustomSchemaIds(type => type.FullName);
 
     // 1. Define the Security Scheme (How Authentication Works)
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -231,6 +237,11 @@ var app = builder.Build();
 await SeedRolesAsync(app);
 await UserDataSeeder.SeedDevelopmentUsersAsync(app);
 await GeographyDataSeeder.SeedGeographyAsync(app);
+await StoreDataSeeder.SeedStoresAsync(app);
+await AdvertisementDataSeeder.SeedAdvertisementsAsync(app);
+await ProductDataSeeder.SeedProductsAsync(app);
+await OrderDataSeeder.SeedOrdersAsync(app);
+
 
 // --- Configure the HTTP Request Pipeline (Middleware) ---
 
