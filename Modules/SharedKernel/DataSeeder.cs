@@ -620,7 +620,7 @@ namespace SharedKernel
                     logger.LogInformation("Store categories seeded/checked.");
 
                     // --- 2. Check Existing Store Count ---
-                    const int targetStoreCount = 30; // Define the desired total number
+                    const int targetStoreCount = 60; // Define the desired total number
                     var currentStoreCount = await storeDbContext.Stores.CountAsync();
                     logger.LogInformation("Current number of stores in DB: {CurrentCount}. Target: {TargetCount}", currentStoreCount, targetStoreCount);
 
@@ -747,6 +747,8 @@ namespace SharedKernel
 
                 if (category == null) { logger.LogWarning("Category ID {CategoryId} not found for Store '{StoreName}'. Skipping.", categoryId, name); return; }
                 if (place == null) { logger.LogWarning("Place ID {PlaceId} not found for Store '{StoreName}'. Skipping.", placeId, name); return; }
+                // *** Generate random CreatedAt time ***
+                DateTime randomCreatedAt = DateTime.UtcNow.AddDays(-Random.Shared.Next(1, 366 * 10)).AddHours(-Random.Shared.Next(0, 24)); // Randomly within the last 10 years
 
                 logger.LogInformation("Creating Store: {StoreName}", name);
                 var store = new StoreModel
@@ -757,7 +759,7 @@ namespace SharedKernel
                     address = address,
                     description = description,
                     isActive = isActive,
-                    createdAt = DateTime.UtcNow
+                    createdAt = randomCreatedAt
                 };
                 await context.Stores.AddAsync(store);
                 // SaveChangesAsync called later
@@ -851,7 +853,7 @@ namespace SharedKernel
 
                     // --- 3. Seed Products Per Store (Limited) ---
                     logger.LogInformation("Seeding Products per Store...");
-                    const int targetProductsPerStore = 2; // <<<--- TARGET PER STORE (Adjust as needed, e.g., 2-5)
+                    const int targetProductsPerStore = 5; // <<<--- TARGET PER STORE (Adjust as needed, e.g., 2-5)
                     var random = Random.Shared;
                     int productNamingCounter = await catalogDbContext.Products.CountAsync(); // Start naming counter from existing total
 
@@ -970,6 +972,10 @@ namespace SharedKernel
                 var category = await context.ProductCategories.FindAsync(categoryId);
                 if (category == null) { logger.LogWarning("Category ID {CategoryId} not found for Product '{ProductName}'. Skipping.", categoryId, name); return false; }
 
+                // *** Generate random CreatedAt time ***
+                // We'll use a similar range as stores for simplicity, could be refined
+                DateTime randomCreatedAt = DateTime.UtcNow.AddDays(-Random.Shared.Next(1, 366 * 10)).AddHours(-Random.Shared.Next(0, 24)); // Randomly within the last 10 years
+
                 logger.LogInformation("Creating Product: {ProductName} in Store ID {StoreId}", name, storeId);
                 var product = new Product
                 {
@@ -985,7 +991,7 @@ namespace SharedKernel
                     Volume = volume,
                     VolumeUnit = volumeUnit,
                     IsActive = isActive,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = randomCreatedAt // <-- Use the random date
                 };
                 int pictureCount = Random.Shared.Next(1, 4);
                 for (int i = 0; i < pictureCount; i++)
