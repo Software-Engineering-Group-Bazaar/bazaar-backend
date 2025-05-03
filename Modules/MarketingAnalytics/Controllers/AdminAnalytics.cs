@@ -43,6 +43,22 @@ namespace MarketingAnalytics.Controllers
             try
             {
                 var advertisements = await _adService.GetAllAdvertisementsAsync();
+                var dto = advertisements.Select(advertisement => new AdvertismentDto
+                {
+                    Id = advertisement.Id,
+                    SellerId = advertisement.SellerId,
+                    StartTime = advertisement.StartTime,
+                    EndTime = advertisement.EndTime,
+                    IsActive = advertisement.IsActive,
+                    AdData = advertisement.AdData.Select(ad => new AdDataDto
+                    {
+                        Id = ad.Id,
+                        StoreId = ad.StoreId,
+                        ImageUrl = ad.ImageUrl,
+                        Description = ad.Description,
+                        ProductId = ad.ProductId
+                    }).ToList()
+                });
                 return Ok(advertisements);
             }
             catch (Exception ex)
@@ -71,7 +87,24 @@ namespace MarketingAnalytics.Controllers
                     _logger.LogWarning("GetAdvertisementById: Advertisement with ID {AdvertisementId} not found.", id);
                     return NotFound($"Advertisement with ID {id} not found.");
                 }
-                return Ok(advertisement);
+                var dto = new AdvertismentDto
+                {
+                    Id = advertisement.Id,
+                    SellerId = advertisement.SellerId,
+                    StartTime = advertisement.StartTime,
+                    EndTime = advertisement.EndTime,
+                    IsActive = advertisement.IsActive,
+                    AdData = advertisement.AdData.Select(ad => new AdDataDto
+                    {
+                        Id = ad.Id,
+                        StoreId = ad.StoreId,
+                        ImageUrl = ad.ImageUrl,
+                        Description = ad.Description,
+                        ProductId = ad.ProductId
+                    }).ToList()
+                };
+
+                return Ok(dto);
             }
             catch (Exception ex)
             {
@@ -102,7 +135,23 @@ namespace MarketingAnalytics.Controllers
             {
                 var createdAdvertisement = await _adService.CreateAdvertismentAsync(request);
                 // Return 201 Created with a Location header pointing to the new resource
-                return CreatedAtRoute("GetAdvertisementById", new { id = createdAdvertisement.Id }, createdAdvertisement);
+                var dto = new AdvertismentDto
+                {
+                    Id = createdAdvertisement.Id,
+                    SellerId = createdAdvertisement.SellerId,
+                    StartTime = createdAdvertisement.StartTime,
+                    EndTime = createdAdvertisement.EndTime,
+                    IsActive = createdAdvertisement.IsActive,
+                    AdData = createdAdvertisement.AdData.Select(ad => new AdDataDto
+                    {
+                        Id = ad.Id,
+                        StoreId = ad.StoreId,
+                        ImageUrl = ad.ImageUrl,
+                        Description = ad.Description,
+                        ProductId = ad.ProductId
+                    }).ToList()
+                };
+                return CreatedAtRoute("GetAdvertisementById", new { id = createdAdvertisement.Id }, dto);
             }
             catch (ArgumentException argEx) // Catch specific validation errors from service
             {
@@ -145,7 +194,23 @@ namespace MarketingAnalytics.Controllers
                     _logger.LogWarning("UpdateAdvertisement: Advertisement with ID {AdvertisementId} not found.", advertismentId);
                     return NotFound($"Advertisement with ID {advertismentId} not found.");
                 }
-                return Ok(updatedAdvertisement); // Return the updated entity
+                var dto = new AdvertismentDto
+                {
+                    Id = updatedAdvertisement.Id,
+                    SellerId = updatedAdvertisement.SellerId,
+                    StartTime = updatedAdvertisement.StartTime,
+                    EndTime = updatedAdvertisement.EndTime,
+                    IsActive = updatedAdvertisement.IsActive,
+                    AdData = updatedAdvertisement.AdData.Select(ad => new AdDataDto
+                    {
+                        Id = ad.Id,
+                        StoreId = ad.StoreId,
+                        ImageUrl = ad.ImageUrl,
+                        Description = ad.Description,
+                        ProductId = ad.ProductId
+                    }).ToList()
+                };
+                return Ok(dto); // Return the updated entity
             }
             catch (ArgumentException argEx)
             {
@@ -216,7 +281,15 @@ namespace MarketingAnalytics.Controllers
                     _logger.LogWarning("UpdateAdData: AdData with ID {AdDataId} not found.", adDataId);
                     return NotFound($"AdData with ID {adDataId} not found.");
                 }
-                return Ok(updatedAdData);
+                var dto = new AdDataDto
+                {
+                    Id = updatedAdData.Id,
+                    Description = updatedAdData.Description,
+                    StoreId = updatedAdData.StoreId,
+                    ProductId = updatedAdData.ProductId,
+                    ImageUrl = updatedAdData.ImageUrl
+                };
+                return Ok(dto);
             }
             catch (ArgumentException argEx)
             {
