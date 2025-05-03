@@ -237,6 +237,11 @@ var app = builder.Build();
 await SeedRolesAsync(app);
 await UserDataSeeder.SeedDevelopmentUsersAsync(app);
 await GeographyDataSeeder.SeedGeographyAsync(app);
+await StoreDataSeeder.SeedStoresAsync(app);
+await AdvertisementDataSeeder.SeedAdvertisementsAsync(app);
+await ProductDataSeeder.SeedProductsAsync(app);
+await OrderDataSeeder.SeedOrdersAsync(app);
+
 
 // --- Configure the HTTP Request Pipeline (Middleware) ---
 
