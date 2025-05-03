@@ -87,6 +87,7 @@ namespace Admin.Controllers
                         Roles = await _userManager.GetRolesAsync(user), // Be mindful of performance on very large user sets
                         IsApproved = user.IsApproved,
                         IsActive = user.IsActive,
+                        CreatedAt = user.CreatedAt
                     });
                 }
                 _logger.LogInformation("Successfully retrieved {UserCount} users.", userInfoDtos.Count);
