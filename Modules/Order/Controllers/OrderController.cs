@@ -202,6 +202,7 @@ namespace Order.Controllers
                     catch (Exception invEx)
                     {
                         _logger.LogError(invEx, "Failed to update inventory for ProductId {ProductId}, StoreId {StoreId} after order item creation. ORDER IS INCONSISTENT!", itemDto.ProductId, storeIdForRequest);
+                        throw new InvalidOperationException($"Insufficient stock for product ID {itemDto.ProductId} discovered during update.");
                     }
 
                     listitems.Add(new OrderItemGetDto
