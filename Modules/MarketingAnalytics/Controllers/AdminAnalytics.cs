@@ -50,6 +50,8 @@ namespace MarketingAnalytics.Controllers
                     StartTime = advertisement.StartTime,
                     EndTime = advertisement.EndTime,
                     IsActive = advertisement.IsActive,
+                    Views = advertisement.Views,
+                    Clicks = advertisement.Clicks,
                     AdData = advertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -94,6 +96,8 @@ namespace MarketingAnalytics.Controllers
                     StartTime = advertisement.StartTime,
                     EndTime = advertisement.EndTime,
                     IsActive = advertisement.IsActive,
+                    Views = advertisement.Views,
+                    Clicks = advertisement.Clicks,
                     AdData = advertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -201,6 +205,8 @@ namespace MarketingAnalytics.Controllers
                     StartTime = updatedAdvertisement.StartTime,
                     EndTime = updatedAdvertisement.EndTime,
                     IsActive = updatedAdvertisement.IsActive,
+                    Clicks = updatedAdvertisement.Clicks,
+                    Views = updatedAdvertisement.Views,
                     AdData = updatedAdvertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
