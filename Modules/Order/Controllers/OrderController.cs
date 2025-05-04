@@ -161,7 +161,6 @@ namespace Order.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<OrderGetDto>> CreateOrder([FromBody] OrderCreateDto createDto)
         {
-
             var buyerUserIdForRequest = createDto.BuyerId;
             var storeIdForRequest = createDto.StoreId;
             var loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -174,6 +173,18 @@ namespace Order.Controllers
                 _logger.LogWarning("Create order request failed model validation. Errors: {@ModelState}", ModelState.Values.SelectMany(v => v.Errors));
                 return BadRequest(ModelState);
             }
+
+            foreach (var itemDto in createDto.OrderItems)
+            {
+                var inventoryList = await _inventoryService.GetInventoryAsync(loggedInUserId, isAdminRequest, itemDto.ProductId, storeIdForRequest);
+                var currentQty = inventoryList.FirstOrDefault()?.Quantity ?? 0;
+
+                if (itemDto.Quantity > currentQty)
+                {
+                    return BadRequest($"Nema dovoljno zaliha za proizvod ID {itemDto.ProductId}. Dostupno: {currentQty}, traženo: {itemDto.Quantity}.");
+                }
+            }
+
 
             OrderModel createdOrder;
             List<OrderItemGetDto> listitems = new List<OrderItemGetDto>();
@@ -190,11 +201,19 @@ namespace Order.Controllers
 
                     try
                     {
+                        var inventoryList = await _inventoryService.GetInventoryAsync(loggedInUserId, true, itemDto.ProductId, storeIdForRequest);
+                        var inventory = inventoryList.FirstOrDefault();
+
+                        if (inventory == null)
+                        {
+                            throw new InvalidOperationException($"Inventory not found for product ID {itemDto.ProductId}.");
+                        }
+
                         var updateInvDto = new UpdateInventoryQuantityRequestDto
                         {
                             ProductId = itemDto.ProductId,
                             StoreId = storeIdForRequest,
-                            NewQuantity = (await _inventoryService.GetInventoryAsync(loggedInUserId, true, itemDto.ProductId, storeIdForRequest)).First().Quantity - itemDto.Quantity
+                            NewQuantity = inventory.Quantity - itemDto.Quantity
                         };
                         await _inventoryService.UpdateQuantityAsync(loggedInUserId, isAdminRequest, updateInvDto);
                         _logger.LogInformation("Inventory updated for ProductId: {ProductId}, StoreId: {StoreId} after order item creation.", itemDto.ProductId, storeIdForRequest);
@@ -245,8 +264,8 @@ namespace Order.Controllers
                             string pushTitle = "Nova Narudžba!";
                             string pushBody = $"Dobili ste narudžbu #{createdOrder.Id}.";
                             var pushData = new Dictionary<string, string> {
-                            { "orderId", createdOrder.Id.ToString() },
-                            { "screen", "OrderDetail" } // Primjer za frontend navigaciju
+                        { "orderId", createdOrder.Id.ToString() },
+                        { "screen", "OrderDetail" }
                     };
 
                             await _pushNotificationService.SendPushNotificationAsync(
@@ -270,10 +289,9 @@ namespace Order.Controllers
                 }
 
                 _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder.Id);
-                // Return 201 Created with the location of the newly created resource and the resource itself
                 return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
             }
-            catch (ArgumentException ex) // Catch specific exceptions from the service if possible
+            catch (ArgumentException ex)
             {
                 _logger.LogWarning(ex, "Failed to create order due to invalid arguments (BuyerId: {BuyerId}, StoreId: {StoreId})", createDto.BuyerId, createDto.StoreId);
                 return BadRequest(ex.Message);
