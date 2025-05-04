@@ -59,7 +59,7 @@ namespace MarketingAnalytics.Controllers
                         ProductId = ad.ProductId
                     }).ToList()
                 });
-                return Ok(advertisements);
+                return Ok(dto);
             }
             catch (Exception ex)
             {
