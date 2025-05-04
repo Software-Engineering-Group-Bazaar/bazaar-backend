@@ -254,18 +254,6 @@ namespace Inventory.Services
             {
                 sellerUser = await _userManager.FindByIdAsync(requestingUserId);
                 if (sellerUser == null) throw new KeyNotFoundException("Requesting user not found.");
-                if (!sellerUser.StoreId.HasValue)
-                {
-                    _logger.LogWarning("Seller {UserId} attempted to update inventory but has no StoreId assigned.", requestingUserId);
-                    throw new UnauthorizedAccessException("Seller does not have an associated store.");
-                }
-                if (targetStoreId != sellerUser.StoreId.Value)
-                {
-                    _logger.LogWarning("Seller {UserId} attempted to update inventory for StoreId {TargetStoreId}, but owns StoreId {OwnedStoreId}. Denying access.",
-                                      requestingUserId, targetStoreId, sellerUser.StoreId.Value);
-                    throw new UnauthorizedAccessException("Seller cannot update inventory for another store.");
-                }
-                _logger.LogInformation("Seller {UserId} updating inventory for their StoreId {StoreId}.", requestingUserId, targetStoreId);
             }
             else
             {

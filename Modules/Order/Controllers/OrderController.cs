@@ -4,6 +4,9 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using AdminApi.DTOs;
 using Catalog.Dtos;
+using Inventory.Dtos;
+using Inventory.Interfaces;
+using Inventory.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -13,6 +16,7 @@ using Notifications.Interfaces;
 using Order.DTOs;
 using Order.Interface;
 using Order.Models;
+using Store.Services;
 using Users.Models;
 
 namespace Order.Controllers
@@ -32,6 +36,9 @@ namespace Order.Controllers
         private readonly INotificationService _notificationService;
 
         private readonly IPushNotificationService _pushNotificationService;
+        private readonly IInventoryService _inventoryService;
+        private readonly InventoryDbContext _inventoryContext;
+
 
         public OrderController(
             ILogger<OrderController> logger,
@@ -39,7 +46,9 @@ namespace Order.Controllers
             IOrderItemService orderItemService,
             UserManager<User> userManager,
             INotificationService notificationService,
-            IPushNotificationService pushNotificationService
+            IPushNotificationService pushNotificationService,
+            IInventoryService inventoryService,
+            InventoryDbContext inventoryContext
             )
 
         {
@@ -49,6 +58,8 @@ namespace Order.Controllers
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
             _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
+            _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
+            _inventoryContext = inventoryContext;
         }
 
         // GET /api//order
@@ -150,6 +161,12 @@ namespace Order.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<OrderGetDto>> CreateOrder([FromBody] OrderCreateDto createDto)
         {
+
+            var buyerUserIdForRequest = createDto.BuyerId;
+            var storeIdForRequest = createDto.StoreId;
+            var loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            bool isAdminRequest = User.IsInRole("Admin");
+
             _logger.LogInformation("Attempting to create a new order for BuyerId: {BuyerId}, StoreId: {StoreId}", createDto.BuyerId, createDto.StoreId);
 
             if (!ModelState.IsValid)
@@ -158,28 +175,45 @@ namespace Order.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Optional: Add validation to check if BuyerId and StoreId actually exist
-            // var buyerExists = await _userManager.FindByIdAsync(createDto.BuyerId) != null;
-            // var storeExists = _storeService.GetStoreById(createDto.StoreId) != null; // Assuming synchronous version exists or make async
-            // if (!buyerExists) return BadRequest($"Buyer with ID {createDto.BuyerId} not found.");
-            // if (!storeExists) return BadRequest($"Store with ID {createDto.StoreId} not found.");
+            OrderModel createdOrder;
+            List<OrderItemGetDto> listitems = new List<OrderItemGetDto>();
 
             try
             {
-                var createdOrder = await _orderService.CreateOrderAsync(createDto.BuyerId, createDto.StoreId);
-                var listitems = new List<OrderItemGetDto>();
-                foreach (var item in createDto.OrderItems)
+                createdOrder = await _orderService.CreateOrderAsync(buyerUserIdForRequest, storeIdForRequest);
+                if (createdOrder == null) throw new Exception("Order header creation failed.");
+
+                foreach (var itemDto in createDto.OrderItems)
                 {
-                    var x = await _orderItemService.CreateOrderItemAsync(createdOrder.Id, item.ProductId, item.Quantity);
+                    var createdItem = await _orderItemService.CreateOrderItemAsync(createdOrder.Id, itemDto.ProductId, itemDto.Quantity);
+                    if (createdItem == null) throw new Exception($"Failed to create order item for product {itemDto.ProductId}.");
+
+                    try
+                    {
+                        var updateInvDto = new UpdateInventoryQuantityRequestDto
+                        {
+                            ProductId = itemDto.ProductId,
+                            StoreId = storeIdForRequest,
+                            NewQuantity = (await _inventoryService.GetInventoryAsync(loggedInUserId, true, itemDto.ProductId, storeIdForRequest)).First().Quantity - itemDto.Quantity
+                        };
+                        await _inventoryService.UpdateQuantityAsync(loggedInUserId, isAdminRequest, updateInvDto);
+                        _logger.LogInformation("Inventory updated for ProductId: {ProductId}, StoreId: {StoreId} after order item creation.", itemDto.ProductId, storeIdForRequest);
+                    }
+                    catch (Exception invEx)
+                    {
+                        _logger.LogError(invEx, "Failed to update inventory for ProductId {ProductId}, StoreId {StoreId} after order item creation. ORDER IS INCONSISTENT!", itemDto.ProductId, storeIdForRequest);
+                        throw new InvalidOperationException($"Insufficient stock for product ID {itemDto.ProductId} discovered during update.");
+                    }
+
                     listitems.Add(new OrderItemGetDto
                     {
-                        Id = x.Id,
-                        ProductId = x.ProductId,
-                        Price = x.Price,
-                        Quantity = x.Quantity,
+                        Id = createdItem.Id,
+                        ProductId = createdItem.ProductId,
+                        Price = createdItem.Price,
+                        Quantity = createdItem.Quantity,
                     });
                 }
-                // Map the created order (which won't have items yet) to the DTO
+
                 var orderDto = new OrderGetDto
                 {
                     Id = createdOrder.Id,
@@ -187,8 +221,8 @@ namespace Order.Controllers
                     StoreId = createdOrder.StoreId,
                     Status = createdOrder.Status.ToString(),
                     Time = createdOrder.Time,
-                    Total = createdOrder.Total, // Will likely be null or 0 initially
-                    OrderItems = listitems // Empty list
+                    Total = createdOrder.Total,
+                    OrderItems = listitems
                 };
 
                 var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdOrder.StoreId);
