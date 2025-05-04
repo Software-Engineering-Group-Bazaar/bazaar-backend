@@ -145,28 +145,39 @@ namespace Inventory.Services
             _logger.LogInformation("Attempting to get inventory by User {UserId} (IsAdmin: {IsAdmin}). Filters - ProductId: {ProductId}, StoreId: {StoreId}",
                                    requestingUserId, isAdmin, productId?.ToString() ?? "N/A", storeId?.ToString() ?? "N/A");
 
-            // --- Autorizacija i određivanje ciljanog StoreId ---
             int? targetStoreId = storeId;
 
             if (!isAdmin)
             {
-                var sellerUser = await _userManager.FindByIdAsync(requestingUserId);
-                if (!sellerUser.StoreId.HasValue)
-                {
-                    _logger.LogWarning("Seller {UserId} attempted to get inventory but has no StoreId assigned.", requestingUserId);
-                    return Enumerable.Empty<InventoryDto>();
-                }
+                var user = await _userManager.FindByIdAsync(requestingUserId);
+                if (user == null) throw new KeyNotFoundException("Requesting user not found.");
 
-                if (targetStoreId.HasValue && targetStoreId.Value != sellerUser.StoreId.Value)
+                var roles = await _userManager.GetRolesAsync(user);
+
+                if (roles.Contains("Seller"))
                 {
-                    _logger.LogWarning("Seller {UserId} attempted to filter inventory for StoreId {FilterStoreId}, but owns StoreId {OwnedStoreId}. Forcing own StoreId.",
-                                       requestingUserId, targetStoreId.Value, sellerUser.StoreId.Value);
-                    targetStoreId = sellerUser.StoreId.Value;
+                    if (!user.StoreId.HasValue)
+                    {
+                        _logger.LogWarning("Seller {UserId} attempted to get inventory but has no StoreId assigned.", requestingUserId);
+                        return Enumerable.Empty<InventoryDto>();
+                    }
+
+                    if (targetStoreId.HasValue && targetStoreId.Value != user.StoreId.Value)
+                    {
+                        _logger.LogWarning("Seller {UserId} attempted to filter inventory for unauthorized StoreId {FilterStoreId}. Returning empty.",
+                                           requestingUserId, targetStoreId.Value);
+                        return Enumerable.Empty<InventoryDto>();
+                    }
+                    else
+                    {
+                        targetStoreId = user.StoreId.Value;
+                        _logger.LogInformation("Seller {UserId} getting inventory for their StoreId {StoreId}.", requestingUserId, targetStoreId);
+                    }
                 }
-                else if (!targetStoreId.HasValue)
+                else
                 {
-                    targetStoreId = sellerUser.StoreId.Value;
-                    _logger.LogInformation("Seller {UserId} getting inventory for their StoreId {StoreId}.", requestingUserId, targetStoreId);
+                    _logger.LogInformation("Non-Admin, Non-Seller User {UserId} getting inventory with filters ProductId: {ProductId}, StoreId: {StoreId}",
+                                 requestingUserId, productId?.ToString() ?? "N/A", targetStoreId?.ToString() ?? "N/A");
                 }
             }
 
@@ -185,7 +196,6 @@ namespace Inventory.Services
                 _logger.LogInformation("Applying filter: StoreId = {StoreId}", targetStoreId.Value);
             }
 
-            // --- Izvršavanje Upita za Inventory ---
             List<Models.Inventory> inventoryList;
             try
             {
