@@ -214,6 +214,7 @@ namespace MarketingAnalytics.Services
             {
                 // Create a list to hold the validated and processed new AdData entities
                 var newAdDataEntities = new List<AdData>();
+                await _context.AdData.Where(a => a.AdvertismentId == advertismentId).ExecuteDeleteAsync();
 
                 foreach (var newItemDto in request.NewAdDataItems)
                 {
