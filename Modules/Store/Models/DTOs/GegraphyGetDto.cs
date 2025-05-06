@@ -16,5 +16,6 @@ namespace Store.Models.Dtos
         public int Id { get; set; }
         public string Name { get; set; }
         public string PostalCode { get; set; }
+        public int RegionId { get; set; }
     }
 }

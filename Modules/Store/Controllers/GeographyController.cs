@@ -30,7 +30,7 @@ namespace Store.Controllers
             _geographyService = geographyService;
             _logger = logger;
         }
-        [HttpGet("geography")] // GET /api/catalog/categories/5
+        [HttpGet("geography")] // GET /api/Geogprahy/geography
         [ProducesResponseType(typeof(GeographyGetDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -51,7 +51,8 @@ namespace Store.Controllers
                 {
                     Id = p.Id,
                     Name = p.Name,
-                    PostalCode = p.PostalCode
+                    PostalCode = p.PostalCode,
+                    RegionId = p.RegionId
                 }).ToList(),
             });
         }
@@ -72,7 +73,7 @@ namespace Store.Controllers
             }).ToList());
         }
 
-        [HttpGet("region/{id}")] // GET /api/Geography/region/5
+        [HttpGet("region/{id}")] // GET /api/Geography/region/{id}
         [ProducesResponseType(typeof(List<PlaceDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

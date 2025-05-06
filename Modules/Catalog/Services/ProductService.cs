@@ -6,6 +6,7 @@ using Catalog.DTO;
 using Catalog.Dtos;
 using Catalog.Interfaces;
 using Catalog.Models;
+using Inventory.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -22,16 +23,20 @@ namespace Catalog.Services
         private readonly IImageStorageService _imageStorageService;
         private readonly UserManager<User> _userManager;
 
+        private readonly InventoryDbContext _inventoryContext;
+
         public ProductService(CatalogDbContext context,
                               StoreDbContext storeContext,
                               IImageStorageService imageStorageService,
                               UserManager<User> userManager,
+                              InventoryDbContext inventoryContext,
                               ILogger<ProductService> logger) // Logger je opcionalan
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _storeContext = storeContext ?? throw new ArgumentNullException(nameof(storeContext));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _imageStorageService = imageStorageService;
+            _inventoryContext = inventoryContext;
         }
 
         public async Task<IEnumerable<Product>> GetAllProductsAsync()
@@ -93,7 +98,7 @@ namespace Catalog.Services
 
             product.Id = 0;
             product.ProductCategory = existingCategory;
-
+            product.CreatedAt = new DateTime();
             await _context.Products.AddAsync(product);
             try
             {
@@ -102,6 +107,29 @@ namespace Catalog.Services
             catch (DbUpdateException ex)
             {
                 throw new InvalidOperationException("Došlo je do greške prilikom spremanja proizvoda.", ex);
+            }
+
+            var newInventory = new Inventory.Models.Inventory
+            {
+                ProductId = product.Id,
+                StoreId = product.StoreId,
+                Quantity = 0,
+                OutOfStock = true,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            try
+            {
+                bool alreadyExists = await _inventoryContext.Inventories.AnyAsync(inv => inv.ProductId == newInventory.ProductId && inv.StoreId == newInventory.StoreId);
+                if (!alreadyExists)
+                {
+                    _inventoryContext.Inventories.Add(newInventory);
+                    await _inventoryContext.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"GREŠKA prilikom kreiranja inventara za Product ID {product.Id}: {ex.Message}"); // Minimalni ispis greške
             }
 
             if (files is not null)

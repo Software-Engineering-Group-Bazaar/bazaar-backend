@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Inventory.Interfaces;
+using Inventory.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Make sure you have this using for ILogger
@@ -18,16 +20,19 @@ namespace Order.Services
     public class OrderService : IOrderService
     {
         private readonly OrdersDbContext _context;
+        private readonly InventoryDbContext _inventoryContext;
         private readonly StoreDbContext _storeDbContext;
         private readonly UserManager<User> _userManager;
         private readonly ILogger<OrderService> _logger;
 
         public OrderService(OrdersDbContext context,
+                            InventoryDbContext inventoryContext,
                             StoreDbContext storeDbContext,
                             UserManager<User> userManager,
                             ILogger<OrderService> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _inventoryContext = inventoryContext;
             _storeDbContext = storeDbContext;
             _userManager = userManager;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));

@@ -8,6 +8,7 @@ namespace Users.Models
         public bool IsApproved { get; set; }
         public bool IsActive { get; set; }
         public int? StoreId { get; set; }
+        public DateTime CreatedAt { get; set; }
 
         [MaxLength(500)]
         public string? FcmDeviceToken { get; set; }

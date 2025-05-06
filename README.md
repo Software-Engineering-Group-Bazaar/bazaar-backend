@@ -92,6 +92,9 @@ cd  bazaar
 - `dotnet ef database update --context CatalogDbContext`
 - `dotnet ef database update --context OrdersDbContext`
 - `dotnet ef database update --context NotificationsDbContext`
+- `dotnet ef database update --context InventoryDbContext`
+- `dotnet ef database update --context ReviewDbContext`
+- `dotnet ef database update --context AdDbContext`
 - Any new DbContext that we add should also be run. 
 
 If these commands don't go through, run this before trying them again: `dotnet tool install --global dotnet-ef`

@@ -87,6 +87,7 @@ namespace Admin.Controllers
                         Roles = await _userManager.GetRolesAsync(user), // Be mindful of performance on very large user sets
                         IsApproved = user.IsApproved,
                         IsActive = user.IsActive,
+                        CreatedAt = user.CreatedAt
                     });
                 }
                 _logger.LogInformation("Successfully retrieved {UserCount} users.", userInfoDtos.Count);
@@ -336,7 +337,7 @@ namespace Admin.Controllers
 
                 var createdProduct = await _productService.CreateProductAsync(product, createProductDto.Files);
                 _logger.LogInformation("Succesfully created a product with id {ProductId} {ProductName}", createdProduct.Id, createdProduct.Name);
-                var createdProductDto = new ProductGetDto
+                var createdProductDto = new AdminApi.DTOs.ProductGetDto
                 {
                     Id = product.Id,
                     Name = product.Name,
@@ -348,6 +349,7 @@ namespace Admin.Controllers
                     Volume = product.Volume,
                     VolumeUnit = product.VolumeUnit,
                     StoreId = product.StoreId,
+                    CreatedAt = product.CreatedAt,
                     Photos = product.Pictures.Select(photo => photo.Url).ToList()
                 };
 
@@ -405,9 +407,9 @@ namespace Admin.Controllers
 
         // GET /api/Admin/stores
         [HttpGet("stores")]
-        [ProducesResponseType(typeof(IEnumerable<StoreGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(IEnumerable<StoreDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<IEnumerable<StoreGetDto>> GetStores()
+        public ActionResult<IEnumerable<StoreDto>> GetStores()
         {
             _logger.LogInformation("Attempting to retrieve all stores.");
 
@@ -417,10 +419,10 @@ namespace Admin.Controllers
                 if (stores == null || !stores.Any())
                 {
                     _logger.LogInformation("No stores found.");
-                    return Ok(new List<StoreGetDto>());
+                    return Ok(new List<StoreDto>());
                 }
 
-                var storeDtos = stores.Select(store => new StoreGetDto
+                var storeDtos = stores.Select(store => new StoreDto
                 {
                     Id = store.id,
                     Name = store.name,
@@ -428,6 +430,7 @@ namespace Admin.Controllers
                     Description = store.description,
                     IsActive = store.isActive,
                     CategoryName = store.category.name,
+                    CreatedAt = store.createdAt,
                     PlaceName = store.place.Name,
                     RegionName = store.place.Region.Name
                 }).ToList();
@@ -443,9 +446,9 @@ namespace Admin.Controllers
         }
         // GET /api/Admin/stores/{id}
         [HttpGet("stores/{id}")]
-        [ProducesResponseType(typeof(IEnumerable<StoreGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(IEnumerable<StoreDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<IEnumerable<StoreGetDto>> GetStoresById(int id)
+        public ActionResult<IEnumerable<StoreDto>> GetStoresById(int id)
         {
             _logger.LogInformation($"Attempting to retrieve store. {id}");
 
@@ -458,7 +461,7 @@ namespace Admin.Controllers
                     return BadRequest("No store found");
                 }
 
-                var storeDto = new StoreGetDto
+                var storeDto = new StoreDto
                 {
                     Id = id,
                     Address = stores.address,
@@ -467,6 +470,7 @@ namespace Admin.Controllers
                     Description = stores.description,
                     Name = stores.name,
                     PlaceName = stores.place.Name,
+                    CreatedAt = stores.createdAt,
                     RegionName = stores.place.Region.Name
                 };
 
@@ -516,10 +520,10 @@ namespace Admin.Controllers
 
         // PUT /api/Admin/store/{id}
         [HttpPut("store/{id}")]
-        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status202Accepted)]
+        [ProducesResponseType(typeof(StoreDto), StatusCodes.Status202Accepted)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StoreGetDto> UpdateStore([FromBody] StoreUpdateDto dto)
+        public ActionResult<StoreDto> UpdateStore([FromBody] StoreUpdateDto dto)
         {
             _logger.LogInformation("Attempting to update a store.");
 
@@ -556,10 +560,10 @@ namespace Admin.Controllers
 
         // POST /api/Admin/store/create
         [HttpPost("store/create")]
-        [ProducesResponseType(typeof(StoreGetDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(StoreDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StoreGetDto> CreateStore([FromBody] StoreCreateDto dto)
+        public ActionResult<StoreDto> CreateStore([FromBody] StoreCreateDto dto)
         {
             _logger.LogInformation("Attempting to create a new store.");
 
@@ -574,7 +578,7 @@ namespace Admin.Controllers
 
                 var store = _storeService.CreateStore(dto.Name, dto.CategoryId, dto.Address, dto.Description, dto.PlaceId);
 
-                var storeDto = new StoreGetDto
+                var storeDto = new StoreDto
                 {
                     Id = store.id,
                     Name = store.name,
@@ -583,6 +587,7 @@ namespace Admin.Controllers
                     IsActive = store.isActive,
                     CategoryName = category.name,
                     PlaceName = store.place.Name,
+                    CreatedAt = store.createdAt,
                     RegionName = store.place.Region.Name
                 };
 
@@ -874,7 +879,7 @@ namespace Admin.Controllers
         // --- Akcije za Proizvode (Product) ---
 
         [HttpGet("products")] // GET /api/catalog/products?categoryId=2&storeId=10
-        [ProducesResponseType(typeof(IEnumerable<ProductGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(IEnumerable<AdminApi.DTOs.ProductGetDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetProducts([FromQuery] int? categoryId, [FromQuery] int? storeId)
         {
             IEnumerable<Product> products;
@@ -905,7 +910,7 @@ namespace Admin.Controllers
                 products = await _productService.GetAllProductsAsync();
             }
 
-            var productsDto = products.Select(product => new ProductGetDto
+            var productsDto = products.Select(product => new AdminApi.DTOs.ProductGetDto
             {
                 Id = product.Id,
                 Name = product.Name,
@@ -918,6 +923,7 @@ namespace Admin.Controllers
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
                 IsActive = product.IsActive,
+                CreatedAt = product.CreatedAt,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             }).ToList();
 
@@ -925,7 +931,7 @@ namespace Admin.Controllers
         }
 
         [HttpGet("products/{id}")] // GET /api/catalog/products/15
-        [ProducesResponseType(typeof(ProductGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AdminApi.DTOs.ProductGetDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetProductById(int id)
@@ -938,7 +944,7 @@ namespace Admin.Controllers
                 return NotFound();
             }
 
-            var productDto = new ProductGetDto
+            var productDto = new AdminApi.DTOs.ProductGetDto
             {
                 Id = product.Id,
                 Name = product.Name,
@@ -951,6 +957,7 @@ namespace Admin.Controllers
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
                 IsActive = product.IsActive,
+                CreatedAt = product.CreatedAt,
                 Photos = product.Pictures.Select(photo => photo.Url).ToList()
             };
 
