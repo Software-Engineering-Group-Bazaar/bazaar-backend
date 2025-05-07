@@ -72,23 +72,41 @@ namespace Order.Controllers
             try
             {
                 var orders = await _orderService.GetAllOrdersAsync();
+                var orderDtos = new List<OrderGetSellerDto>();
 
-                var orderDtos = orders.Select(o => new OrderGetSellerDto
+                foreach (var o in orders)
                 {
-                    Id = o.Id,
-                    BuyerId = o.BuyerId,
-                    StoreId = o.StoreId,
-                    Status = o.Status.ToString(),
-                    Time = o.Time,
-                    Total = o.Total,
-                    OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                    string username = "";
+                    var buyer = await _userManager.FindByIdAsync(o.BuyerId);
+                    if (buyer == null)
                     {
-                        Id = oi.Id,
-                        ProductId = oi.ProductId,
-                        Price = oi.Price,
-                        Quantity = oi.Quantity
-                    }).ToList()
-                }).ToList();
+                        _logger.LogWarning("Buyer with ID {BuyerId} not found.", o.BuyerId);
+                    }
+                    else
+                    {
+                        username = buyer.UserName;
+                    }
+
+                    var orderDto = new OrderGetSellerDto
+                    {
+                        Id = o.Id,
+                        BuyerId = o.BuyerId,
+                        BuyerUserName = username,
+                        StoreId = o.StoreId,
+                        Status = o.Status.ToString(),
+                        Time = o.Time,
+                        Total = o.Total,
+                        OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                        {
+                            Id = oi.Id,
+                            ProductId = oi.ProductId,
+                            Price = oi.Price,
+                            Quantity = oi.Quantity
+                        }).ToList()
+                    };
+
+                    orderDtos.Add(orderDto);
+                }
 
                 _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
                 return Ok(orderDtos);
