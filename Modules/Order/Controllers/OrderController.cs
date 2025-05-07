@@ -64,31 +64,49 @@ namespace Order.Controllers
 
         // GET /api//order
         [HttpGet]
-        [ProducesResponseType(typeof(IEnumerable<OrderGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(IEnumerable<OrderGetSellerDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<OrderGetDto>>> GetAllOrders()
+        public async Task<ActionResult<IEnumerable<OrderGetSellerDto>>> GetAllOrders()
         {
             _logger.LogInformation("Attempting to retrieve all orders.");
             try
             {
                 var orders = await _orderService.GetAllOrdersAsync();
+                var orderDtos = new List<OrderGetSellerDto>();
 
-                var orderDtos = orders.Select(o => new OrderGetDto
+                foreach (var o in orders)
                 {
-                    Id = o.Id,
-                    BuyerId = o.BuyerId,
-                    StoreId = o.StoreId,
-                    Status = o.Status.ToString(),
-                    Time = o.Time,
-                    Total = o.Total,
-                    OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                    string username = "";
+                    var buyer = await _userManager.FindByIdAsync(o.BuyerId);
+                    if (buyer == null)
                     {
-                        Id = oi.Id,
-                        ProductId = oi.ProductId,
-                        Price = oi.Price,
-                        Quantity = oi.Quantity
-                    }).ToList()
-                }).ToList();
+                        _logger.LogWarning("Buyer with ID {BuyerId} not found.", o.BuyerId);
+                    }
+                    else
+                    {
+                        username = buyer.UserName;
+                    }
+
+                    var orderDto = new OrderGetSellerDto
+                    {
+                        Id = o.Id,
+                        BuyerId = o.BuyerId,
+                        BuyerUserName = username,
+                        StoreId = o.StoreId,
+                        Status = o.Status.ToString(),
+                        Time = o.Time,
+                        Total = o.Total,
+                        OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                        {
+                            Id = oi.Id,
+                            ProductId = oi.ProductId,
+                            Price = oi.Price,
+                            Quantity = oi.Quantity
+                        }).ToList()
+                    };
+
+                    orderDtos.Add(orderDto);
+                }
 
                 _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
                 return Ok(orderDtos);
@@ -103,11 +121,11 @@ namespace Order.Controllers
         // GET /api/order/{id}
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin, Seller")]
-        [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(OrderGetSellerDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<OrderGetDto>> GetOrderById(int id)
+        public async Task<ActionResult<OrderGetSellerDto>> GetOrderById(int id)
         {
             _logger.LogInformation("Attempting to retrieve order with ID: {OrderId}", id);
             if (id <= 0)
@@ -126,10 +144,23 @@ namespace Order.Controllers
                     return NotFound($"Order with ID {id} not found.");
                 }
 
-                var orderDto = new OrderGetDto
+                var username = "";
+
+                var buyer = await _userManager.FindByIdAsync(order.BuyerId);
+                if (buyer == null)
+                {
+                    _logger.LogWarning("Buyer with ID {BuyerId} not found.", order.BuyerId);
+                }
+                else
+                {
+                    username = buyer.UserName;
+                }
+
+                var orderDto = new OrderGetSellerDto
                 {
                     Id = order.Id,
                     BuyerId = order.BuyerId,
+                    BuyerUserName = username,
                     StoreId = order.StoreId,
                     Status = order.Status.ToString(),
                     Time = order.Time,

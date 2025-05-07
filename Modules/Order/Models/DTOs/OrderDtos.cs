@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using AdminApi.DTOs;
 using Order.Models; // Za OrderStatus enum
 
 namespace Order.DTOs
@@ -16,6 +17,20 @@ namespace Order.DTOs
 
         // Opciono: Lista stavki se može poslati odmah prilikom kreiranja narudžbe
         // public List<CreateOrderItemDto> Items { get; set; } = new List<CreateOrderItemDto>();
+    }
+
+    public class OrderGetSellerDto
+    {
+        public int Id { get; set; }
+        public string BuyerId { get; set; } = string.Empty;
+        // Maybe add BuyerUserName/Email here (requires user lookup)
+        public string BuyerUserName { get; set; } = string.Empty;
+        public int StoreId { get; set; }
+        // Maybe add StoreName here (requires store lookup)
+        public string Status { get; set; }
+        public DateTime Time { get; set; }
+        public decimal? Total { get; set; }
+        public List<OrderItemGetDto> OrderItems { get; set; } = new List<OrderItemGetDto>();
     }
 
     // DTO za prikaz punih detalja narudžbe
