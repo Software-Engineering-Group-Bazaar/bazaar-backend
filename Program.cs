@@ -3,6 +3,7 @@ using Amazon.S3;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
+using Conversation.Data;
 using Inventory.Interfaces;
 using Inventory.Models;
 using Inventory.Services;
@@ -96,6 +97,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("InventoryConnection")));
     builder.Services.AddDbContext<ReviewDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ReviewConnection")));
     builder.Services.AddDbContext<AdDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("AdvertismentConnection")));
+    builder.Services.AddDbContext<ConversationDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ConversationConnection")));
 }
 
 builder.Services.AddHttpClient();
