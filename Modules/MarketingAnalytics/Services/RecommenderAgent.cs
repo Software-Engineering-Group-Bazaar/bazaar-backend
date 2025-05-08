@@ -11,7 +11,7 @@ namespace MarketingAnalytics.Services
     {
         private readonly double learingRate;
         private readonly double exploreThreshold;
-        public const int featureDimension = 9;
+        public const int featureDimension = 8;
         private readonly Random random = new Random();
         private readonly object _lock = new object();
 
@@ -71,11 +71,11 @@ namespace MarketingAnalytics.Services
             // CijenaKonverzija
             // Broj Konverzija sa adId
             // Broj Konverzija za userId sa adId
-            // Mathcing aktivnost (binarno)
+            // ]
+            // ---------
+            // Mathcing aktivnost (binarno) po ova zad 2 pravim kandidat listu uz vrijeme...
             // Matching pcat (binarno)
-            // #matchin pcat / ukupno
-            // #matching pcat u zad 7 dana / # akt u zad 7 dana
-            //]
+            //
             var f = new double[featureDimension];
             f[0] = 1;
             var normAd = new Normalizator<AdDbContext, Advertisment>(_context);
@@ -104,7 +104,8 @@ namespace MarketingAnalytics.Services
             );
 
             // f[4] netrivijalno naci klk je za svaku reklamu dao klikova iz tog niza vadim z
-
+            f[4] = await _context.Clicks.CountAsync(c => c.UserId == userId && c.AdvertismentId == ad.Id);
+            f[4] /= await _context.Clicks.CountAsync(c => c.UserId == userId);
             f[5] = await normAd.ZScore(
                 ad => ad.ConversionPrice,
                 ad => true,
@@ -117,8 +118,8 @@ namespace MarketingAnalytics.Services
             );
 
             // f[7] netrivijalno naci klk je za svaku reklamu dao konverzija iz tog niza vadim z
-
-
+            f[7] = await _context.Conversions.CountAsync(c => c.UserId == userId && c.AdvertismentId == ad.Id);
+            f[7] /= await _context.Conversions.CountAsync(c => c.UserId == userId);
 
             var normClick = new Normalizator<AdDbContext, Clicks>(_context);
 
@@ -149,9 +150,10 @@ namespace MarketingAnalytics.Services
             if (w != null)
                 return w.Weights;
             return [
-                    1.0, 1.0, 1.0,
-                    1.0, 1.0, 1.0,
-                    1.0, 1.0, 1.0
+                    1.0, 0.05,
+                    0.5, 0.6,
+                    0.75, 1.0,
+                    0.6, 1.0
                     ];
         }
 
@@ -176,7 +178,7 @@ namespace MarketingAnalytics.Services
 
         }
 
-        // zelim feature poslan i nagradu
+        // zelim feature poslan i nagradu ($)
         public async Task RecordRewardAsync(double[] featureVec, double reward, string userId)
         {
 
