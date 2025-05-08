@@ -77,7 +77,7 @@ namespace Inventory.Controllers
 
         // GET /api/Inventory
         [HttpGet]
-        [Authorize(Roles = "Admin, Seller")]
+        [Authorize(Roles = "Admin, Seller, Buyer")]
         [ProducesResponseType(typeof(IEnumerable<InventoryDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)] // Ako su filteri nevalidni (npr. negativni ID)
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

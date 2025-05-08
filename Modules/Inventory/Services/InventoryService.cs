@@ -145,28 +145,39 @@ namespace Inventory.Services
             _logger.LogInformation("Attempting to get inventory by User {UserId} (IsAdmin: {IsAdmin}). Filters - ProductId: {ProductId}, StoreId: {StoreId}",
                                    requestingUserId, isAdmin, productId?.ToString() ?? "N/A", storeId?.ToString() ?? "N/A");
 
-            // --- Autorizacija i određivanje ciljanog StoreId ---
             int? targetStoreId = storeId;
 
             if (!isAdmin)
             {
-                var sellerUser = await _userManager.FindByIdAsync(requestingUserId);
-                if (!sellerUser.StoreId.HasValue)
-                {
-                    _logger.LogWarning("Seller {UserId} attempted to get inventory but has no StoreId assigned.", requestingUserId);
-                    return Enumerable.Empty<InventoryDto>();
-                }
+                var user = await _userManager.FindByIdAsync(requestingUserId);
+                if (user == null) throw new KeyNotFoundException("Requesting user not found.");
 
-                if (targetStoreId.HasValue && targetStoreId.Value != sellerUser.StoreId.Value)
+                var roles = await _userManager.GetRolesAsync(user);
+
+                if (roles.Contains("Seller"))
                 {
-                    _logger.LogWarning("Seller {UserId} attempted to filter inventory for StoreId {FilterStoreId}, but owns StoreId {OwnedStoreId}. Forcing own StoreId.",
-                                       requestingUserId, targetStoreId.Value, sellerUser.StoreId.Value);
-                    targetStoreId = sellerUser.StoreId.Value;
+                    if (!user.StoreId.HasValue)
+                    {
+                        _logger.LogWarning("Seller {UserId} attempted to get inventory but has no StoreId assigned.", requestingUserId);
+                        return Enumerable.Empty<InventoryDto>();
+                    }
+
+                    if (targetStoreId.HasValue && targetStoreId.Value != user.StoreId.Value)
+                    {
+                        _logger.LogWarning("Seller {UserId} attempted to filter inventory for unauthorized StoreId {FilterStoreId}. Returning empty.",
+                                           requestingUserId, targetStoreId.Value);
+                        return Enumerable.Empty<InventoryDto>();
+                    }
+                    else
+                    {
+                        targetStoreId = user.StoreId.Value;
+                        _logger.LogInformation("Seller {UserId} getting inventory for their StoreId {StoreId}.", requestingUserId, targetStoreId);
+                    }
                 }
-                else if (!targetStoreId.HasValue)
+                else
                 {
-                    targetStoreId = sellerUser.StoreId.Value;
-                    _logger.LogInformation("Seller {UserId} getting inventory for their StoreId {StoreId}.", requestingUserId, targetStoreId);
+                    _logger.LogInformation("Non-Admin, Non-Seller User {UserId} getting inventory with filters ProductId: {ProductId}, StoreId: {StoreId}",
+                                 requestingUserId, productId?.ToString() ?? "N/A", targetStoreId?.ToString() ?? "N/A");
                 }
             }
 
@@ -185,7 +196,6 @@ namespace Inventory.Services
                 _logger.LogInformation("Applying filter: StoreId = {StoreId}", targetStoreId.Value);
             }
 
-            // --- Izvršavanje Upita za Inventory ---
             List<Models.Inventory> inventoryList;
             try
             {
@@ -259,12 +269,13 @@ namespace Inventory.Services
             {
                 _logger.LogInformation("Admin {UserId} updating inventory for StoreId {StoreId} from DTO.", requestingUserId, targetStoreId);
                 sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == targetStoreId);
-                if (sellerUser == null) _logger.LogWarning("Could not find Seller associated with StoreId {StoreId} for potential notifications.", targetStoreId);
+                if (sellerUser == null)
+                    _logger.LogWarning("Could not find Seller associated with StoreId {StoreId} for potential notifications.", targetStoreId);
             }
 
             // --- Pronalaženje Postojećeg Zapisa ---
             var inventoryItem = await _context.Inventories
-                                            .FirstOrDefaultAsync(inv => inv.ProductId == updateDto.ProductId && inv.StoreId == targetStoreId);
+                .FirstOrDefaultAsync(inv => inv.ProductId == updateDto.ProductId && inv.StoreId == targetStoreId);
 
             if (inventoryItem == null)
             {
@@ -273,16 +284,13 @@ namespace Inventory.Services
             }
 
             // --- Logika Ažuriranja ---
-            bool wasOutOfStock = inventoryItem.OutOfStock;
             int oldQuantity = inventoryItem.Quantity;
-
             inventoryItem.Quantity = updateDto.NewQuantity;
             inventoryItem.OutOfStock = inventoryItem.Quantity <= 0;
             inventoryItem.LastUpdated = DateTime.UtcNow;
 
             _context.Entry(inventoryItem).State = EntityState.Modified;
 
-            // --- Čuvanje i Notifikacije ---
             try
             {
                 await _context.SaveChangesAsync();
@@ -290,41 +298,52 @@ namespace Inventory.Services
                                        inventoryItem.Id, inventoryItem.ProductId, inventoryItem.StoreId, oldQuantity, inventoryItem.Quantity, inventoryItem.OutOfStock);
 
                 // --- PROVJERA I SLANJE NOTIFIKACIJE ---
-                if (!wasOutOfStock && inventoryItem.OutOfStock)
+                bool becameOutOfStock = oldQuantity > 0 && inventoryItem.Quantity == 0;
+                _logger.LogInformation("Checking OutOfStock transition: oldQuantity={OldQty}, newQuantity={NewQty}, becameOutOfStock={Became}", oldQuantity, inventoryItem.Quantity, becameOutOfStock);
+
+                if (becameOutOfStock)
                 {
                     _logger.LogInformation("Product {ProductId} in Store {StoreId} became OutOfStock. Initiating notifications.", inventoryItem.ProductId, inventoryItem.StoreId);
 
                     string? productName = await _catalogContext.Products
-                                                    .Where(p => p.Id == inventoryItem.ProductId)
-                                                    .Select(p => p.Name)
-                                                    .FirstOrDefaultAsync();
+                        .Where(p => p.Id == inventoryItem.ProductId)
+                        .Select(p => p.Name)
+                        .FirstOrDefaultAsync();
 
                     if (sellerUser != null)
                     {
                         string message = $"Proizvod '{productName ?? "N/A"}' (ID: {inventoryItem.ProductId}) u vašoj prodavnici je ostao bez zaliha!";
 
-                        // Kreiraj DB Notifikaciju
                         await _dbNotificationService.CreateNotificationAsync(
                             sellerUser.Id,
                             message,
                             inventoryItem.ProductId
                         );
 
-                        // Pošalji Push Notifikaciju
                         if (!string.IsNullOrWhiteSpace(sellerUser.FcmDeviceToken))
                         {
                             string pushTitle = "Proizvod Van Zaliha!";
                             var pushData = new Dictionary<string, string> {
-                                 { "productId", inventoryItem.ProductId.ToString() },
-                                 { "storeId", inventoryItem.StoreId.ToString() },
-                                 { "screen", "InventoryDetail" }
-                             };
+                        { "productId", inventoryItem.ProductId.ToString() },
+                        { "storeId", inventoryItem.StoreId.ToString() },
+                        { "screen", "InventoryDetail" }
+                    };
 
-                            Task<bool> pushTask;
+                            try
+                            {
+                                await _pushNotificationService.SendPushNotificationAsync(
+                                    sellerUser.FcmDeviceToken,
+                                    pushTitle,
+                                    message,
+                                    pushData
+                                );
 
-                            pushTask = _pushNotificationService.SendPushNotificationAsync(sellerUser.FcmDeviceToken, pushTitle, message, pushData);
-
-                            try { await pushTask; } catch (Exception ex) { _logger.LogError(ex, "Error sending OutOfStock push notification."); }
+                                _logger.LogInformation("OutOfStock push notification sent for ProductId {ProductId}, StoreId {StoreId}.", inventoryItem.ProductId, inventoryItem.StoreId);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Error sending OutOfStock push notification for ProductId {ProductId}, StoreId {StoreId}.", inventoryItem.ProductId, inventoryItem.StoreId);
+                            }
                         }
                         else
                         {
@@ -339,9 +358,10 @@ namespace Inventory.Services
 
                 // --- Mapiranje u DTO za povratak ---
                 string? finalProductName = await _catalogContext.Products
-                                                  .Where(p => p.Id == inventoryItem.ProductId)
-                                                  .Select(p => p.Name)
-                                                  .FirstOrDefaultAsync();
+                    .Where(p => p.Id == inventoryItem.ProductId)
+                    .Select(p => p.Name)
+                    .FirstOrDefaultAsync();
+
                 return new InventoryDto
                 {
                     Id = inventoryItem.Id,
@@ -369,6 +389,7 @@ namespace Inventory.Services
                 throw;
             }
         }
+
         public async Task<bool> DeleteInventoryAsync(string requestingUserId, bool isAdmin, int inventoryId)
         {
             _logger.LogInformation("Attempting to delete inventory record ID {InventoryId} by User {UserId} (IsAdmin: {IsAdmin}).",

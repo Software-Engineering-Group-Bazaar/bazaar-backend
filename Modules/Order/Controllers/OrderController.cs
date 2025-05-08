@@ -64,31 +64,49 @@ namespace Order.Controllers
 
         // GET /api//order
         [HttpGet]
-        [ProducesResponseType(typeof(IEnumerable<OrderGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(IEnumerable<OrderGetSellerDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<OrderGetDto>>> GetAllOrders()
+        public async Task<ActionResult<IEnumerable<OrderGetSellerDto>>> GetAllOrders()
         {
             _logger.LogInformation("Attempting to retrieve all orders.");
             try
             {
                 var orders = await _orderService.GetAllOrdersAsync();
+                var orderDtos = new List<OrderGetSellerDto>();
 
-                var orderDtos = orders.Select(o => new OrderGetDto
+                foreach (var o in orders)
                 {
-                    Id = o.Id,
-                    BuyerId = o.BuyerId,
-                    StoreId = o.StoreId,
-                    Status = o.Status.ToString(),
-                    Time = o.Time,
-                    Total = o.Total,
-                    OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                    string username = "";
+                    var buyer = await _userManager.FindByIdAsync(o.BuyerId);
+                    if (buyer == null)
                     {
-                        Id = oi.Id,
-                        ProductId = oi.ProductId,
-                        Price = oi.Price,
-                        Quantity = oi.Quantity
-                    }).ToList()
-                }).ToList();
+                        _logger.LogWarning("Buyer with ID {BuyerId} not found.", o.BuyerId);
+                    }
+                    else
+                    {
+                        username = buyer.UserName;
+                    }
+
+                    var orderDto = new OrderGetSellerDto
+                    {
+                        Id = o.Id,
+                        BuyerId = o.BuyerId,
+                        BuyerUserName = username,
+                        StoreId = o.StoreId,
+                        Status = o.Status.ToString(),
+                        Time = o.Time,
+                        Total = o.Total,
+                        OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                        {
+                            Id = oi.Id,
+                            ProductId = oi.ProductId,
+                            Price = oi.Price,
+                            Quantity = oi.Quantity
+                        }).ToList()
+                    };
+
+                    orderDtos.Add(orderDto);
+                }
 
                 _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
                 return Ok(orderDtos);
@@ -103,11 +121,11 @@ namespace Order.Controllers
         // GET /api/order/{id}
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin, Seller")]
-        [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(OrderGetSellerDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<OrderGetDto>> GetOrderById(int id)
+        public async Task<ActionResult<OrderGetSellerDto>> GetOrderById(int id)
         {
             _logger.LogInformation("Attempting to retrieve order with ID: {OrderId}", id);
             if (id <= 0)
@@ -126,10 +144,23 @@ namespace Order.Controllers
                     return NotFound($"Order with ID {id} not found.");
                 }
 
-                var orderDto = new OrderGetDto
+                var username = "";
+
+                var buyer = await _userManager.FindByIdAsync(order.BuyerId);
+                if (buyer == null)
+                {
+                    _logger.LogWarning("Buyer with ID {BuyerId} not found.", order.BuyerId);
+                }
+                else
+                {
+                    username = buyer.UserName;
+                }
+
+                var orderDto = new OrderGetSellerDto
                 {
                     Id = order.Id,
                     BuyerId = order.BuyerId,
+                    BuyerUserName = username,
                     StoreId = order.StoreId,
                     Status = order.Status.ToString(),
                     Time = order.Time,
@@ -161,7 +192,6 @@ namespace Order.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<OrderGetDto>> CreateOrder([FromBody] OrderCreateDto createDto)
         {
-
             var buyerUserIdForRequest = createDto.BuyerId;
             var storeIdForRequest = createDto.StoreId;
             var loggedInUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -174,6 +204,18 @@ namespace Order.Controllers
                 _logger.LogWarning("Create order request failed model validation. Errors: {@ModelState}", ModelState.Values.SelectMany(v => v.Errors));
                 return BadRequest(ModelState);
             }
+
+            foreach (var itemDto in createDto.OrderItems)
+            {
+                var inventoryList = await _inventoryService.GetInventoryAsync(loggedInUserId, isAdminRequest, itemDto.ProductId, storeIdForRequest);
+                var currentQty = inventoryList.FirstOrDefault()?.Quantity ?? 0;
+
+                if (itemDto.Quantity > currentQty)
+                {
+                    return BadRequest($"Nema dovoljno zaliha za proizvod ID {itemDto.ProductId}. Dostupno: {currentQty}, traženo: {itemDto.Quantity}.");
+                }
+            }
+
 
             OrderModel createdOrder;
             List<OrderItemGetDto> listitems = new List<OrderItemGetDto>();
@@ -190,11 +232,19 @@ namespace Order.Controllers
 
                     try
                     {
+                        var inventoryList = await _inventoryService.GetInventoryAsync(loggedInUserId, true, itemDto.ProductId, storeIdForRequest);
+                        var inventory = inventoryList.FirstOrDefault();
+
+                        if (inventory == null)
+                        {
+                            throw new InvalidOperationException($"Inventory not found for product ID {itemDto.ProductId}.");
+                        }
+
                         var updateInvDto = new UpdateInventoryQuantityRequestDto
                         {
                             ProductId = itemDto.ProductId,
                             StoreId = storeIdForRequest,
-                            NewQuantity = (await _inventoryService.GetInventoryAsync(loggedInUserId, true, itemDto.ProductId, storeIdForRequest)).First().Quantity - itemDto.Quantity
+                            NewQuantity = inventory.Quantity - itemDto.Quantity
                         };
                         await _inventoryService.UpdateQuantityAsync(loggedInUserId, isAdminRequest, updateInvDto);
                         _logger.LogInformation("Inventory updated for ProductId: {ProductId}, StoreId: {StoreId} after order item creation.", itemDto.ProductId, storeIdForRequest);
@@ -245,8 +295,8 @@ namespace Order.Controllers
                             string pushTitle = "Nova Narudžba!";
                             string pushBody = $"Dobili ste narudžbu #{createdOrder.Id}.";
                             var pushData = new Dictionary<string, string> {
-                            { "orderId", createdOrder.Id.ToString() },
-                            { "screen", "OrderDetail" } // Primjer za frontend navigaciju
+                        { "orderId", createdOrder.Id.ToString() },
+                        { "screen", "OrderDetail" }
                     };
 
                             await _pushNotificationService.SendPushNotificationAsync(
@@ -270,10 +320,9 @@ namespace Order.Controllers
                 }
 
                 _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder.Id);
-                // Return 201 Created with the location of the newly created resource and the resource itself
                 return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder.Id }, orderDto);
             }
-            catch (ArgumentException ex) // Catch specific exceptions from the service if possible
+            catch (ArgumentException ex)
             {
                 _logger.LogWarning(ex, "Failed to create order due to invalid arguments (BuyerId: {BuyerId}, StoreId: {StoreId})", createDto.BuyerId, createDto.StoreId);
                 return BadRequest(ex.Message);

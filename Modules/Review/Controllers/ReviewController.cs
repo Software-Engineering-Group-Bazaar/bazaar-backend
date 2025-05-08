@@ -1,10 +1,14 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Notifications.Interfaces;
 using Review.Interfaces; // Namespace promenjen
 using Review.Models; // Potreban za modele koje vraća servis
 using Review.Models.DTOs;
-using Users.Interface; // Namespace promenjen
+using Users.Interface;
+using Users.Models; // Namespace promenjen
 
 namespace Review.Controllers // Namespace promenjen
 {
@@ -16,12 +20,25 @@ namespace Review.Controllers // Namespace promenjen
         private readonly IReviewService _reviewService;
         private readonly IUserService _userService; // Dodato za mapiranje ID->Username
         private readonly ILogger<ReviewController> _logger;
+        private readonly INotificationService _notificationService;
+        private readonly UserManager<User> _userManager;
 
-        public ReviewController(IReviewService reviewService, IUserService userService, ILogger<ReviewController> logger)
+        private readonly IPushNotificationService _pushNotificationService;
+
+        public ReviewController(
+            IReviewService reviewService,
+            IUserService userService,
+            ILogger<ReviewController> logger,
+            UserManager<User> userManager,
+            INotificationService notificationService,
+            IPushNotificationService pushNotificationService)
         {
             _reviewService = reviewService;
             _userService = userService;
             _logger = logger;
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+            _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
         }
 
         // GET api/Review/store/{id}
@@ -237,7 +254,51 @@ namespace Review.Controllers // Namespace promenjen
                 IsApproved = createdReviewModel.IsApproved
             };
 
-            _logger.LogInformation("Review {ReviewId} created successfully for order {OrderId} by user {BuyerId}", createdReviewModel.Id, requestDto.OrderId, buyerId);
+            var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdReviewModel.StoreId);
+
+            if (sellerUser != null)
+            {
+                string notificationMessage = $"Nova recenzija #{createdReviewModel.Id} je kreirana za vašu prodavnicu.";
+
+                await _notificationService.CreateNotificationAsync(
+                        sellerUser.Id,
+                        notificationMessage,
+                        createdReviewModel.Id
+                    );
+                _logger.LogInformation("Notification creation task initiated for Seller {SellerUserId} for new Order {ReviewId}.", sellerUser.Id, createdReviewModel.Id);
+
+                if (!string.IsNullOrWhiteSpace(sellerUser.FcmDeviceToken))
+                {
+                    try
+                    {
+                        string pushTitle = "Nova Recenzija!";
+                        string pushBody = $"Dobili ste recenziju #{createdReviewModel.Id}.";
+                        var pushData = new Dictionary<string, string> {
+                        { "reviewId", createdReviewModel.Id.ToString() },
+                        { "screen", "ReviewDetail" }
+                    };
+
+                        await _pushNotificationService.SendPushNotificationAsync(
+                            sellerUser.FcmDeviceToken,
+                            pushTitle,
+                            pushBody,
+                            pushData
+                        );
+                        _logger.LogInformation("Push Notification task initiated for Seller {SellerUserId} for new review {ReviewId}.", sellerUser.Id, createdReviewModel.Id);
+                    }
+                    catch (Exception pushEx)
+                    {
+                        _logger.LogError(pushEx, "Failed to send Push Notification to Seller {SellerUserId} for Order {ReviewId}.", sellerUser.Id, createdReviewModel.Id);
+                    }
+                }
+
+            }
+            else
+            {
+                _logger.LogWarning("Could not find seller user for StoreId {StoreId} to send new review notification for review {ReviewId}.", createdReviewModel.StoreId, createdReviewModel.Id);
+            }
+
+            _logger.LogInformation("Review {ReviewId} created successfully for review {ReviewId} by user {BuyerId}", createdReviewModel.Id, requestDto.OrderId, buyerId);
             return CreatedAtAction(nameof(GetOrderReview), new { id = reviewDto.OrderId }, reviewDto);
         }
 
