@@ -131,7 +131,7 @@ namespace MarketingAnalytics.Services
             // )
 
 
-            return new double[1];
+            return f;
         }
 
         public async Task<double> ScoreAd(Advertisment ad, string userId)
@@ -154,12 +154,15 @@ namespace MarketingAnalytics.Services
                     1.0, 0.05,
                     0.5, 0.6,
                     0.75, 1.0,
-                    0.6, 1.0
+                    0.75, 1.0
                     ];
+            // vidjeno interesuje je nike swoosh
+
         }
 
         public async Task SetWeights(string userId, double[] weights)
         {
+            // sto ne opt 2 reda?
             var w = await _context.UserWeights.FirstOrDefaultAsync(w => w.UserId == userId);
             if (w == null)
             {
