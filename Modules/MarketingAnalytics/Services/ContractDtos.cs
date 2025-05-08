@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Http;
 
 namespace MarketingAnalytics.Services.DTOs
@@ -58,5 +59,11 @@ namespace MarketingAnalytics.Services.DTOs
 
         // Optional flag to explicitly remove the image without replacing it
         public bool RemoveCurrentImage { get; set; } = false;
+    }
+
+    public class AdFeaturePair
+    {
+        public Advertisment Ad { get; set; }
+        public double[] FeatureVec { get; set; }
     }
 }

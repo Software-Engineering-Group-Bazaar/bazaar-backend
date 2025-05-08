@@ -1,53 +1,190 @@
+using System.Reflection.Metadata;
+using System.Threading.Tasks;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
+using MarketingAnalytics.Services.DTOs;
+using Microsoft.EntityFrameworkCore;
 
 namespace MarketingAnalytics.Services
 {
-    public class RecommenderAgent : IRecommenderAgent
+    public class RecommenderAgent
     {
         private readonly double learingRate;
         private readonly double exploreThreshold;
-        public static readonly int featureDimension = 9;
+        public const int featureDimension = 9;
         private readonly Random random = new Random();
         private readonly object _lock = new object();
-        private double[] weights;
-        public RecommenderAgent(double learingRate = 0.01, double exploreThreshold = 0.1)
+
+        private readonly AdDbContext _context;
+        public RecommenderAgent(AdDbContext context, double learingRate = 0.01, double exploreThreshold = 0.1)
         {
             this.learingRate = learingRate;
             this.exploreThreshold = exploreThreshold;
-            weights = new double[featureDimension];
-            for (int i = 0; i < featureDimension; i++)
-                weights[i] = (random.NextDouble() - 0.5) * 1e-1;
+            _context = context;
         }
-        public (Advertisment Ad, double[] FeatureVec) Recommend(string userId, List<Advertisment> candidates)
+        public async Task<List<AdFeaturePair>> RecommendAsync(string userId, List<Advertisment> candidates, int N = 1)
         {
             if (!candidates.Any())
                 throw new InvalidDataException("No candidates provided");
             if (random.NextDouble() < exploreThreshold)
             {
                 var randAd = candidates[random.Next(candidates.Count)];
-                var features = FeatureEmbedding(userId, randAd);
-                return (randAd, features);
+                var features = await FeatureEmbedding(userId, randAd);
+                return new List<AdFeaturePair> {
+                    new AdFeaturePair {
+                        Ad = randAd,
+                        FeatureVec =features
+                        }
+                    }; // fuj
             }
+            var scoringTasks = candidates.Select(async ad => new
+            {
+                Object = ad,
+                Score = await ScoreAd(ad, userId)
+            }).ToList();
 
-            throw new NotImplementedException();
+            // Await all tasks to complete
+            var scoredObjects = await Task.WhenAll(scoringTasks);
+
+            var gradeTasks = scoredObjects
+                .OrderByDescending(x => x.Score)
+                .Take(N)
+                .Select(async x =>
+                    new AdFeaturePair
+                    {
+                        Ad = x.Object,
+                        FeatureVec = await FeatureEmbedding(userId, x.Object)
+                    }
+                );
+            var final = await Task.WhenAll(gradeTasks);
+            return final.ToList();
+
         }
-        public double[] FeatureEmbedding(string userId, Advertisment ad)
+        public async Task<double[]> FeatureEmbedding(string userId, Advertisment ad)
         {
+            // x = [ 
+            // bias
+            // CijenaViewa
+            // CijenaKlik
+            // Broj Klikova za adId
+            // Broj Klikova za userId sa ad Id
+            // CijenaKonverzija
+            // Broj Konverzija sa adId
+            // Broj Konverzija za userId sa adId
+            // Mathcing aktivnost (binarno)
+            // Matching pcat (binarno)
+            // #matchin pcat / ukupno
+            // #matching pcat u zad 7 dana / # akt u zad 7 dana
+            //]
             var f = new double[featureDimension];
             f[0] = 1;
+            var normAd = new Normalizator<AdDbContext, Advertisment>(_context);
+            var muViewPrice = await normAd.MeanAsync(
+                ad => ad.ViewPrice,
+                ad => true
+            );
+            var sViewPrice = await normAd.StdDevAsync(
+                ad => ad.ViewPrice,
+                ad => true
+            );
+            f[1] = await normAd.ZScore(
+                ad => ad.ViewPrice,
+                ad => true,
+                (double)ad.ViewPrice
+            );
+            f[2] = await normAd.ZScore(
+                ad => ad.ClickPrice,
+                ad => true,
+                (double)ad.ClickPrice
+            );
+            f[3] = await normAd.ZScore(
+                ad => ad.Clicks,
+                ad => true, // mozda po pcatid gleadti
+                (double)ad.Clicks
+            );
+
+            // f[4] netrivijalno naci klk je za svaku reklamu dao klikova iz tog niza vadim z
+
+            f[5] = await normAd.ZScore(
+                ad => ad.ConversionPrice,
+                ad => true,
+                (double)ad.ConversionPrice
+            );
+            f[6] = await normAd.ZScore(
+                ad => ad.Conversions,
+                ad => true, // mozda po pcatid gleadti
+                (double)ad.Conversions
+            );
+
+            // f[7] netrivijalno naci klk je za svaku reklamu dao konverzija iz tog niza vadim z
+
+            f[8]
+
+            var normClick = new Normalizator<AdDbContext, Clicks>(_context);
+
+
+            // f[4] = await normClick.ZScore(
+            //     click => ,
+            //     clicks => clicks.UserId == userId
+            // )
+
 
             return new double[1];
         }
-        public double Score(double[] featureVec)
+
+        public Task<double> ScoreAd(Advertisment ad, string userId)
         {
+            return Score(FeatureEmbedding(userId, ad), userId);
+        }
+        public async Task<double> Score(double[] featureVec, string userId)
+        {
+            var weights = await GetWeights(userId);
             double score = weights.Zip(featureVec, (x, y) => x * y).Sum();
             return score;
         }
 
-        public void RecordReward()
+        public async Task<double[]> GetWeights(string userId)
         {
-            throw new NotImplementedException();
+            var w = await _context.UserWeights.FirstOrDefaultAsync(w => w.UserId == userId);
+            if (w != null)
+                return w.Weights;
+            return new double[featureDimension] {
+                                    1.0, 1.0, 1.0,
+                                    1.0, 1.0, 1.0,
+                                    1.0, 1.0, 1.0
+                                                 };
+        }
+
+        public async Task SetWeights(string userId, double[] weights)
+        {
+            var w = await _context.UserWeights.FirstOrDefaultAsync(w => w.UserId == userId);
+            if (w == null)
+            {
+                await _context.AddAsync(new UserWeights
+                {
+                    Id = 0,
+                    Weights = weights,
+                    UserId = userId
+                });
+
+            }
+            else
+            {
+                w.Weights = weights;
+            }
+            await _context.SaveChangesAsync();
+
+        }
+
+        // zelim feature poslan i nagradu
+        public async Task RecordRewardAsync(double[] featureVec, double reward, string userId)
+        {
+
+            double eval = await Score(featureVec, userId);
+            double loss = reward - eval;
+            var weights = await GetWeights(userId);
+            weights = weights.Zip(featureVec, (x, y) => x - learingRate * loss * y).ToArray();
+            await SetWeights(userId, weights);
         }
     }
 }

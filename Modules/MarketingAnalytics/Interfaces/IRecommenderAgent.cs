@@ -4,7 +4,7 @@ namespace MarketingAnalytics.Interfaces
 {
     public interface IRecommenderAgent
     {
-        (Advertisment Ad, double[] FeatureVec) Recommend(string userId, List<Advertisment> candidates);
+        (Advertisment Ad, double[] FeatureVec) RecommendAsync(string userId, List<Advertisment> candidates);
         void RecordReward();
     }
 }
