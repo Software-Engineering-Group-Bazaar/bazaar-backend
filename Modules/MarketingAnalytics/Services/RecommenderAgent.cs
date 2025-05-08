@@ -118,7 +118,7 @@ namespace MarketingAnalytics.Services
 
             // f[7] netrivijalno naci klk je za svaku reklamu dao konverzija iz tog niza vadim z
 
-            f[8]
+
 
             var normClick = new Normalizator<AdDbContext, Clicks>(_context);
 
@@ -132,9 +132,9 @@ namespace MarketingAnalytics.Services
             return new double[1];
         }
 
-        public Task<double> ScoreAd(Advertisment ad, string userId)
+        public async Task<double> ScoreAd(Advertisment ad, string userId)
         {
-            return Score(FeatureEmbedding(userId, ad), userId);
+            return await Score(await FeatureEmbedding(userId, ad), userId);
         }
         public async Task<double> Score(double[] featureVec, string userId)
         {
@@ -148,11 +148,11 @@ namespace MarketingAnalytics.Services
             var w = await _context.UserWeights.FirstOrDefaultAsync(w => w.UserId == userId);
             if (w != null)
                 return w.Weights;
-            return new double[featureDimension] {
-                                    1.0, 1.0, 1.0,
-                                    1.0, 1.0, 1.0,
-                                    1.0, 1.0, 1.0
-                                                 };
+            return [
+                    1.0, 1.0, 1.0,
+                    1.0, 1.0, 1.0,
+                    1.0, 1.0, 1.0
+                    ];
         }
 
         public async Task SetWeights(string userId, double[] weights)
