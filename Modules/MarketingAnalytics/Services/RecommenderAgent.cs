@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MarketingAnalytics.Services
 {
+    // losa ideja realno, ovo je nada da korisniku zelje su poput ravni u R^8
     public class RecommenderAgent
     {
         private readonly double learingRate;
