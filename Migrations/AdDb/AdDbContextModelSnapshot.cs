@@ -149,6 +149,32 @@ namespace bazaar.Migrations.AdDb
                     b.ToTable("Conversions");
                 });
 
+            modelBuilder.Entity("MarketingAnalytics.Models.UserActivity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("InteractionType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProductCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("TimeStamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("UserActivities");
+                });
+
             modelBuilder.Entity("MarketingAnalytics.Models.Views", b =>
                 {
                     b.Property<int>("Id")
