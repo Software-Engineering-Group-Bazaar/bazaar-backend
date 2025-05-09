@@ -63,10 +63,12 @@ namespace MarketingAnalytics.Services
             return final.ToList();
 
         }
-        public List<double[]> FeatureEmbeddingList(string userId, List<Advertisment> ads)
+        public async Task<List<double[]>> FeatureEmbeddingListAsync(string userId, List<Advertisment> ads)
         {
-
-            throw new Exception();
+            var tasks = ads.Select(ad => FeatureEmbedding(userId, ad));
+            var results = await Task.WhenAll(tasks);
+            var allItems = results.ToList();
+            return allItems;
         }
         public async Task<List<Func<double, double>>> GetTransformFuncsAsync(string userId)
         {
@@ -156,51 +158,21 @@ namespace MarketingAnalytics.Services
             // Matching pcat (binarno)
             //
             var f = new double[featureDimension];
+            var transforms = await GetTransformFuncsAsync(userId);
             f[0] = 1;
             var normAd = new Normalizator<AdDbContext, Advertisment>(_context);
-            f[1] = await normAd.ZScore(
-                ad => ad.ViewPrice,
-                ad => true,
-                (double)ad.ViewPrice
-            );
-            f[2] = await normAd.ZScore(
-                ad => ad.ClickPrice,
-                ad => true,
-                (double)ad.ClickPrice
-            );
-            f[3] = await normAd.ZScore(
-                ad => ad.Clicks,
-                ad => true, // mozda po pcatid gleadti
-                (double)ad.Clicks
-            );
-
+            f[1] = transforms[1]((double)ad.ViewPrice);
+            f[2] = transforms[2]((double)ad.ClickPrice);
+            f[3] = transforms[3]((double)ad.Clicks);
             // f[4] netrivijalno naci klk je za svaku reklamu dao klikova iz tog niza vadim z
             f[4] = await _context.Clicks.CountAsync(c => c.UserId == userId && c.AdvertismentId == ad.Id);
             f[4] /= await _context.Clicks.CountAsync(c => c.UserId == userId);
-            f[5] = await normAd.ZScore(
-                ad => ad.ConversionPrice,
-                ad => true,
-                (double)ad.ConversionPrice
-            );
-            f[6] = await normAd.ZScore(
-                ad => ad.Conversions,
-                ad => true, // mozda po pcatid gleadti
-                (double)ad.Conversions
-            );
+            f[5] = transforms[5]((double)ad.ConversionPrice);
+            f[6] = transforms[6]((double)ad.Conversions);
 
             // f[7] netrivijalno naci klk je za svaku reklamu dao konverzija iz tog niza vadim z
             f[7] = await _context.Conversions.CountAsync(c => c.UserId == userId && c.AdvertismentId == ad.Id);
             f[7] /= await _context.Conversions.CountAsync(c => c.UserId == userId);
-
-            var normClick = new Normalizator<AdDbContext, Clicks>(_context);
-
-
-            // f[4] = await normClick.ZScore(
-            //     click => ,
-            //     clicks => clicks.UserId == userId
-            // )
-
-
             return f;
         }
 
