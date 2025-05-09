@@ -1,5 +1,6 @@
 using System.Reflection.Metadata;
 using System.Threading.Tasks;
+using Catalog.Models;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services.DTOs;
@@ -18,24 +19,54 @@ namespace MarketingAnalytics.Services
         private readonly object _lock = new object();
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly AdDbContext _context;
-        public RecommenderAgent(AdDbContext context, IServiceScopeFactory scopeFactory,
+        private readonly CatalogDbContext _catalogDbContext;
+        public RecommenderAgent(AdDbContext context, CatalogDbContext catalogDbContext, IServiceScopeFactory scopeFactory,
                             double learingRate = 0.01, double exploreThreshold = 0.1)
         {
             this.learingRate = learingRate;
             this.exploreThreshold = exploreThreshold;
             _scopeFactory = scopeFactory;
             _context = context;
+            _catalogDbContext = catalogDbContext;
         }
-        public List<AdFeaturePair> Recommend(string userId)
+        public async Task<List<AdFeaturePair>> RecommendAsync(string userId)
         {
             // random chacne odaberi bilo koju reklamu iz baze
-            // uzmi reklame koje imaju smisla i stavi u kandidat listu
+            if (random.NextDouble() < exploreThreshold)
+            {
+                int skipper = random.Next(0, _context.Advertisments.Count());
+                var randAd = _context
+                        .Advertisments
+                        .OrderBy(ad => Guid.NewGuid())
+                        .Skip(skipper)
+                        .FirstOrDefault();
+                var features = await FeatureEmbedding(userId, randAd);
+                return new List<AdFeaturePair> {
+                    new AdFeaturePair {
+                        Ad = randAd,
+                        FeatureVec = features
+                        }
+                    };
+
+            }
+
             // procjeni broj reklama sto se trb vidjeti 0+
             var dist = new LogNormal(0.2, 0.8);
             int N = (int)Math.Round(dist.Next()); // klk reklama poslati
-            // uzmi top N po RL
-            // vrati to
-            throw new Exception();
+            if (N == 0)
+                return new List<AdFeaturePair>();
+            // nabavi kandidate
+            var limitDate = DateTime.UtcNow.AddDays(-7);
+            var activities = await _context.UserActivities.
+                                    Where(activity => activity.UserId == userId && activity.TimeStamp > limitDate)
+                                    .ToListAsync();
+            var categories = activities.Select(a => a.ProductCategoryId);
+            var candidates = await _context.Advertisments.Where(ad => ad.IsActive &&
+            categories.Count(c => c == ad.ProductCategoryId) > 0).ToListAsync();
+            var triggers = activities.Aggregate(0, (acc, a) => acc ^ ((int)a.InteractionType));
+            var c = await _context.Advertisments.Where(ad => ad.IsActive && (triggers & ad.Triggers) != 0).ToListAsync();
+            candidates.AddRange(c);
+            return await RecommendCandidatesAsync(userId, candidates, N);
         }
 
         public async Task<List<AdFeaturePair>> RecommendCandidatesAsync(string userId, List<Advertisment> candidates, int N = 1)
@@ -100,7 +131,7 @@ namespace MarketingAnalytics.Services
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
                     ad => ad.ViewPrice,
-                    ad => true
+                    ad => ad.IsActive
                 );
             });
 
@@ -110,7 +141,7 @@ namespace MarketingAnalytics.Services
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
                     ad => ad.ClickPrice,
-                    ad => true
+                    ad => ad.IsActive
                 );
             });
 
@@ -120,7 +151,7 @@ namespace MarketingAnalytics.Services
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
                     ad => ad.Clicks,
-                    ad => true
+                    ad => ad.IsActive
                 );
             });
 
@@ -130,7 +161,7 @@ namespace MarketingAnalytics.Services
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
                     ad => ad.ConversionPrice,
-                    ad => true
+                    ad => ad.IsActive
                 );
             });
 
@@ -140,7 +171,7 @@ namespace MarketingAnalytics.Services
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
                     ad => ad.Conversions,
-                    ad => true
+                    ad => ad.IsActive
                 );
             });
             t[0] = x => 1;

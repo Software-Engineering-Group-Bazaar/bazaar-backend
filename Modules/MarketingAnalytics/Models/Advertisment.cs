@@ -18,5 +18,7 @@ namespace MarketingAnalytics.Models
         public bool IsActive { get; set; }
         public ICollection<AdData> AdData { get; } = new List<AdData>();
         public AdType AdType { get; set; } = AdType.Fixed;
+        public int Triggers { get; set; }
+        public int ProductCategoryId { get; set; }
     }
 }
