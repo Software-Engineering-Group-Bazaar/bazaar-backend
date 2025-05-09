@@ -27,6 +27,11 @@ namespace MarketingAnalytics.Services
         }
         public List<AdFeaturePair> Recommend(string userId)
         {
+            // random chacne odaberi bilo koju reklamu iz baze
+            // uzmi reklame koje imaju smisla i stavi u kandidat listu
+            // procjeni broj reklama sto se trb vidjeti 0+
+            // uzmi top N po RL
+            // vrati to
             throw new Exception();
         }
 
