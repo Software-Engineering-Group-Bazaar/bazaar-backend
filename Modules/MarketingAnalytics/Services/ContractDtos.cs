@@ -25,6 +25,9 @@ namespace MarketingAnalytics.Services.DTOs
         [Required]
         public DateTime EndTime { get; set; }
 
+        public AdType AdType { get; set; }
+        public int Triggers { get; set; }
+
         // Optional: Add other Advertisment properties if they are set during creation
         // public bool IsActive { get; set; } // Often determined by Start/End time
 
