@@ -99,6 +99,10 @@ namespace MarketingAnalytics.Services
                 EndTime = request.EndTime,
                 Views = 0, // Initialize counters
                 Clicks = 0,
+                Conversions = 0,
+                ViewPrice = 0,
+                ClickPrice = 0,
+                ConversionPrice = 0,
                 // Determine IsActive based on current time and dates - or set explicitly if needed
                 IsActive = DateTime.UtcNow >= request.StartTime && DateTime.UtcNow < request.EndTime,
                 ProductCategoryId = prod.ProductCategoryId,

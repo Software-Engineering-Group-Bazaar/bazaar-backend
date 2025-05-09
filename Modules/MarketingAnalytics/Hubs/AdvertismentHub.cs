@@ -53,8 +53,13 @@ namespace MarketingAnalytics.Hubs
                 EndTime = updatedAd.EndTime,
                 IsActive = updatedAd.IsActive,
                 Views = updatedAd.Views,
+                ViewPrice = updatedAd.ViewPrice,
                 Clicks = updatedAd.Clicks,
+                ClickPrice = updatedAd.ClickPrice,
                 Conversions = updatedAd.Conversions,
+                ConversionPrice = updatedAd.ConversionPrice,
+                AdType = updatedAd.AdType.ToString(),
+                Triggers = updatedAd.Triggers,
                 AdData = updatedAd.AdData.Select(ad => new AdDataDto
                 {
                     Id = ad.Id,

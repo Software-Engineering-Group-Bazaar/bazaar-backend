@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MarketingAnalytics.Dtos;
+using MarketingAnalytics.Models;
 
 // Namespace for Data Transfer Objects
 namespace MarketingAnalytics.DTOs
@@ -14,8 +15,13 @@ namespace MarketingAnalytics.DTOs
         public int Id { get; set; }
         public string SellerId { get; set; } = string.Empty; // Initialize non-nullable string
         public int Views { get; set; }
+        public decimal ViewPrice { get; set; }
         public int Clicks { get; set; }
+        public decimal ClickPrice { get; set; }
         public int Conversions { get; set; }
+        public decimal ConversionPrice { get; set; }
+        public string AdType { get; set; }
+        public int Triggers { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public bool IsActive { get; set; }

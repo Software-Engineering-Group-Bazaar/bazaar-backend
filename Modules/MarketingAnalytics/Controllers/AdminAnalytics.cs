@@ -51,7 +51,13 @@ namespace MarketingAnalytics.Controllers
                     EndTime = advertisement.EndTime,
                     IsActive = advertisement.IsActive,
                     Views = advertisement.Views,
+                    ViewPrice = advertisement.ViewPrice,
                     Clicks = advertisement.Clicks,
+                    ClickPrice = advertisement.ClickPrice,
+                    Conversions = advertisement.Conversions,
+                    ConversionPrice = advertisement.ConversionPrice,
+                    AdType = advertisement.AdType.ToString(),
+                    Triggers = advertisement.Triggers,
                     AdData = advertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -97,7 +103,13 @@ namespace MarketingAnalytics.Controllers
                     EndTime = advertisement.EndTime,
                     IsActive = advertisement.IsActive,
                     Views = advertisement.Views,
+                    ViewPrice = advertisement.ViewPrice,
                     Clicks = advertisement.Clicks,
+                    ClickPrice = advertisement.ClickPrice,
+                    Conversions = advertisement.Conversions,
+                    ConversionPrice = advertisement.ConversionPrice,
+                    AdType = advertisement.AdType.ToString(),
+                    Triggers = advertisement.Triggers,
                     AdData = advertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -146,6 +158,14 @@ namespace MarketingAnalytics.Controllers
                     StartTime = createdAdvertisement.StartTime,
                     EndTime = createdAdvertisement.EndTime,
                     IsActive = createdAdvertisement.IsActive,
+                    Views = createdAdvertisement.Views,
+                    ViewPrice = createdAdvertisement.ViewPrice,
+                    Clicks = createdAdvertisement.Clicks,
+                    ClickPrice = createdAdvertisement.ClickPrice,
+                    Conversions = createdAdvertisement.Conversions,
+                    ConversionPrice = createdAdvertisement.ConversionPrice,
+                    AdType = createdAdvertisement.AdType.ToString(),
+                    Triggers = createdAdvertisement.Triggers,
                     AdData = createdAdvertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -205,8 +225,14 @@ namespace MarketingAnalytics.Controllers
                     StartTime = updatedAdvertisement.StartTime,
                     EndTime = updatedAdvertisement.EndTime,
                     IsActive = updatedAdvertisement.IsActive,
-                    Clicks = updatedAdvertisement.Clicks,
                     Views = updatedAdvertisement.Views,
+                    ViewPrice = updatedAdvertisement.ViewPrice,
+                    Clicks = updatedAdvertisement.Clicks,
+                    ClickPrice = updatedAdvertisement.ClickPrice,
+                    Conversions = updatedAdvertisement.Conversions,
+                    ConversionPrice = updatedAdvertisement.ConversionPrice,
+                    AdType = updatedAdvertisement.AdType.ToString(),
+                    Triggers = updatedAdvertisement.Triggers,
                     AdData = updatedAdvertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
