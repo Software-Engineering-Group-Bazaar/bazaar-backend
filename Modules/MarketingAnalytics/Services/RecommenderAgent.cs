@@ -25,7 +25,12 @@ namespace MarketingAnalytics.Services
             _scopeFactory = scopeFactory;
             _context = context;
         }
-        public async Task<List<AdFeaturePair>> RecommendAsync(string userId, List<Advertisment> candidates, int N = 1)
+        public List<AdFeaturePair> Recommend(string userId)
+        {
+            throw new Exception();
+        }
+
+        public async Task<List<AdFeaturePair>> RecommendCandidatesAsync(string userId, List<Advertisment> candidates, int N = 1)
         {
             if (!candidates.Any())
                 throw new InvalidDataException("No candidates provided");
@@ -40,32 +45,32 @@ namespace MarketingAnalytics.Services
                         }
                     }; // fuj
             }
-            var scoringTasks = candidates.Select(async ad => new
+
+            var candidateFeatures = await FeatureEmbeddingListAsync(userId, candidates);
+            var weights = await GetWeights(userId);
+            var scoring = candidateFeatures.Select(f => Score(f, weights)).ToList();
+
+            List<int> topIndices = scoring
+                            .Select((value, index) => new { Value = value, Index = index })
+                            .OrderByDescending(x => x.Value)
+                            .Take(N)
+                            .Select(x => x.Index)
+                            .ToList();
+            var res = new List<AdFeaturePair>();
+            foreach (var index in topIndices)
             {
-                Object = ad,
-                Score = await ScoreAd(ad, userId)
-            }).ToList();
-
-            // Await all tasks to complete
-            var scoredObjects = await Task.WhenAll(scoringTasks);
-
-            var gradeTasks = scoredObjects
-                .OrderByDescending(x => x.Score)
-                .Take(N)
-                .Select(async x =>
-                    new AdFeaturePair
-                    {
-                        Ad = x.Object,
-                        FeatureVec = await FeatureEmbedding(userId, x.Object)
-                    }
-                );
-            var final = await Task.WhenAll(gradeTasks);
-            return final.ToList();
-
+                res.Add(new AdFeaturePair
+                {
+                    Ad = candidates[index],
+                    FeatureVec = candidateFeatures[index]
+                });
+            }
+            return res;
         }
+
         public async Task<List<double[]>> FeatureEmbeddingListAsync(string userId, List<Advertisment> ads)
         {
-            var tasks = ads.Select(ad => FeatureEmbedding(userId, ad));
+            var tasks = ads.Select(ad => FeatureEmbedding(userId, ad)).ToList();
             var results = await Task.WhenAll(tasks);
             var allItems = results.ToList();
             return allItems;
@@ -183,6 +188,12 @@ namespace MarketingAnalytics.Services
         public async Task<double> Score(double[] featureVec, string userId)
         {
             var weights = await GetWeights(userId);
+            double score = weights.Zip(featureVec, (x, y) => x * y).Sum();
+            return score;
+        }
+
+        public double Score(double[] featureVec, double[] weights)
+        {
             double score = weights.Zip(featureVec, (x, y) => x * y).Sum();
             return score;
         }
