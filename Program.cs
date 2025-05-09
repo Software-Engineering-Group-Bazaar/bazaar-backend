@@ -133,6 +133,7 @@ builder.Services.AddScoped<IOrderItemService, OrderItemService>();
 
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IAdService, AdService>();
+builder.Services.AddScoped<IRecommenderAgent, RecommenderAgent>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");

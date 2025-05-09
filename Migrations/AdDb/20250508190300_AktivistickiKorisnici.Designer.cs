@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace bazaar.Migrations.AdDb
 {
     [DbContext(typeof(AdDbContext))]
-    [Migration("20250508101348_AdsProsirenje")]
-    partial class AdsProsirenje
+    [Migration("20250508190300_AktivistickiKorisnici")]
+    partial class AktivistickiKorisnici
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -150,6 +150,32 @@ namespace bazaar.Migrations.AdDb
                     b.HasIndex("AdvertismentId");
 
                     b.ToTable("Conversions");
+                });
+
+            modelBuilder.Entity("MarketingAnalytics.Models.UserActivity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("InteractionType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProductCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("TimeStamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("UserActivities");
                 });
 
             modelBuilder.Entity("MarketingAnalytics.Models.Views", b =>

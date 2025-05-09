@@ -4,9 +4,12 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using AdminApi.DTOs;
 using Catalog.Dtos;
+using Catalog.Services;
 using Inventory.Dtos;
 using Inventory.Interfaces;
 using Inventory.Models;
+using MarketingAnalytics.Interfaces;
+using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -38,6 +41,8 @@ namespace Order.Controllers
         private readonly IPushNotificationService _pushNotificationService;
         private readonly IInventoryService _inventoryService;
         private readonly InventoryDbContext _inventoryContext;
+        private readonly IAdService _adService;
+        private readonly IProductService _productService;
 
 
         public OrderController(
@@ -48,7 +53,9 @@ namespace Order.Controllers
             INotificationService notificationService,
             IPushNotificationService pushNotificationService,
             IInventoryService inventoryService,
-            InventoryDbContext inventoryContext
+            InventoryDbContext inventoryContext,
+            IAdService adService,
+            IProductService productService
             )
 
         {
@@ -60,6 +67,8 @@ namespace Order.Controllers
             _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
             _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
             _inventoryContext = inventoryContext;
+            _adService = adService ?? throw new ArgumentNullException(nameof(adService));
+            _productService = productService ?? throw new ArgumentNullException(nameof(productService));
         }
 
         // GET /api//order
@@ -254,6 +263,27 @@ namespace Order.Controllers
                         _logger.LogError(invEx, "Failed to update inventory for ProductId {ProductId}, StoreId {StoreId} after order item creation. ORDER IS INCONSISTENT!", itemDto.ProductId, storeIdForRequest);
                         throw new InvalidOperationException($"Insufficient stock for product ID {itemDto.ProductId} discovered during update.");
                     }
+
+
+                    // Biljezenje podataka za reklame
+
+                    var product = await _productService.GetProductByIdAsync(itemDto.ProductId);
+
+                    if (product == null)
+                    {
+                        throw new Exception($"Failed to find product with id {itemDto.ProductId}.");
+                    }
+
+                    await _adService.CreateUserActivityAsync(new UserActivity
+                    {
+                        Id = 0,
+                        UserId = buyerUserIdForRequest,
+                        ProductCategoryId = product.ProductCategoryId,
+                        TimeStamp = DateTime.Now,
+                        InteractionType = InteractionType.Order
+                    });
+
+
 
                     listitems.Add(new OrderItemGetDto
                     {
