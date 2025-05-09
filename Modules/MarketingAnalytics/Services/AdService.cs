@@ -597,7 +597,7 @@ namespace MarketingAnalytics.Services
                 throw new ArgumentNullException(nameof(userActivity));
             }
 
-            userActivity.TimeStamp = DateTime.Now;
+            userActivity.TimeStamp = DateTime.UtcNow;
 
             if (string.IsNullOrWhiteSpace(userActivity.UserId))
             {
@@ -605,7 +605,7 @@ namespace MarketingAnalytics.Services
                 throw new ArgumentException("UserId ne može biti prazan.", nameof(userActivity.UserId));
             }
 
-            var category = _productCategoryService.GetCategoryByIdAsync(userActivity.ProductCategoryId);
+            var category = await _productCategoryService.GetCategoryByIdAsync(userActivity.ProductCategoryId);
 
             if (category == null)
             {
@@ -613,9 +613,9 @@ namespace MarketingAnalytics.Services
                 throw new ArgumentException("ProductCategoryId mora biti validan.", nameof(userActivity.ProductCategoryId));
             }
 
-            var user = _userService.GetUserWithIdAsync(userActivity.UserId);
+            var user = await _userService.GetUserWithIdAsync(userActivity.UserId);
 
-            if (category == null)
+            if (user == null)
             {
                 _logger.LogWarning("Pokušaj kreiranja UserActivity sa nevalidnim UserId: {UserId}", userActivity.UserId);
                 throw new ArgumentException("UserId mora biti validan.", nameof(userActivity.UserId));
@@ -674,7 +674,7 @@ namespace MarketingAnalytics.Services
             {
                 UserId = clickDto.UserId,
                 AdvertismentId = clickDto.AdvertisementId,
-                Timestamp = DateTime.Now
+                Timestamp = DateTime.UtcNow
             };
 
             _context.Clicks.Add(newClick);
@@ -703,7 +703,7 @@ namespace MarketingAnalytics.Services
             {
                 UserId = viewDto.UserId,
                 AdvertismentId = viewDto.AdvertisementId,
-                Timestamp = DateTime.Now
+                Timestamp = DateTime.UtcNow
             };
 
             _context.Views.Add(newView);
@@ -721,7 +721,7 @@ namespace MarketingAnalytics.Services
             var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == conversionDto.AdvertisementId);
             if (!advertisementExists)
             {
-                _logger.LogWarning("Pokušaj bilježenja conversiona za nepostojeći oglas ID: {AdvertisementId}", conversionDto.AdvertisementId);
+                _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", conversionDto.AdvertisementId);
                 return null;
             }
 
@@ -729,16 +729,158 @@ namespace MarketingAnalytics.Services
             {
                 UserId = conversionDto.UserId,
                 AdvertismentId = conversionDto.AdvertisementId,
-                Timestamp = DateTime.Now
+                Timestamp = DateTime.UtcNow
             };
 
             _context.Conversions.Add(newConversion);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Zabilježen klik ID: {ClickId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
+            _logger.LogInformation("Zabilježena konverzija ID: {ClickId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
                 newConversion.Id, newConversion.UserId, newConversion.AdvertismentId);
 
             return newConversion;
+        }
+
+
+        public async Task<ICollection<DateTime>> GetClicksTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null)
+        {
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == advertismentId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", advertismentId);
+                return new List<DateTime>();
+            }
+
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("GetClicksTimestampsAsync pozvan sa 'from' datumom ({FromDate}) kasnijim od 'to' datuma ({ToDate}) za oglas ID: {AdvertismentId}.", from.Value, to.Value, advertismentId);
+                return new List<DateTime>();
+            }
+
+            try
+            {
+                IQueryable<Clicks> query = _context.Clicks
+                    .Where(click => click.AdvertismentId == advertismentId);
+
+                if (from.HasValue)
+                {
+                    query = query.Where(click => click.Timestamp >= from.Value);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(click => click.Timestamp <= to.Value);
+                }
+
+                var timestamps = await query
+                    .OrderBy(click => click.Timestamp)
+                    .Select(click => click.Timestamp)
+                    .ToListAsync();
+
+                return timestamps;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih zapisa klikova za oglas ID: {AdvertismentId}, u opsegu od {FromDate} do {ToDate}.",
+                    advertismentId,
+                    from.HasValue ? from.Value.ToString("o") : "N/A", // "o" format za ISO 8601
+                    to.HasValue ? to.Value.ToString("o") : "N/A");
+                throw;
+            }
+        }
+
+        public async Task<ICollection<DateTime>> GetViewsTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null)
+        {
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == advertismentId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", advertismentId);
+                return new List<DateTime>();
+            }
+
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("GetViewsTimestampsAsync pozvan sa 'from' datumom ({FromDate}) kasnijim od 'to' datuma ({ToDate}) za oglas ID: {AdvertismentId}.", from.Value, to.Value, advertismentId);
+                return new List<DateTime>();
+            }
+
+            try
+            {
+                IQueryable<Views> query = _context.Views
+                    .Where(view => view.AdvertismentId == advertismentId);
+
+                if (from.HasValue)
+                {
+                    query = query.Where(view => view.Timestamp >= from.Value);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(view => view.Timestamp <= to.Value);
+                }
+
+                var timestamps = await query
+                    .OrderBy(view => view.Timestamp)
+                    .Select(view => view.Timestamp)
+                    .ToListAsync();
+
+                return timestamps;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih zapisa pregleda za oglas ID: {AdvertismentId}, u opsegu od {FromDate} do {ToDate}.",
+                    advertismentId,
+                    from.HasValue ? from.Value.ToString("o") : "N/A", // "o" format za ISO 8601
+                    to.HasValue ? to.Value.ToString("o") : "N/A");
+                throw;
+            }
+        }
+
+        public async Task<ICollection<DateTime>> GetConversionsTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null)
+        {
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == advertismentId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", advertismentId);
+                return new List<DateTime>();
+            }
+
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("GetConversionsTimestampsAsync pozvan sa 'from' datumom ({FromDate}) kasnijim od 'to' datuma ({ToDate}) za oglas ID: {AdvertismentId}.", from.Value, to.Value, advertismentId);
+                return new List<DateTime>();
+            }
+
+            try
+            {
+                IQueryable<Conversions> query = _context.Conversions
+                    .Where(conversion => conversion.AdvertismentId == advertismentId);
+
+                if (from.HasValue)
+                {
+                    query = query.Where(conversion => conversion.Timestamp >= from.Value);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(conversion => conversion.Timestamp <= to.Value);
+                }
+
+                var timestamps = await query
+                    .OrderBy(conversion => conversion.Timestamp)
+                    .Select(conversion => conversion.Timestamp)
+                    .ToListAsync();
+
+                return timestamps;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih zapisa konverzija za oglas ID: {AdvertismentId}, u opsegu od {FromDate} do {ToDate}.",
+                    advertismentId,
+                    from.HasValue ? from.Value.ToString("o") : "N/A", // "o" format za ISO 8601
+                    to.HasValue ? to.Value.ToString("o") : "N/A");
+                throw;
+            }
         }
 
     }
