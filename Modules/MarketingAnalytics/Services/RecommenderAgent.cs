@@ -10,7 +10,7 @@ using SharedKernel.MathUtil;
 namespace MarketingAnalytics.Services
 {
     // losa ideja realno, ovo je nada da korisniku zelje su poput ravni u R^8
-    public class RecommenderAgent
+    public class RecommenderAgent : IRecommenderAgent
     {
         private readonly double learingRate;
         private readonly double exploreThreshold;
