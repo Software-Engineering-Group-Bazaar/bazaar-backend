@@ -1,4 +1,3 @@
-using AutoMapper;
 using Catalog.Interfaces;
 using Catalog.Services;
 using MarketingAnalytics.DTOs;
@@ -23,14 +22,12 @@ namespace MarketingAnalytics.Services
         private readonly IUserService _userService;
         private readonly ILogger<AdService> _logger;
         private readonly IHubContext<AdvertisementHub> _hubContext; // <<< ADD THIS FIELD
-        private readonly IMapper _mapper;
 
         public AdService(AdDbContext context, IImageStorageService imageStorageService,
                         IStoreService storeService, IProductService productService,
                         IUserService userService,
                         ILogger<AdService> logger,
-                        IHubContext<AdvertisementHub> hubContext,
-                        IMapper mapper) // <<< ADD hubContext PARAMETER
+                        IHubContext<AdvertisementHub> hubContext)
         {
             _context = context;
             _imageStorageService = imageStorageService;
@@ -39,7 +36,6 @@ namespace MarketingAnalytics.Services
             _userService = userService;
             _logger = logger;
             _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext)); // <<< ASSIGN hubContext TO FIELD
-            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         }
 
         public async Task<IEnumerable<Advertisment>> GetAllAdvertisementsAsync()
@@ -182,21 +178,6 @@ namespace MarketingAnalytics.Services
                 _logger.LogInformation("Successfully created Advertisment with Id {AdvertismentId} and {AdDataCount} AdData items.",
                     newAdvertisment.Id, newAdvertisment.AdData.Count);
 
-                // --- Reload, Map & Send SignalR ---
-                var createdEntity = await _context.Advertisments.Include(a => a.AdData).AsNoTracking().FirstOrDefaultAsync(a => a.Id == newAdvertisment.Id);
-                if (createdEntity != null)
-                {
-                    try
-                    {
-                        var dto = _mapper.Map<AdvertismentDto>(createdEntity); // <<< Use AutoMapper
-                        _logger.LogInformation("Attempting to send SignalR message 'AdvertisementCreated' for Ad ID {AdvertisementId}...", dto.Id);
-                        await _hubContext.Clients.All.SendAsync("AdvertisementCreated", dto); // <<< Send
-                        _logger.LogInformation("SignalR message 'AdvertisementCreated' sent for Ad ID {AdvertisementId}.", dto.Id); // Optional: log success
-                    }
-                    catch (Exception ex) { _logger.LogError(ex, "Error sending SignalR create notification for Ad {AdId}", newAdvertisment.Id); }
-                }
-                // --------------------------------
-
                 return newAdvertisment; // Return the saved entity with its generated Id
             }
             catch (DbUpdateException ex)
@@ -322,18 +303,7 @@ namespace MarketingAnalytics.Services
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Successfully updated Advertisment with Id {AdvertismentId}.", advertismentId);
 
-                // --- Reload, Map & Send SignalR ---
                 var updatedEntity = await _context.Advertisments.Include(a => a.AdData).AsNoTracking().FirstOrDefaultAsync(a => a.Id == advertismentId);
-                if (updatedEntity != null)
-                {
-                    try
-                    {
-                        var dto = _mapper.Map<AdvertismentDto>(updatedEntity); // <<< Use AutoMapper
-                        await _hubContext.Clients.All.SendAsync("AdvertisementUpdated", dto); // <<< Send
-                    }
-                    catch (Exception ex) { _logger.LogError(ex, "Error sending SignalR update notification for Ad {AdId}", advertismentId); }
-                }
-                // ---------------------------------
                 return updatedEntity;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -549,19 +519,6 @@ namespace MarketingAnalytics.Services
                     await DeleteImageInternalAsync(oldImageUrl, $"AdData Id {adDataId}");
                 }
 
-                // --- Optional: Reload Parent, Map & Send SignalR Update ---
-                var parentAd = await _context.Advertisments.Include(a => a.AdData).AsNoTracking().FirstOrDefaultAsync(a => a.Id == adData.AdvertismentId);
-                if (parentAd != null)
-                {
-                    try
-                    {
-                        var dto = _mapper.Map<AdvertismentDto>(parentAd); // <<< Use AutoMapper
-                        await _hubContext.Clients.All.SendAsync("AdvertisementUpdated", dto); // <<< Send
-                    }
-                    catch (Exception ex) { _logger.LogError(ex, "Error sending SignalR AdData update notification for Ad {AdId}", parentAd.Id); }
-                }
-                // ---------------------------------------------------------
-
                 return adData;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -623,19 +580,6 @@ namespace MarketingAnalytics.Services
                     _logger.LogInformation("Attempting to delete image '{ImageUrlToDelete}' for deleted AdData Id {AdDataId}.", imageUrlToDelete, adDataId);
                     await DeleteImageInternalAsync(imageUrlToDelete, $"AdData Id {adDataId}");
                 }
-
-                // --- Optional: Reload Parent, Map & Send SignalR Update ---
-                var parentAd = await _context.Advertisments.Include(a => a.AdData).AsNoTracking().FirstOrDefaultAsync(a => a.Id == parentAdId);
-                if (parentAd != null)
-                {
-                    try
-                    {
-                        var dto = _mapper.Map<AdvertismentDto>(parentAd); // <<< Use AutoMapper
-                        await _hubContext.Clients.All.SendAsync("AdvertisementUpdated", dto); // <<< Send
-                    }
-                    catch (Exception ex) { _logger.LogError(ex, "Error sending SignalR AdData delete notification for Ad {AdId}", parentAdId); }
-                }
-                // ---------------------------------------------------------
 
                 return true;
             }
