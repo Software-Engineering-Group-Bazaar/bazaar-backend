@@ -358,5 +358,152 @@ namespace MarketingAnalytics.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, $"An internal error occurred: {ex.Message}");
             }
         }
+
+        [HttpGet("advertisement/{advertismentId:int}/clicks")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ICollection<DateTime>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetClickTimestamps(
+        [FromRoute] int advertismentId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+        {
+            _logger.LogInformation("Pokušaj dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}, od: {FromDate}, do: {ToDate}",
+                advertismentId,
+                from?.ToString("o") ?? "N/A",
+                to?.ToString("o") ?? "N/A");
+
+            // Osnovna validacija ulaznih parametara
+            if (advertismentId <= 0)
+            {
+                _logger.LogWarning("Nevalidan advertismentId ({AdvertismentId}) prosleđen.", advertismentId);
+                return BadRequest("ID oglasa mora biti pozitivan broj.");
+            }
+
+            // Validacija opsega datuma (ako su oba zadata)
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("Nevalidan opseg datuma: 'from' ({FromDate}) je posle 'to' ({ToDate}) za oglas ID: {AdvertismentId}.",
+                    from.Value, to.Value, advertismentId);
+                return BadRequest("Početni datum ne može biti posle krajnjeg datuma.");
+            }
+
+            try
+            {
+                var timestamps = await _adService.GetClicksTimestampsAsync(advertismentId, from, to);
+
+                return Ok(timestamps);
+            }
+            // Specifični izuzeci iz servisa ako ih ima i želite drugačije da ih tretirate
+            // catch (AdvertisementNotFoundException ex) // Primer custom izuzetka
+            // {
+            //     _logger.LogWarning(ex, "Oglas nije pronađen prilikom dohvatanja klikova za ID: {AdvertismentId}", advertismentId);
+            //     return NotFound(ex.Message);
+            // }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}.", advertismentId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška na serveru prilikom dohvatanja podataka o klikovima.");
+            }
+        }
+
+        [HttpGet("advertisement/{advertismentId:int}/views")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ICollection<DateTime>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetViewTimestamps(
+        [FromRoute] int advertismentId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+        {
+            _logger.LogInformation("Pokušaj dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}, od: {FromDate}, do: {ToDate}",
+                advertismentId,
+                from?.ToString("o") ?? "N/A",
+                to?.ToString("o") ?? "N/A");
+
+            // Osnovna validacija ulaznih parametara
+            if (advertismentId <= 0)
+            {
+                _logger.LogWarning("Nevalidan advertismentId ({AdvertismentId}) prosleđen.", advertismentId);
+                return BadRequest("ID oglasa mora biti pozitivan broj.");
+            }
+
+            // Validacija opsega datuma (ako su oba zadata)
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("Nevalidan opseg datuma: 'from' ({FromDate}) je posle 'to' ({ToDate}) za oglas ID: {AdvertismentId}.",
+                    from.Value, to.Value, advertismentId);
+                return BadRequest("Početni datum ne može biti posle krajnjeg datuma.");
+            }
+
+            try
+            {
+                var timestamps = await _adService.GetViewsTimestampsAsync(advertismentId, from, to);
+
+                return Ok(timestamps);
+            }
+            // Specifični izuzeci iz servisa ako ih ima i želite drugačije da ih tretirate
+            // catch (AdvertisementNotFoundException ex) // Primer custom izuzetka
+            // {
+            //     _logger.LogWarning(ex, "Oglas nije pronađen prilikom dohvatanja klikova za ID: {AdvertismentId}", advertismentId);
+            //     return NotFound(ex.Message);
+            // }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}.", advertismentId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška na serveru prilikom dohvatanja podataka o klikovima.");
+            }
+        }
+
+        [HttpGet("advertisement/{advertismentId:int}/conversions")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ICollection<DateTime>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetConversionTimestamps(
+        [FromRoute] int advertismentId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+        {
+            _logger.LogInformation("Pokušaj dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}, od: {FromDate}, do: {ToDate}",
+                advertismentId,
+                from?.ToString("o") ?? "N/A",
+                to?.ToString("o") ?? "N/A");
+
+            // Osnovna validacija ulaznih parametara
+            if (advertismentId <= 0)
+            {
+                _logger.LogWarning("Nevalidan advertismentId ({AdvertismentId}) prosleđen.", advertismentId);
+                return BadRequest("ID oglasa mora biti pozitivan broj.");
+            }
+
+            // Validacija opsega datuma (ako su oba zadata)
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("Nevalidan opseg datuma: 'from' ({FromDate}) je posle 'to' ({ToDate}) za oglas ID: {AdvertismentId}.",
+                    from.Value, to.Value, advertismentId);
+                return BadRequest("Početni datum ne može biti posle krajnjeg datuma.");
+            }
+
+            try
+            {
+                var timestamps = await _adService.GetConversionsTimestampsAsync(advertismentId, from, to);
+
+                return Ok(timestamps);
+            }
+            // Specifični izuzeci iz servisa ako ih ima i želite drugačije da ih tretirate
+            // catch (AdvertisementNotFoundException ex) // Primer custom izuzetka
+            // {
+            //     _logger.LogWarning(ex, "Oglas nije pronađen prilikom dohvatanja klikova za ID: {AdvertismentId}", advertismentId);
+            //     return NotFound(ex.Message);
+            // }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}.", advertismentId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška na serveru prilikom dohvatanja podataka o klikovima.");
+            }
+        }
     }
 }

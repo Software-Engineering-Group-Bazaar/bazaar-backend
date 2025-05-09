@@ -18,5 +18,8 @@ namespace MarketingAnalytics.Interfaces
         Task<Clicks?> RecordClickAsync(AdStatsDto clickDto);
         Task<Views?> RecordViewAsync(AdStatsDto viewDto);
         Task<Conversions?> RecordConversionAsync(AdStatsDto conversionDto);
+        Task<ICollection<DateTime>> GetClicksTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null);
+        Task<ICollection<DateTime>> GetViewsTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null);
+        Task<ICollection<DateTime>> GetConversionsTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null);
     }
 }

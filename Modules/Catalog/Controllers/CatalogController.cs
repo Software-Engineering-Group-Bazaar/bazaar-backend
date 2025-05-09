@@ -6,6 +6,8 @@ using Catalog.DTO;
 using Catalog.Dtos;
 using Catalog.Models;
 using Catalog.Services;
+using MarketingAnalytics.Interfaces;
+using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging; // Required for logging
@@ -22,19 +24,21 @@ namespace Catalog.Controllers
 
         private readonly IProductService _productService;
         private readonly IProductCategoryService _categoryService;
-
+        private readonly IAdService _adService;
         private readonly IStoreService _storeService;
 
         // Konstruktor sada prima samo servise
         public CatalogController(
             IProductService productService,
             IProductCategoryService categoryService,
-            IStoreService storeService)
+            IStoreService storeService,
+            IAdService adService)
 
         {
             _productService = productService ?? throw new ArgumentNullException(nameof(productService));
             _categoryService = categoryService ?? throw new ArgumentNullException(nameof(categoryService));
             _storeService = storeService ?? throw new ArgumentNullException(nameof(storeService));
+            _adService = adService ?? throw new ArgumentNullException(nameof(adService));
         }
 
         // --- Akcije za Kategorije (ProductCategory) ---
@@ -587,10 +591,17 @@ namespace Catalog.Controllers
         [ProducesResponseType(400)]
         public async Task<ActionResult<IEnumerable<ProductsByStoresGetDto>>> FilterProducts([FromQuery] FilterBodyDto filterBodyDto)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("User ID claim not found."); // 401 Unauthorized
+            }
+
             int regionId = 0;
             List<int> placesId = new List<int>();
             int categoryId = 0;
             filterBodyDto.query = filterBodyDto.query.Trim().ToLower();
+            bool nestoFiltrirano = false;
 
             if (!string.IsNullOrEmpty(filterBodyDto.region))
             {
@@ -598,6 +609,7 @@ namespace Catalog.Controllers
                 if (reg != null)
                 {
                     regionId = reg.Id;
+                    nestoFiltrirano = true;
                 }
             }
 
@@ -614,6 +626,8 @@ namespace Catalog.Controllers
                 .Where(rezultat => rezultat != null)
                 .Select(rezultat => rezultat!.Id)
                 .ToList();
+
+                nestoFiltrirano = true;
             }
 
             if (!string.IsNullOrEmpty(filterBodyDto.category))
@@ -623,7 +637,13 @@ namespace Catalog.Controllers
                 if (cat != null)
                 {
                     categoryId = cat.Id;
+                    nestoFiltrirano = true;
                 }
+            }
+
+            if (!string.IsNullOrEmpty(filterBodyDto.query) && !string.IsNullOrWhiteSpace(filterBodyDto.query))
+            {
+                nestoFiltrirano = true;
             }
 
             List<StoreModel>? stores = null;
@@ -675,6 +695,29 @@ namespace Catalog.Controllers
                     IsActive = product.IsActive,
                     Photos = product.Pictures.Select(photo => photo.Url).ToList()
                 }).ToList();
+
+                // Console.WriteLine("Filtrirano? {0}", nestoFiltrirano.ToString());
+
+                if (nestoFiltrirano)
+                {
+                    // var tasks = products.Select(product => _adService.CreateUserActivityAsync(new UserActivity
+                    // {
+                    //     UserId = userId,
+                    //     ProductCategoryId = product.ProductCategoryId,
+                    //     InteractionType = InteractionType.Search
+                    // }));
+                    // var results = await Task.WhenAll(tasks);
+
+                    foreach (var product in products)
+                    {
+                        await _adService.CreateUserActivityAsync(new UserActivity
+                        {
+                            UserId = userId,
+                            ProductCategoryId = product.ProductCategoryId,
+                            InteractionType = InteractionType.Search
+                        });
+                    }
+                }
 
                 if (productsInDto.Count > 0)
                 {

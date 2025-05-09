@@ -1,11 +1,14 @@
 // Controllers/ClicksController.cs
+using System.Security.Claims;
 using System.Threading.Tasks;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace MarketingAnalytics.Controllers
 {
     [Route("api/[controller]")]
+    [Authorize]
     [ApiController]
     public class AdsController : ControllerBase
     {
@@ -18,40 +21,143 @@ namespace MarketingAnalytics.Controllers
             _logger = logger;
         }
 
-        // POST: api/clicks
-        [HttpPost]
+        // POST: api/Ads/clicks/{id}
+        [HttpPost("clicks/{id}")]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Clicks))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> RecordClick([FromBody] AdStatsDto clickDto)
+        public async Task<IActionResult> RecordClick(int id)
         {
-            if (!ModelState.IsValid)
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
             {
-                _logger.LogWarning("Neuspjela validacija za bilježenje klika: {@ModelState}", ModelState);
-                return BadRequest(ModelState);
+                _logger.LogWarning("[AdsController] CreateOrder - Could not find user ID claim for the authenticated user.");
+                return Unauthorized("User ID claim not found."); // 401 Unauthorized
             }
 
             try
             {
-                var recordedClick = await _adService.RecordClickAsync(clickDto);
+                var recordedClick = await _adService.RecordClickAsync(new AdStatsDto
+                {
+                    UserId = userId,
+                    AdvertisementId = id
+                });
 
                 if (recordedClick == null)
                 {
                     // Ovo se događa ako oglas nije pronađen u servisu
-                    return NotFound($"Oglas s ID-om {clickDto.AdvertisementId} nije pronađen.");
+                    return NotFound($"Oglas s ID-om {id} nije pronađen.");
                 }
 
-                // Vraća 201 Created s lokacijom novog resursa (ako imate GetById endpoint)
-                // i tijelom novokreiranog klika.
-                // Za jednostavnost, možemo samo vratiti objekt.
-                // return CreatedAtAction(nameof(GetClickById), new { id = recordedClick.Id }, recordedClick);
-                // Ako nemate GetClickById, jednostavniji je Ok() ili Created() bez lokacije.
-                return Created($"/api/clicks/{recordedClick.Id}", recordedClick); // Pretpostavka da ćete imati GetById
+                return StatusCode(StatusCodes.Status201Created, recordedClick);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Greška prilikom bilježenja klika za UserId: {UserId}, AdId: {AdvertisementId}", clickDto.UserId, clickDto.AdvertisementId);
+                _logger.LogError(ex, "Greška prilikom bilježenja klika za AdId: {AdvertisementId}", id);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška na serveru prilikom bilježenja klika.");
+            }
+        }
+
+        // POST: api/Ads/conversions/{id}
+        [HttpPost("conversions/{id}")]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Conversions))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> RecordConversion(int id)
+        {
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogWarning("[AdsController] CreateOrder - Could not find user ID claim for the authenticated user.");
+                return Unauthorized("User ID claim not found."); // 401 Unauthorized
+            }
+
+            try
+            {
+                var recordedConversion = await _adService.RecordConversionAsync(new AdStatsDto
+                {
+                    UserId = userId,
+                    AdvertisementId = id
+                });
+
+                if (recordedConversion == null)
+                {
+                    // Ovo se događa ako oglas nije pronađen u servisu
+                    return NotFound($"Oglas s ID-om {id} nije pronađen.");
+                }
+
+                return StatusCode(StatusCodes.Status201Created, recordedConversion);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom bilježenja konverzije za AdId: {AdvertisementId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška na serveru prilikom bilježenja konverzije.");
+            }
+        }
+
+
+        [HttpPost("activity/view/{id}")]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(UserActivity))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> CreateUserActivityView(int id)
+        {
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("CreateUserActivity - ModelState nije validan. {@ModelState}", ModelState);
+                return BadRequest(ModelState);
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogWarning("[UserActivitiesController] CreateUserActivity - Nije pronađen User ID claim za autentifikovanog korisnika.");
+                return Unauthorized("User ID claim nije pronađen."); // 401 Unauthorized
+            }
+
+            try
+            {
+                // Mapiranje DTO na UserActivity model
+                var userActivity = new UserActivity
+                {
+                    UserId = userId,
+                    ProductCategoryId = id,
+                    InteractionType = InteractionType.View,
+                };
+
+                var createdActivity = await _adService.CreateUserActivityAsync(userActivity);
+
+                return StatusCode(StatusCodes.Status201Created, createdActivity);
+            }
+            catch (ArgumentNullException ex) // Uhvaćeno iz servisa ako se prosledi null userActivity
+            {
+                _logger.LogWarning(ex, "Greška ArgumentNullException prilikom kreiranja UserActivityView za korisnika {UserId}.", userId);
+                return BadRequest(new { message = ex.Message, paramName = ex.ParamName });
+            }
+            catch (ArgumentException ex) // Uhvaćeno iz servisa (npr. nevalidan ProductCategoryId, UserId)
+            {
+                _logger.LogWarning(ex, "Greška ArgumentException prilikom kreiranja UserActivityView za korisnika {UserId}.", userId);
+                // Vratite poruku izuzetka koja je informativna
+                return BadRequest(new { message = ex.Message, paramName = ex.ParamName });
+            }
+            catch (InvalidOperationException ex) // Uhvaćeno iz servisa (npr. SaveChangesAsync nije napravio izmene)
+            {
+                _logger.LogError(ex, "Greška InvalidOperationException prilikom kreiranja UserActivityView za korisnika {UserId}.", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, $"Dogodila se greška na serveru: {ex.Message}");
+            }
+            // DbUpdateException je već logiran u servisu, ali ga možemo uhvatiti i ovde za specifičan HTTP odgovor
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Greška DbUpdateException prilikom kreiranja UserActivityView za korisnika {UserId} u kontroleru.", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška prilikom čuvanja podataka.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Neočekivana greška prilikom kreiranja UserActivityView za korisnika {UserId}.", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se neočekivana greška na serveru.");
             }
         }
 
