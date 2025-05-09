@@ -1,8 +1,11 @@
 using Catalog.Interfaces;
 using Catalog.Services;
+using MarketingAnalytics.DTOs;
+using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services.DTOs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualBasic;
 using Store.Interface;
@@ -20,12 +23,16 @@ namespace MarketingAnalytics.Services
         private readonly IUserService _userService;
         private readonly ILogger<AdService> _logger;
         private readonly IProductCategoryService _productCategoryService;
+        private readonly IHubContext<AdvertisementHub> _hubContext; // <<< ADD THIS FIELD
+
 
         public AdService(AdDbContext context, IImageStorageService imageStorageService,
                         IStoreService storeService, IProductService productService,
                         IUserService userService,
                         ILogger<AdService> logger,
-                        IProductCategoryService productCategoryService)
+                        IProductCategoryService productCategoryService,
+                        IHubContext<AdvertisementHub> hubContext)
+
         {
             _context = context;
             _imageStorageService = imageStorageService;
@@ -33,7 +40,10 @@ namespace MarketingAnalytics.Services
             _productService = productService;
             _userService = userService;
             _logger = logger;
+
             _productCategoryService = productCategoryService;
+
+            _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext)); // <<< ASSIGN hubContext TO FIELD
         }
 
         public async Task<IEnumerable<Advertisment>> GetAllAdvertisementsAsync()
@@ -301,11 +311,7 @@ namespace MarketingAnalytics.Services
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Successfully updated Advertisment with Id {AdvertismentId}.", advertismentId);
 
-                // Reload the entity to ensure related data (like new AdData items) is included
-                var updatedEntity = await _context.Advertisments
-                                                  .Include(a => a.AdData) // Eager load AdData
-                                                  .AsNoTracking()        // Detach after loading for return
-                                                  .FirstOrDefaultAsync(a => a.Id == advertismentId);
+                var updatedEntity = await _context.Advertisments.Include(a => a.AdData).AsNoTracking().FirstOrDefaultAsync(a => a.Id == advertismentId);
                 return updatedEntity;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -339,6 +345,7 @@ namespace MarketingAnalytics.Services
                 _logger.LogWarning("DeleteAdvertismentAsync: Advertisment with Id {AdvertismentId} not found.", advertismentId);
                 return false;
             }
+            int idToDelete = advertisment.Id;
 
             // --- Delete associated images first ---
             var imageDeletionTasks = new List<Task>();
@@ -359,9 +366,20 @@ namespace MarketingAnalytics.Services
                 // Remove the parent Advertisment. EF Core cascade delete (if configured, which is default for required relationships)
                 // should handle removing the AdData rows automatically.
                 _context.Advertisments.Remove(advertisment);
-                await _context.SaveChangesAsync();
+                var result = await _context.SaveChangesAsync();
                 _logger.LogInformation("Successfully deleted Advertisment with Id {AdvertismentId} and its associated AdData.", advertismentId);
-                return true;
+                if (result > 0)
+                {
+                    // --- Send SignalR ---
+                    try
+                    {
+                        await _hubContext.Clients.All.SendAsync("AdvertisementDeleted", idToDelete); // <<< Send ID
+                    }
+                    catch (Exception ex) { _logger.LogError(ex, "Error sending SignalR delete notification for Ad {AdId}", idToDelete); }
+                    // --------------------
+                    return true;
+                }
+                return false;
             }
             catch (DbUpdateException ex)
             {
@@ -544,6 +562,7 @@ namespace MarketingAnalytics.Services
             }
 
             string? imageUrlToDelete = adData.ImageUrl; // Store URL before removing entity
+            int parentAdId = adData.AdvertismentId;
 
             // Check if this AdData is the *last* one associated with its Advertisment
             var siblingCount = await _context.AdData.CountAsync(ad => ad.AdvertismentId == adData.AdvertismentId && ad.Id != adDataId);

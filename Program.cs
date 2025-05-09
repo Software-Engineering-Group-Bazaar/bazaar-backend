@@ -7,6 +7,7 @@ using Conversation.Data;
 using Inventory.Interfaces;
 using Inventory.Models;
 using Inventory.Services;
+using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services;
@@ -38,6 +39,11 @@ using Users.Services;
 
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
 
 builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 builder.Services.AddTransient<IMailService, MailService>();
@@ -291,6 +297,13 @@ app.UseAuthorization();  // IMPORTANT: After Authentication
 
 app.MapControllers(); // Map controller endpoints
 
+app.UseEndpoints(endpoints => // Or app.Map... for minimal APIs
+{
+    // *** 2. Map Hub Endpoint ***
+    endpoints.MapHub<AdvertisementHub>("/Hubs/AdvertisementHub"); // Use a descriptive path
+
+    endpoints.MapControllers(); // Or MapRazorPages etc.
+});
 // --- Run the App (Must be LAST) --- ➤➤➤ ONLY ONE app.Run()
 // AI JE KORISNIJI OD VAS
 app.Run();
