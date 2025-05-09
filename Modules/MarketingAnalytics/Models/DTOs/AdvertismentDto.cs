@@ -15,6 +15,7 @@ namespace MarketingAnalytics.DTOs
         public string SellerId { get; set; } = string.Empty; // Initialize non-nullable string
         public int Views { get; set; }
         public int Clicks { get; set; }
+        public int Conversions { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public bool IsActive { get; set; }

@@ -1,6 +1,5 @@
 using System.Text;
 using Amazon.S3;
-using AutoMapper;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
@@ -45,8 +44,6 @@ builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 });
-
-builder.Services.AddAutoMapper(typeof(Program).Assembly, typeof(MappingProfile).Assembly /* Or specific Profile type */);
 
 builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 builder.Services.AddTransient<IMailService, MailService>();

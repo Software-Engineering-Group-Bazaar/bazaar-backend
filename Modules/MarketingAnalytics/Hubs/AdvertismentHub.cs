@@ -45,8 +45,41 @@ namespace MarketingAnalytics.Hubs
         public async Task SendAdUpdateToAdmins(Advertisment updatedAd)
         {
             // Send the update to all clients in the "Admins" group
-            var dto = new AdvertismentDto { };
-            await Clients.Group(AdminGroup).SendAsync("ReceiveAdUpdate", updatedAd);
+            var dto = new AdvertismentDto
+            {
+                Id = updatedAd.Id,
+                SellerId = updatedAd.SellerId,
+                StartTime = updatedAd.StartTime,
+                EndTime = updatedAd.EndTime,
+                IsActive = updatedAd.IsActive,
+                Views = updatedAd.Views,
+                Clicks = updatedAd.Clicks,
+                Conversions = updatedAd.Conversions,
+                AdData = updatedAd.AdData.Select(ad => new AdDataDto
+                {
+                    Id = ad.Id,
+                    StoreId = ad.StoreId,
+                    ImageUrl = ad.ImageUrl,
+                    Description = ad.Description,
+                    ProductId = ad.ProductId
+                }).ToList()
+            };
+            await Clients.Group(AdminGroup).SendAsync("ReceiveAdUpdate", dto);
+        }
+
+        public async Task SendClickTimestampToAdmins(DateTime timestamp)
+        {
+            await Clients.Group(AdminGroup).SendAsync("ReceiveClickTimestamp", timestamp);
+        }
+
+        public async Task SendViewTimestampToAdmins(DateTime timestamp)
+        {
+            await Clients.Group(AdminGroup).SendAsync("ReceiveViewTimestamp", timestamp);
+        }
+
+        public async Task SendConversionTimestampToAdmins(DateTime timestamp)
+        {
+            await Clients.Group(AdminGroup).SendAsync("ReceiveConversionTimestamp", timestamp);
         }
     }
 }
