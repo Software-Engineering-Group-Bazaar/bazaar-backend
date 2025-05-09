@@ -4,6 +4,7 @@ using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services.DTOs;
 using Microsoft.EntityFrameworkCore;
+using SharedKernel.MathUtil;
 
 namespace MarketingAnalytics.Services
 {
@@ -30,6 +31,8 @@ namespace MarketingAnalytics.Services
             // random chacne odaberi bilo koju reklamu iz baze
             // uzmi reklame koje imaju smisla i stavi u kandidat listu
             // procjeni broj reklama sto se trb vidjeti 0+
+            var dist = new LogNormal(0.2, 0.8);
+            int N = (int)Math.Round(dist.Next()); // klk reklama poslati
             // uzmi top N po RL
             // vrati to
             throw new Exception();
