@@ -26,6 +26,40 @@ namespace MarketingAnalytics.Services
             return (x - m) / s;
         }
 
+        public async Task<Func<double, double>> ZTranformFactoryAsync<TValue>(
+               Expression<Func<TEntity, TValue>> columnSelector,
+               Expression<Func<TEntity, bool>> filter
+               )
+               where TValue : IConvertible
+        {
+            var compiledColumnSelector = columnSelector.Compile();
+
+            // 1. Fetch the entities that match the filter
+            var entitiesToNormalize = await _dbContext.Set<TEntity>()
+                                                     .Where(filter)
+                                                     .ToListAsync();
+
+            if (!entitiesToNormalize.Any())
+            {
+                return x => 0;
+            }
+
+            // 2. Extract the values to be normalized and convert them to double for calculation
+            var values = entitiesToNormalize
+                .Select(entity => Convert.ToDouble(compiledColumnSelector(entity)))
+                .ToList(); // ToList() to materialize for multiple enumerations (mean, stddev)
+
+            if (!values.Any())
+            {
+                return x => 0;
+            }
+
+            // 3. Calculate Mean
+            var mean = CalculateMean(values);
+            var s = CalculateStandardDeviation(values, mean);
+            return x => (x - mean) / s;
+        }
+
         public async Task<double[]> NormalizeColumnAsync<TValue>(
                Expression<Func<TEntity, TValue>> columnSelector,
                Expression<Func<TEntity, bool>> filter

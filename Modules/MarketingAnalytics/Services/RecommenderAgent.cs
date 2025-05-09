@@ -15,12 +15,14 @@ namespace MarketingAnalytics.Services
         public const int featureDimension = 8;
         private readonly Random random = new Random();
         private readonly object _lock = new object();
-
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly AdDbContext _context;
-        public RecommenderAgent(AdDbContext context, double learingRate = 0.01, double exploreThreshold = 0.1)
+        public RecommenderAgent(AdDbContext context, IServiceScopeFactory scopeFactory,
+                            double learingRate = 0.01, double exploreThreshold = 0.1)
         {
             this.learingRate = learingRate;
             this.exploreThreshold = exploreThreshold;
+            _scopeFactory = scopeFactory;
             _context = context;
         }
         public async Task<List<AdFeaturePair>> RecommendAsync(string userId, List<Advertisment> candidates, int N = 1)
@@ -61,6 +63,82 @@ namespace MarketingAnalytics.Services
             return final.ToList();
 
         }
+        public List<double[]> FeatureEmbeddingList(string userId, List<Advertisment> ads)
+        {
+
+            throw new Exception();
+        }
+        public async Task<List<Func<double, double>>> GetTransformFuncsAsync(string userId)
+        {
+            var t = new List<Func<double, double>>(featureDimension);
+
+            for (int i = 0; i < featureDimension; i++)
+            {
+                t.Add(x => 0);
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            Func<AdDbContext> createContext = () => scope.ServiceProvider.GetRequiredService<AdDbContext>();
+            var task1 = Task.Run(async () =>
+            {
+                using var context = createContext();
+                var normAd = new Normalizator<AdDbContext, Advertisment>(context);
+                return await normAd.ZTranformFactoryAsync(
+                    ad => ad.ViewPrice,
+                    ad => true
+                );
+            });
+
+            var task2 = Task.Run(async () =>
+            {
+                using var context = createContext();
+                var normAd = new Normalizator<AdDbContext, Advertisment>(context);
+                return await normAd.ZTranformFactoryAsync(
+                    ad => ad.ClickPrice,
+                    ad => true
+                );
+            });
+
+            var task3 = Task.Run(async () =>
+            {
+                using var context = createContext();
+                var normAd = new Normalizator<AdDbContext, Advertisment>(context);
+                return await normAd.ZTranformFactoryAsync(
+                    ad => ad.Clicks,
+                    ad => true
+                );
+            });
+
+            var task5 = Task.Run(async () =>
+            {
+                using var context = createContext();
+                var normAd = new Normalizator<AdDbContext, Advertisment>(context);
+                return await normAd.ZTranformFactoryAsync(
+                    ad => ad.ConversionPrice,
+                    ad => true
+                );
+            });
+
+            var task6 = Task.Run(async () =>
+            {
+                using var context = createContext();
+                var normAd = new Normalizator<AdDbContext, Advertisment>(context);
+                return await normAd.ZTranformFactoryAsync(
+                    ad => ad.Conversions,
+                    ad => true
+                );
+            });
+            t[0] = x => 1;
+            t[4] = x => 0;
+            t[7] = x => 0;
+            await Task.WhenAll(task1, task2, task3, task5, task6);
+            t[1] = await task1;
+            t[2] = await task2;
+            t[3] = await task3;
+            t[5] = await task5;
+            t[6] = await task6;
+            return t;
+        }
         public async Task<double[]> FeatureEmbedding(string userId, Advertisment ad)
         {
             // x = [ 
@@ -80,14 +158,6 @@ namespace MarketingAnalytics.Services
             var f = new double[featureDimension];
             f[0] = 1;
             var normAd = new Normalizator<AdDbContext, Advertisment>(_context);
-            var muViewPrice = await normAd.MeanAsync(
-                ad => ad.ViewPrice,
-                ad => true
-            );
-            var sViewPrice = await normAd.StdDevAsync(
-                ad => ad.ViewPrice,
-                ad => true
-            );
             f[1] = await normAd.ZScore(
                 ad => ad.ViewPrice,
                 ad => true,
