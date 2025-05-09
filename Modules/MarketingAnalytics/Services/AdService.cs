@@ -4,6 +4,7 @@ using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.VisualBasic;
 using Store.Interface;
 using Users.Interface;
 
@@ -18,11 +19,13 @@ namespace MarketingAnalytics.Services
         private readonly IProductService _productService;
         private readonly IUserService _userService;
         private readonly ILogger<AdService> _logger;
+        private readonly IProductCategoryService _productCategoryService;
 
         public AdService(AdDbContext context, IImageStorageService imageStorageService,
                         IStoreService storeService, IProductService productService,
                         IUserService userService,
-                        ILogger<AdService> logger)
+                        ILogger<AdService> logger,
+                        IProductCategoryService productCategoryService)
         {
             _context = context;
             _imageStorageService = imageStorageService;
@@ -30,6 +33,7 @@ namespace MarketingAnalytics.Services
             _productService = productService;
             _userService = userService;
             _logger = logger;
+            _productCategoryService = productCategoryService;
         }
 
         public async Task<IEnumerable<Advertisment>> GetAllAdvertisementsAsync()
@@ -583,6 +587,158 @@ namespace MarketingAnalytics.Services
         // --- Helper method for image deletion with logging ---
         private async Task DeleteImageInternalAsync(string fileUrl, string contextDescription)
         {
+        }
+
+        public async Task<UserActivity> CreateUserActivityAsync(UserActivity userActivity)
+        {
+            if (userActivity == null)
+            {
+                _logger.LogWarning("Pokušaj kreiranja null UserActivity objekta.");
+                throw new ArgumentNullException(nameof(userActivity));
+            }
+
+            userActivity.TimeStamp = DateTime.Now;
+
+            if (string.IsNullOrWhiteSpace(userActivity.UserId))
+            {
+                _logger.LogWarning("Pokušaj kreiranja UserActivity bez UserId. {@UserActivityInput}", new { userActivity.ProductCategoryId, userActivity.InteractionType });
+                throw new ArgumentException("UserId ne može biti prazan.", nameof(userActivity.UserId));
+            }
+
+            var category = _productCategoryService.GetCategoryByIdAsync(userActivity.ProductCategoryId);
+
+            if (category == null)
+            {
+                _logger.LogWarning("Pokušaj kreiranja UserActivity sa nevalidnim ProductCategoryId: {ProductCategoryId}", userActivity.ProductCategoryId);
+                throw new ArgumentException("ProductCategoryId mora biti validan.", nameof(userActivity.ProductCategoryId));
+            }
+
+            var user = _userService.GetUserWithIdAsync(userActivity.UserId);
+
+            if (category == null)
+            {
+                _logger.LogWarning("Pokušaj kreiranja UserActivity sa nevalidnim UserId: {UserId}", userActivity.UserId);
+                throw new ArgumentException("UserId mora biti validan.", nameof(userActivity.UserId));
+            }
+
+            try
+            {
+                _context.UserActivities.Add(userActivity);
+                int recordsAffected = await _context.SaveChangesAsync();
+
+                if (recordsAffected > 0)
+                {
+                    _logger.LogInformation("UserActivity (Id: {ActivityId}) uspešno kreiran za korisnika {UserId}.", userActivity.Id, userActivity.UserId);
+                    return userActivity;
+                }
+                else
+                {
+                    // Ovo je neočekivano ako Add() nije bacio izuzetak i SaveChangesAsync nije bacio izuzetak.
+                    // Može ukazivati na problem sa EF Core konfiguracijom ili vrlo specifičan scenario konkurentnosti.
+                    _logger.LogError("UserActivity za korisnika {UserId} je dodat u context, ali SaveChangesAsync nije napravio izmjene i nije bacio izuzetak. {@UserActivity}", userActivity.UserId, userActivity);
+                    throw new InvalidOperationException($"Nije bilo moguće sačuvati UserActivity za korisnika {userActivity.UserId}, nijedan zapis nije izmijenjen.");
+                }
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "DbUpdateException prilikom čuvanja UserActivity za korisnika {UserId}. {@UserActivity}", userActivity.UserId, userActivity);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Neočekivana greška prilikom kreiranja UserActivity za korisnika {UserId}. {@UserActivity}", userActivity.UserId, userActivity);
+                throw;
+            }
+        }
+
+        public async Task<ICollection<UserActivity>> GetUserActivitiesByUserId(string id)
+        {
+            return await _context.UserActivities
+                            .Where(u => u.UserId == id)
+                            .AsNoTracking()
+                            .ToListAsync();
+        }
+
+
+        public async Task<Clicks?> RecordClickAsync(AdStatsDto clickDto)
+        {
+            // Provjera postoji li oglas
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == clickDto.AdvertisementId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja klika za nepostojeći oglas ID: {AdvertisementId}", clickDto.AdvertisementId);
+                return null;
+            }
+
+            var newClick = new Clicks
+            {
+                UserId = clickDto.UserId,
+                AdvertismentId = clickDto.AdvertisementId,
+                Timestamp = DateTime.Now
+            };
+
+            _context.Clicks.Add(newClick);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Zabilježen klik ID: {ClickId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
+                newClick.Id, newClick.UserId, newClick.AdvertismentId);
+
+            // Opcionalno: Učitati navigacijsko svojstvo ako je potrebno za povratnu vrijednost
+            // await _context.Entry(newClick).Reference(c => c.Advertisement).LoadAsync();
+
+            return newClick;
+        }
+
+        public async Task<Views?> RecordViewAsync(AdStatsDto viewDto)
+        {
+            // Provjera postoji li oglas
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == viewDto.AdvertisementId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja pregleda za nepostojeći oglas ID: {AdvertisementId}", viewDto.AdvertisementId);
+                return null;
+            }
+
+            var newView = new Views
+            {
+                UserId = viewDto.UserId,
+                AdvertismentId = viewDto.AdvertisementId,
+                Timestamp = DateTime.Now
+            };
+
+            _context.Views.Add(newView);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Zabilježen pregled ID: {ViewId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
+                newView.Id, newView.UserId, newView.AdvertismentId);
+
+            return newView;
+        }
+
+        public async Task<Conversions?> RecordConversionAsync(AdStatsDto conversionDto)
+        {
+            // Provjera postoji li oglas
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == conversionDto.AdvertisementId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja conversiona za nepostojeći oglas ID: {AdvertisementId}", conversionDto.AdvertisementId);
+                return null;
+            }
+
+            var newConversion = new Conversions
+            {
+                UserId = conversionDto.UserId,
+                AdvertismentId = conversionDto.AdvertisementId,
+                Timestamp = DateTime.Now
+            };
+
+            _context.Conversions.Add(newConversion);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Zabilježen klik ID: {ClickId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
+                newConversion.Id, newConversion.UserId, newConversion.AdvertismentId);
+
+            return newConversion;
         }
 
     }

@@ -11,6 +11,8 @@ namespace MarketingAnalytics.Models
         public DbSet<Views> Views { get; set; }
         public DbSet<Conversions> Conversions { get; set; }
         public DbSet<UserWeights> UserWeights { get; set; }
+        public DbSet<UserActivity> UserActivities { get; set; }
+
         public AdDbContext(DbContextOptions<AdDbContext> options)
         : base(options)
         {

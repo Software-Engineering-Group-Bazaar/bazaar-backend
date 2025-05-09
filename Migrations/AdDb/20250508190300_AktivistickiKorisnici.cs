@@ -7,45 +7,72 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace bazaar.Migrations.AdDb
 {
     /// <inheritdoc />
-    public partial class AdsProsirenje : Migration
+    public partial class AktivistickiKorisnici : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<int>(
-                name: "AdType",
-                table: "Advertisments",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
+            migrationBuilder.CreateTable(
+                name: "Advertisments",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    SellerId = table.Column<string>(type: "text", nullable: false),
+                    Views = table.Column<int>(type: "integer", nullable: false),
+                    ViewPrice = table.Column<decimal>(type: "numeric", nullable: false),
+                    Clicks = table.Column<int>(type: "integer", nullable: false),
+                    ClickPrice = table.Column<decimal>(type: "numeric", nullable: false),
+                    Conversions = table.Column<int>(type: "integer", nullable: false),
+                    ConversionPrice = table.Column<decimal>(type: "numeric", nullable: false),
+                    StartTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    EndTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    AdType = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Advertisments", x => x.Id);
+                });
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "ClickPrice",
-                table: "Advertisments",
-                type: "numeric",
-                nullable: false,
-                defaultValue: 0m);
+            migrationBuilder.CreateTable(
+                name: "UserActivities",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    ProductCategoryId = table.Column<int>(type: "integer", nullable: false),
+                    TimeStamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    InteractionType = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserActivities", x => x.Id);
+                });
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "ConversionPrice",
-                table: "Advertisments",
-                type: "numeric",
-                nullable: false,
-                defaultValue: 0m);
-
-            migrationBuilder.AddColumn<int>(
-                name: "Conversions",
-                table: "Advertisments",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<decimal>(
-                name: "ViewPrice",
-                table: "Advertisments",
-                type: "numeric",
-                nullable: false,
-                defaultValue: 0m);
+            migrationBuilder.CreateTable(
+                name: "AdData",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ImageUrl = table.Column<string>(type: "text", nullable: true),
+                    StoreId = table.Column<int>(type: "integer", nullable: true),
+                    ProductId = table.Column<int>(type: "integer", nullable: true),
+                    Description = table.Column<string>(type: "text", nullable: true),
+                    AdvertismentId = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AdData", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AdData_Advertisments_AdvertismentId",
+                        column: x => x.AdvertismentId,
+                        principalTable: "Advertisments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
 
             migrationBuilder.CreateTable(
                 name: "Clicks",
@@ -111,6 +138,11 @@ namespace bazaar.Migrations.AdDb
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_AdData_AdvertismentId",
+                table: "AdData",
+                column: "AdvertismentId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Clicks_AdvertismentId",
                 table: "Clicks",
                 column: "AdvertismentId");
@@ -130,33 +162,22 @@ namespace bazaar.Migrations.AdDb
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "AdData");
+
+            migrationBuilder.DropTable(
                 name: "Clicks");
 
             migrationBuilder.DropTable(
                 name: "Conversions");
 
             migrationBuilder.DropTable(
+                name: "UserActivities");
+
+            migrationBuilder.DropTable(
                 name: "Views");
 
-            migrationBuilder.DropColumn(
-                name: "AdType",
-                table: "Advertisments");
-
-            migrationBuilder.DropColumn(
-                name: "ClickPrice",
-                table: "Advertisments");
-
-            migrationBuilder.DropColumn(
-                name: "ConversionPrice",
-                table: "Advertisments");
-
-            migrationBuilder.DropColumn(
-                name: "Conversions",
-                table: "Advertisments");
-
-            migrationBuilder.DropColumn(
-                name: "ViewPrice",
-                table: "Advertisments");
+            migrationBuilder.DropTable(
+                name: "Advertisments");
         }
     }
 }
