@@ -73,7 +73,7 @@ namespace MarketingAnalytics.Services
         public async Task<List<AdFeaturePair>> RecommendCandidatesAsync(string userId, List<Advertisment> candidates, int N = 1)
         {
             if (!candidates.Any())
-                throw new InvalidDataException("No candidates provided");
+                return new List<AdFeaturePair>();
             if (random.NextDouble() < exploreThreshold)
             {
                 var randAd = candidates[random.Next(candidates.Count)];
