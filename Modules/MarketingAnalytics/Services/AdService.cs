@@ -1,5 +1,6 @@
 using Catalog.Interfaces;
 using Catalog.Services;
+using MarketingAnalytics.Dtos;
 using MarketingAnalytics.DTOs;
 using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
@@ -701,7 +702,8 @@ namespace MarketingAnalytics.Services
                 _logger.LogWarning("Pokušaj bilježenja klika za nepostojeći oglas ID: {AdvertisementId}", clickDto.AdvertisementId);
                 return null;
             }
-
+            var ad = await _context.Advertisments.FirstOrDefaultAsync(a => a.Id == clickDto.AdvertisementId);
+            ad.Clicks += 1;
             var newClick = new Clicks
             {
                 UserId = clickDto.UserId,
@@ -730,7 +732,8 @@ namespace MarketingAnalytics.Services
                 _logger.LogWarning("Pokušaj bilježenja pregleda za nepostojeći oglas ID: {AdvertisementId}", viewDto.AdvertisementId);
                 return null;
             }
-
+            var ad = await _context.Advertisments.FirstOrDefaultAsync(a => a.Id == viewDto.AdvertisementId);
+            ad.Views += 1;
             var newView = new Views
             {
                 UserId = viewDto.UserId,
@@ -743,7 +746,7 @@ namespace MarketingAnalytics.Services
 
             _logger.LogInformation("Zabilježen pregled ID: {ViewId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
                 newView.Id, newView.UserId, newView.AdvertismentId);
-
+            await SendAdHelperAsync(ad);
             return newView;
         }
 
@@ -756,7 +759,8 @@ namespace MarketingAnalytics.Services
                 _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", conversionDto.AdvertisementId);
                 return null;
             }
-
+            var ad = await _context.Advertisments.FirstOrDefaultAsync(a => a.Id == conversionDto.AdvertisementId);
+            ad.Conversions += 1;
             var newConversion = new Conversions
             {
                 UserId = conversionDto.UserId,
@@ -936,6 +940,37 @@ namespace MarketingAnalytics.Services
                 }
             }
             return trigger;
+        }
+        private async Task SendAdHelperAsync(Advertisment ad)
+        {
+            var dto = new AdvertismentDto
+            {
+                Id = ad.Id,
+                SellerId = ad.SellerId,
+                StartTime = ad.StartTime,
+                EndTime = ad.EndTime,
+                IsActive = ad.IsActive,
+                Views = ad.Views,
+                ViewPrice = ad.ViewPrice,
+                Clicks = ad.Clicks,
+                ClickPrice = ad.ClickPrice,
+                Conversions = ad.Conversions,
+                ConversionPrice = ad.ConversionPrice,
+                AdType = ad.AdType.ToString(),
+                Triggers = AdTriggerToString(ad.Triggers), // Use the helper
+                AdData = ad.AdData.Select(a => new AdDataDto
+                {
+                    Id = a.Id,
+                    StoreId = a.StoreId,
+                    ImageUrl = a.ImageUrl,
+                    Description = a.Description,
+                    ProductId = a.ProductId
+                }).ToList()
+            };
+
+            await _hubContext.Clients
+                .Group(AdvertisementHub.AdminGroup)
+                .SendAsync("ReceiveAdUpdate", dto);
         }
     }
 }
