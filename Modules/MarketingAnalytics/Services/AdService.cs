@@ -90,7 +90,7 @@ namespace MarketingAnalytics.Services
             var s = await _userService.GetUserWithIdAsync(request.SellerId);
             if (s is null)
                 throw new ArgumentException("SellerId is invalid.", nameof(request.SellerId));
-
+            var prod = await _productService.GetProductByIdAsync((int)request.AdDataItems[0].ProductId);
             // --- Create Advertisment Entity ---
             var newAdvertisment = new Advertisment
             {
@@ -99,8 +99,15 @@ namespace MarketingAnalytics.Services
                 EndTime = request.EndTime,
                 Views = 0, // Initialize counters
                 Clicks = 0,
+                Conversions = 0,
+                ViewPrice = 0,
+                ClickPrice = 0,
+                ConversionPrice = 0,
                 // Determine IsActive based on current time and dates - or set explicitly if needed
                 IsActive = DateTime.UtcNow >= request.StartTime && DateTime.UtcNow < request.EndTime,
+                ProductCategoryId = prod.ProductCategoryId,
+                Triggers = request.Triggers,
+                AdType = request.AdType
                 // AdData collection will be populated below
             };
 
@@ -162,7 +169,7 @@ namespace MarketingAnalytics.Services
                     ImageUrl = imageUrl, // Assign the uploaded URL or null
                     Advertisment = newAdvertisment, // Associate with 
                     // the parent Advertisment
-                    Description = adDataItemDto.Description
+                    Description = adDataItemDto.Description,
                     // EF Core will automatically set AdvertismentId when saving
                 };
                 adDataEntities.Add(adDataEntity);
@@ -222,6 +229,12 @@ namespace MarketingAnalytics.Services
             advertisment.StartTime = request.StartTime;
             advertisment.EndTime = request.EndTime;
             advertisment.IsActive = request.IsActive ?? (DateTime.UtcNow >= request.StartTime && DateTime.UtcNow < request.EndTime);
+            advertisment.Triggers = request.Triggers;
+            advertisment.ClickPrice = request.ClickPrice;
+            advertisment.ViewPrice = request.ClickPrice;
+            advertisment.ConversionPrice = request.ClickPrice;
+            advertisment.AdType = request.AdType;
+
 
             // Process NEW AdData items if provided
             if (request.NewAdDataItems != null && request.NewAdDataItems.Any())
@@ -902,5 +915,27 @@ namespace MarketingAnalytics.Services
             }
         }
 
+        public List<string> AdTriggerToString(int triggers)
+        {
+            var l = new List<string>();
+            foreach (var interaction in Enum.GetValues(typeof(InteractionType)))
+            {
+                if ((triggers & (int)interaction) != 0)
+                    l.Add(interaction.ToString());
+            }
+            return l;
+        }
+        public int AdTriggerFromStrings(List<string> interactions)
+        {
+            int trigger = 0;
+            foreach (var item in interactions)
+            {
+                if (Enum.TryParse<InteractionType>(item, ignoreCase: true, out var result))
+                {
+                    trigger = trigger | (int)result;
+                }
+            }
+            return trigger;
+        }
     }
 }

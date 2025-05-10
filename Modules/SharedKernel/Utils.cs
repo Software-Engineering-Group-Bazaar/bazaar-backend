@@ -12,5 +12,7 @@ namespace SharedKernel
 
             return str.ToUpper();
         }
+
+
     }
 }

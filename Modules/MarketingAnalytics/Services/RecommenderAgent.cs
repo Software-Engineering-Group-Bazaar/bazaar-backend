@@ -53,6 +53,7 @@ namespace MarketingAnalytics.Services
             // procjeni broj reklama sto se trb vidjeti 0+
             var dist = new LogNormal(0.2, 0.8);
             int N = (int)Math.Round(dist.Next()); // klk reklama poslati
+            N = N < 4 ? N : 3;
             if (N == 0)
                 return new List<AdFeaturePair>();
             // nabavi kandidate
@@ -63,7 +64,7 @@ namespace MarketingAnalytics.Services
             var categories = activities.Select(a => a.ProductCategoryId);
             var candidates = await _context.Advertisments.Where(ad => ad.IsActive &&
             categories.Count(c => c == ad.ProductCategoryId) > 0).ToListAsync();
-            var triggers = activities.Aggregate(0, (acc, a) => acc ^ ((int)a.InteractionType));
+            var triggers = activities.Aggregate(0, (acc, a) => acc | ((int)a.InteractionType));
             var c = await _context.Advertisments.Where(ad => ad.IsActive && (triggers & ad.Triggers) != 0).ToListAsync();
             candidates.AddRange(c);
             return await RecommendCandidatesAsync(userId, candidates, N);

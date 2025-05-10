@@ -53,8 +53,13 @@ namespace MarketingAnalytics.Hubs
                 EndTime = updatedAd.EndTime,
                 IsActive = updatedAd.IsActive,
                 Views = updatedAd.Views,
+                ViewPrice = updatedAd.ViewPrice,
                 Clicks = updatedAd.Clicks,
+                ClickPrice = updatedAd.ClickPrice,
                 Conversions = updatedAd.Conversions,
+                ConversionPrice = updatedAd.ConversionPrice,
+                AdType = updatedAd.AdType.ToString(),
+                Triggers = AdTriggerToString(updatedAd.Triggers),
                 AdData = updatedAd.AdData.Select(ad => new AdDataDto
                 {
                     Id = ad.Id,
@@ -80,6 +85,17 @@ namespace MarketingAnalytics.Hubs
         public async Task SendConversionTimestampToAdmins(DateTime timestamp)
         {
             await Clients.Group(AdminGroup).SendAsync("ReceiveConversionTimestamp", timestamp);
+        }
+
+        private List<string> AdTriggerToString(int triggers)
+        {
+            var l = new List<string>();
+            foreach (var interaction in Enum.GetValues(typeof(InteractionType)))
+            {
+                if ((triggers & (int)interaction) != 0)
+                    l.Add(interaction.ToString());
+            }
+            return l;
         }
     }
 }
