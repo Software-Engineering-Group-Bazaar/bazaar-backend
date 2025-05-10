@@ -3,26 +3,30 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using MarketingAnalytics.Dtos;
 using MarketingAnalytics.DTOs;
+using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
+using Microsoft.AspNet.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace MarketingAnalytics.Controllers
 {
     [Route("api/[controller]")]
-    [Authorize]
+    [Microsoft.AspNetCore.Authorization.Authorize]
     [ApiController]
     public class AdsController : ControllerBase
     {
         private readonly IAdService _adService;
         private readonly IRecommenderAgent _recommender;
+        private readonly IHubContext<AdvertisementHub> _advertisementHubContext;
         private readonly ILogger<AdsController> _logger;
 
-        public AdsController(IAdService adService, IRecommenderAgent recommender, ILogger<AdsController> logger)
+        public AdsController(IAdService adService, IRecommenderAgent recommender, IHubContext<AdvertisementHub> advertisementHubContext, ILogger<AdsController> logger)
         {
             _adService = adService;
             _logger = logger;
             _recommender = recommender;
+            _advertisementHubContext = advertisementHubContext;
         }
 
         // POST: api/Ads/clicks/{id}
@@ -53,7 +57,9 @@ namespace MarketingAnalytics.Controllers
                     // Ovo se događa ako oglas nije pronađen u servisu
                     return NotFound($"Oglas s ID-om {id} nije pronađen.");
                 }
-
+                await _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup).SendClickTimestampToAdmins(new DateTime());
+                var ad = await _adService.GetAdvertisementByIdAsync(id);
+                await _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup).SendAdUpdateToAdmins(ad);
                 return StatusCode(StatusCodes.Status201Created, recordedClick);
             }
             catch (Exception ex)
@@ -91,7 +97,9 @@ namespace MarketingAnalytics.Controllers
                     // Ovo se događa ako oglas nije pronađen u servisu
                     return NotFound($"Oglas s ID-om {id} nije pronađen.");
                 }
-
+                await _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup).SendConversionTimestampToAdmins(new DateTime());
+                var ad = await _adService.GetAdvertisementByIdAsync(id);
+                await _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup).SendAdUpdateToAdmins(ad);
                 return StatusCode(StatusCodes.Status201Created, recordedConversion);
             }
             catch (Exception ex)
