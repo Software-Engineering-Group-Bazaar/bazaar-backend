@@ -909,5 +909,27 @@ namespace MarketingAnalytics.Services
             }
         }
 
+        public List<string> AdTriggerToString(int triggers)
+        {
+            var l = new List<string>();
+            foreach (var interaction in Enum.GetValues(typeof(InteractionType)))
+            {
+                if ((triggers & (int)interaction) != 0)
+                    l.Add(interaction.ToString());
+            }
+            return l;
+        }
+        public int AdTriggerFromStrings(List<string> interactions)
+        {
+            int trigger = 0;
+            foreach (var item in interactions)
+            {
+                if (Enum.TryParse<InteractionType>(item, ignoreCase: true, out var result))
+                {
+                    trigger = trigger | (int)result;
+                }
+            }
+            return trigger;
+        }
     }
 }
