@@ -192,14 +192,6 @@ namespace MarketingAnalytics.Controllers
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var ads = await _recommender.RecommendAsync(userId);
-            foreach (var ad in ads)
-            {
-                await _adService.RecordViewAsync(new AdStatsDto
-                {
-                    AdvertisementId = ad.Ad.Id,
-                    UserId = userId
-                });
-            }
             var dto = ads.Select(async adVec =>
             {
                 var advertisement = adVec.Ad;
