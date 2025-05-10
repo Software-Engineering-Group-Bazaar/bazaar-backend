@@ -28,5 +28,6 @@ namespace Store.Interface
 
         Task<Region?> GetRegionByNameAsync(string region);
         Task<Place?> GetPlaceByNameAsync(string place);
+        Task<string> GetStoreByIdAsync(int storeId);
     }
 }
