@@ -23,6 +23,8 @@ namespace MarketingAnalytics.Services
         {
             var m = await MeanAsync(columnSelector, filter);
             var s = await StdDevAsync(columnSelector, filter);
+            if (Equal(s, 0))
+                return 0;
             return (x - m) / s;
         }
 
@@ -57,6 +59,8 @@ namespace MarketingAnalytics.Services
             // 3. Calculate Mean
             var mean = CalculateMean(values);
             var s = CalculateStandardDeviation(values, mean);
+            if (Equal(s, 0))
+                return x => 0;
             return x => (x - mean) / s;
         }
 

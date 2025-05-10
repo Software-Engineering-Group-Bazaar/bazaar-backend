@@ -6,9 +6,10 @@ using MarketingAnalytics.DTOs;
 using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
-using Microsoft.AspNet.SignalR;
+//using Microsoft.AspNet.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 namespace MarketingAnalytics.Controllers
 {
     [Route("api/[controller]")]
@@ -57,9 +58,11 @@ namespace MarketingAnalytics.Controllers
                     // Ovo se događa ako oglas nije pronađen u servisu
                     return NotFound($"Oglas s ID-om {id} nije pronađen.");
                 }
-                await _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup).SendClickTimestampToAdmins(new DateTime());
+                await _advertisementHubContext.Clients
+                        .Group(AdvertisementHub.AdminGroup)
+                        .SendAsync("ReceiveClickTimestamp", System.DateTime.UtcNow);
                 var ad = await _adService.GetAdvertisementByIdAsync(id);
-                await _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup).SendAdUpdateToAdmins(ad);
+                await SendAdHelperAsync(ad);
                 return StatusCode(StatusCodes.Status201Created, recordedClick);
             }
             catch (Exception ex)
@@ -97,9 +100,12 @@ namespace MarketingAnalytics.Controllers
                     // Ovo se događa ako oglas nije pronađen u servisu
                     return NotFound($"Oglas s ID-om {id} nije pronađen.");
                 }
-                await _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup).SendConversionTimestampToAdmins(new DateTime());
+                await _advertisementHubContext.Clients
+                        .Group(AdvertisementHub.AdminGroup)
+                        .SendAsync("ReceiveConversionTimestamp", System.DateTime.UtcNow);
+                var p = _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup);
                 var ad = await _adService.GetAdvertisementByIdAsync(id);
-                await _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup).SendAdUpdateToAdmins(ad);
+                await SendAdHelperAsync(ad);
                 return StatusCode(StatusCodes.Status201Created, recordedConversion);
             }
             catch (Exception ex)
@@ -264,5 +270,37 @@ namespace MarketingAnalytics.Controllers
             return Ok(click);
         }
         */
+
+        private async Task SendAdHelperAsync(Advertisment ad)
+        {
+            var dto = new AdvertismentDto
+            {
+                Id = ad.Id,
+                SellerId = ad.SellerId,
+                StartTime = ad.StartTime,
+                EndTime = ad.EndTime,
+                IsActive = ad.IsActive,
+                Views = ad.Views,
+                ViewPrice = ad.ViewPrice,
+                Clicks = ad.Clicks,
+                ClickPrice = ad.ClickPrice,
+                Conversions = ad.Conversions,
+                ConversionPrice = ad.ConversionPrice,
+                AdType = ad.AdType.ToString(),
+                Triggers = _adService.AdTriggerToString(ad.Triggers), // Use the helper
+                AdData = ad.AdData.Select(a => new AdDataDto
+                {
+                    Id = a.Id,
+                    StoreId = a.StoreId,
+                    ImageUrl = a.ImageUrl,
+                    Description = a.Description,
+                    ProductId = a.ProductId
+                }).ToList()
+            };
+
+            await _advertisementHubContext.Clients
+                .Group(AdvertisementHub.AdminGroup)
+                .SendAsync("ReceiveAdUpdate", dto);
+        }
     }
 }

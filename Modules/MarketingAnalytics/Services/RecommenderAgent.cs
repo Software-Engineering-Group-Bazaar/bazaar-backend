@@ -210,14 +210,17 @@ namespace MarketingAnalytics.Services
             f[2] = transforms[2]((double)ad.ClickPrice);
             f[3] = transforms[3]((double)ad.Clicks);
             // f[4] netrivijalno naci klk je za svaku reklamu dao klikova iz tog niza vadim z
-            f[4] = await _context.Clicks.CountAsync(c => c.UserId == userId && c.AdvertismentId == ad.Id);
-            f[4] /= await _context.Clicks.CountAsync(c => c.UserId == userId);
+            using var scope = _scopeFactory.CreateScope();
+            Func<AdDbContext> createContext = () => scope.ServiceProvider.GetRequiredService<AdDbContext>();
+            var context = createContext();
+            f[4] = await context.Clicks.CountAsync(c => c.UserId == userId && c.AdvertismentId == ad.Id);
+            f[4] /= Math.Max(1, await context.Clicks.CountAsync(c => c.UserId == userId));
             f[5] = transforms[5]((double)ad.ConversionPrice);
             f[6] = transforms[6]((double)ad.Conversions);
 
             // f[7] netrivijalno naci klk je za svaku reklamu dao konverzija iz tog niza vadim z
-            f[7] = await _context.Conversions.CountAsync(c => c.UserId == userId && c.AdvertismentId == ad.Id);
-            f[7] /= await _context.Conversions.CountAsync(c => c.UserId == userId);
+            f[7] = await context.Conversions.CountAsync(c => c.UserId == userId && c.AdvertismentId == ad.Id);
+            f[7] /= Math.Max(1, await context.Conversions.CountAsync(c => c.UserId == userId));
             return f;
         }
 
