@@ -23,6 +23,8 @@ namespace Review.Controllers // Namespace promenjen
         private readonly INotificationService _notificationService;
         private readonly UserManager<User> _userManager;
 
+        private readonly ReviewDbContext _context;
+
         private readonly IPushNotificationService _pushNotificationService;
 
         public ReviewController(
@@ -31,7 +33,8 @@ namespace Review.Controllers // Namespace promenjen
             ILogger<ReviewController> logger,
             UserManager<User> userManager,
             INotificationService notificationService,
-            IPushNotificationService pushNotificationService)
+            IPushNotificationService pushNotificationService,
+            ReviewDbContext context)
         {
             _reviewService = reviewService;
             _userService = userService;
@@ -39,6 +42,7 @@ namespace Review.Controllers // Namespace promenjen
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
             _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
+            _context = context;
         }
 
         // GET api/Review/store/{id}
@@ -304,57 +308,120 @@ namespace Review.Controllers // Namespace promenjen
 
         // POST api/Review/response
         [HttpPost("response")]
-        [ProducesResponseType(typeof(ReviewResponseDto), StatusCodes.Status201Created)] // Vraća DTO
+        [Authorize(Roles = "Seller")] // <<< Samo Seller može odgovoriti
+        [ProducesResponseType(typeof(ReviewResponseDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)] // Ako Seller nije vlasnik prodavnice recenzije
+        [ProducesResponseType(StatusCodes.Status404NotFound)] // Ako recenzija ne postoji
+        [ProducesResponseType(StatusCodes.Status409Conflict)] // Ako odgovor već postoji
         public async Task<ActionResult<ReviewResponseDto>> CreateReviewResponse([FromBody] CreateReviewResponseRequestDto requestDto)
         {
-            // TODO: Autorizacija - provera da li ulogovani korisnik sme da odgovori
-            // var sellerId = User.FindFirstValue(ClaimTypes.NameIdentifier); ...
-
-            _logger.LogInformation("Attempting to create response for review {ReviewId}", requestDto.ReviewId);
-
-            // Prvo proverimo da li recenzija postoji da bismo vratili korektan NotFound
-            var reviewExists = await _reviewService.GetReviewByIdAsync(requestDto.ReviewId);
-            if (reviewExists == null)
+            // 1. Dohvati ID ulogovanog korisnika (Sellera)
+            var sellerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(sellerId))
             {
-                _logger.LogWarning("Failed to create response - Review {ReviewId} not found.", requestDto.ReviewId);
-                return NotFound($"Review with ID {requestDto.ReviewId} not found.");
+                _logger.LogWarning("CreateReviewResponse: Seller ID claim not found in token.");
+                return Unauthorized("User identifier not found.");
             }
 
-            var request = new ReviewResponse
-            {
-                Id = 0,
-                ReviewId = requestDto.ReviewId,
-                Response = requestDto.Response,
-                DateTime = DateTime.Now
-            };
+            _logger.LogInformation("Seller {SellerId} attempting to create response for review {ReviewId}", sellerId, requestDto.ReviewId);
 
-            // Servis vraća model ili null
-            var createdResponseModel = await _reviewService.CreateReviewResponseAsync(request);
-
-            if (createdResponseModel == null)
+            // 2. Validacija ulaznog DTO-a
+            if (!ModelState.IsValid)
             {
-                // Ako recenzija postoji, null iz servisa sada verovatno znači da odgovor već postoji
-                _logger.LogWarning("Failed to create response for review {ReviewId}. Response might already exist.", requestDto.ReviewId);
-                return Conflict(new { message = $"A response for review {requestDto.ReviewId} might already exist." });
+                _logger.LogWarning("CreateReviewResponse for ReviewId {ReviewId} by Seller {SellerId} failed model validation. Errors: {@ModelState}",
+                    requestDto.ReviewId, sellerId, ModelState.Values.SelectMany(v => v.Errors));
+                return BadRequest(ModelState);
             }
+            if (requestDto.ReviewId <= 0) return BadRequest("Invalid Review ID.");
+            if (string.IsNullOrWhiteSpace(requestDto.Response)) return BadRequest("Response text cannot be empty.");
 
-            // Mapiranje kreiranog modela u DTO
-            var createdResponseDto = new ReviewResponseDto
+
+            try
             {
-                Id = createdResponseModel.Id,
-                ReviewId = createdResponseModel.ReviewId,
-                Response = createdResponseModel.Response,
-                DateTime = createdResponseModel.DateTime
-            };
+                // 3. Provjeri da li recenzija postoji i da li Seller ima pravo da odgovori
+                var originalReview = await _reviewService.GetReviewByIdAsync(requestDto.ReviewId);
+                if (originalReview == null)
+                {
+                    _logger.LogWarning("Failed to create response by Seller {SellerId}: Original Review {ReviewId} not found.", sellerId, requestDto.ReviewId);
+                    return NotFound($"Review with ID {requestDto.ReviewId} not found.");
+                }
 
-            _logger.LogInformation("Response {ResponseId} created successfully for review {ReviewId}", createdResponseDto.Id, requestDto.ReviewId);
-            // Vraćamo DTO. Može Ok ili CreatedAtAction ako postoji GET endpoint za response po ID.
-            return Ok(createdResponseDto);
+                // Autorizacija: Da li je Seller vlasnik prodavnice za koju je recenzija?
+                var sellerUser = await _userManager.FindByIdAsync(sellerId); // Potrebno je injektirati UserManager<User> _userManager
+                if (sellerUser == null)
+                {
+                    _logger.LogError("Authenticated Seller {SellerId} not found in database.", sellerId);
+                    return StatusCode(StatusCodes.Status500InternalServerError, "Authenticated user not found.");
+                }
+                if (!sellerUser.StoreId.HasValue || sellerUser.StoreId.Value != originalReview.StoreId)
+                {
+                    _logger.LogWarning("Forbidden: Seller {SellerId} (Store: {SellerStoreId}) attempted to respond to Review {ReviewId} for Store {ReviewStoreId}.",
+                        sellerId, sellerUser.StoreId?.ToString() ?? "None", requestDto.ReviewId, originalReview.StoreId);
+                    return Forbid("You are not authorized to respond to this review.");
+                }
+                _logger.LogInformation("Seller {SellerId} authorized to respond to Review {ReviewId}.", sellerId, requestDto.ReviewId);
+
+
+                // 4. Kreiraj ReviewResponse objekat
+                var reviewResponseToCreate = new ReviewResponse
+                {
+                    Id = 0, // EF Core će generisati
+                    ReviewId = requestDto.ReviewId,
+                    Response = requestDto.Response,
+                    DateTime = DateTime.UtcNow // Postavi vrijeme ovdje ili u servisu
+                                               // SellerId se može dodati u ReviewResponse model ako želiš pratiti ko je odgovorio,
+                                               // ali za sada se oslanjamo na autorizaciju.
+                };
+
+                // 5. Pozovi servisnu metodu sa oba argumenta
+                var createdResponseModel = await _reviewService.CreateReviewResponseAsync(reviewResponseToCreate, sellerId);
+
+                if (createdResponseModel == null)
+                {
+                    // Servis vraća null ako odgovor već postoji ili ako je originalna recenzija obrisana u međuvremenu
+                    _logger.LogWarning("Failed to create response for review {ReviewId} by Seller {SellerId}. Service returned null (likely response already exists or review deleted).", requestDto.ReviewId, sellerId);
+                    // Provjeri ponovo da li odgovor postoji da bi vratio Conflict umjesto generičke greške
+                    bool responseNowExists = await _context.ReviewResponses.AnyAsync(rr => rr.ReviewId == requestDto.ReviewId); // Treba ti _context (ReviewDbContext) ovdje
+                    if (responseNowExists) return Conflict(new { message = $"A response for review {requestDto.ReviewId} already exists." });
+                    return BadRequest("Failed to create review response. Please try again."); // Generalna greška ako nije Conflict
+                }
+
+                // 6. Mapiranje kreiranog modela u DTO za odgovor klijentu
+                var createdResponseDto = new ReviewResponseDto
+                {
+                    Id = createdResponseModel.Id,
+                    ReviewId = createdResponseModel.ReviewId,
+                    Response = createdResponseModel.Response,
+                    DateTime = createdResponseModel.DateTime
+                };
+
+                _logger.LogInformation("Response {ResponseId} created successfully for review {ReviewId} by Seller {SellerId}", createdResponseDto.Id, requestDto.ReviewId, sellerId);
+                // Vraćamo 200 OK sa DTO-om jer se ne kreira novi resurs sa sopstvenim URL-om za GET by ID
+                // Ako bi imao GET /api/Review/response/{responseId}, onda bi koristio CreatedAtAction
+                return Ok(createdResponseDto);
+            }
+            catch (UnauthorizedAccessException ex) // Uhvaćeno ako servis baci (iako smo provjerili ovdje)
+            {
+                _logger.LogWarning(ex, "Unauthorized attempt by Seller {SellerId} to respond to Review {ReviewId}.", sellerId, requestDto.ReviewId);
+                return Forbid(ex.Message);
+            }
+            catch (ArgumentException ex) // Npr. ako DTO nije validan ili ReviewId <= 0
+            {
+                _logger.LogWarning(ex, "Argument error creating review response for ReviewId {ReviewId} by Seller {SellerId}.", requestDto.ReviewId, sellerId);
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex) // Ako UserManager ne nađe Sellera
+            {
+                _logger.LogWarning(ex, "KeyNotFound error creating review response for ReviewId {ReviewId} by Seller {SellerId}.", requestDto.ReviewId, sellerId);
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex) // Sve ostale greške
+            {
+                _logger.LogError(ex, "An error occurred while creating review response for ReviewId {ReviewId} by Seller {SellerId}.", requestDto.ReviewId, sellerId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the review response.");
+            }
         }
     }
 
