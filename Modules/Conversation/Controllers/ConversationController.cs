@@ -232,7 +232,6 @@ namespace Chat.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<IEnumerable<MessageDto>>> GetAllConversationMessages(
-
             int conversationId,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 30)

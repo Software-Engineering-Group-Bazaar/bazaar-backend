@@ -11,6 +11,7 @@ using Conversation.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Notifications.Interfaces;
 using Store.Interface;
 using Users.Models;
 
@@ -23,12 +24,16 @@ namespace Chat.Services
         private readonly IStoreService _storeService;
         private readonly CatalogDbContext _catalogContext;
         private readonly ILogger<ChatService> _logger;
+        private readonly INotificationService _dbNotificationService;
+        private readonly IPushNotificationService _pushNotificationService;
 
         public ChatService(
             ConversationDbContext context,
             UserManager<User> userManager,
             IStoreService storeService,
             CatalogDbContext catalogContext,
+            INotificationService dbNotificationService,
+            IPushNotificationService pushNotificationService,
             ILogger<ChatService> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -36,6 +41,8 @@ namespace Chat.Services
             _storeService = storeService ?? throw new ArgumentNullException(nameof(storeService));
             _catalogContext = catalogContext ?? throw new ArgumentNullException(nameof(catalogContext));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _dbNotificationService = dbNotificationService ?? throw new ArgumentNullException(nameof(dbNotificationService));
+            _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
         }
 
         public async Task<ConversationDto?> GetOrCreateConversationAsync(
@@ -151,55 +158,103 @@ namespace Chat.Services
 
         public async Task<MessageDto?> SaveMessageAsync(string senderUserId, int conversationId, string content, bool isPrivate)
         {
-            _logger.LogInformation("Saving message from User {SenderUserId} to Conversation {ConversationId}. IsPrivate: {IsPrivate}",
-                senderUserId, conversationId, isPrivate);
+            _logger.LogInformation("Attempting to save message from User {SenderUserId} to Conversation {ConversationId}. IsPrivate: {IsPrivate}. Content snippet: '{ContentSnippet}'",
+                senderUserId, conversationId, isPrivate, content.Substring(0, Math.Min(30, content.Length)));
 
-            if (!await CanUserAccessConversationAsync(senderUserId, conversationId))
+            // 1. Provjeri da li korisnik pripada konverzaciji
+            var conversation = await _context.Conversations.FindAsync(conversationId);
+            if (conversation == null)
             {
-                _logger.LogWarning("User {SenderUserId} attempted to send message to Conversation {ConversationId} without access.", senderUserId, conversationId);
-                throw new UnauthorizedAccessException("User does not have access to this conversation.");
+                _logger.LogWarning("SaveMessage failed: Conversation {ConversationId} not found.", conversationId);
+                throw new KeyNotFoundException($"Conversation with ID {conversationId} not found.");
+            }
+            if (conversation.BuyerUserId != senderUserId && conversation.SellerUserId != senderUserId)
+            {
+                _logger.LogWarning("User {SenderUserId} attempted to send message to Conversation {ConversationId} they do not belong to.", senderUserId, conversationId);
+                throw new UnauthorizedAccessException("User does not have access to send messages in this conversation.");
             }
 
-            var message = new Conversation.Models.Message // Ekspliciraj tip ako treba zbog namespace-a
+            // 2. Kreiraj i sačuvaj poruku
+            var message = new Conversation.Models.Message
             {
                 ConversationId = conversationId,
                 SenderUserId = senderUserId,
                 Content = content,
                 SentAt = DateTime.UtcNow,
                 IsPrivate = isPrivate,
-                PreviousMessageId = 0 // Default za non-nullable int, ako ne želiš da bude nullable
-                                      // Idealno, ako ga ne koristiš, učini ga nullable (int?)
+                PreviousMessageId = 0
             };
 
             _context.Messages.Add(message);
+            await _context.SaveChangesAsync();
 
-            // Ažuriraj LastMessageId na konverzaciji
-            var conversation = await _context.Conversations.FindAsync(conversationId);
-            if (conversation != null)
+            conversation.LastMessageId = message.Id;
+            _context.Entry(conversation).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Message ID {MessageId} saved. Conversation {ConversationId} LastMessageId updated to {LastMessageId}.", message.Id, conversationId, message.Id);
+
+            try
             {
-                // Prvo sačuvaj poruku da bi dobila svoj 'Id'
-                await _context.SaveChangesAsync();
-                conversation.LastMessageId = message.Id;
-                _context.Entry(conversation).State = EntityState.Modified;
-                // Zatim sačuvaj izmjenu na konverzaciji (može i zajedno sa porukom ako je sve u istom SaveChanges)
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Message ID {MessageId} saved. Conversation {ConversationId} LastMessageId updated to {LastMessageId}.", message.Id, conversationId, message.Id);
+                string recipientUserId = conversation.BuyerUserId == senderUserId ? conversation.SellerUserId : conversation.BuyerUserId;
+                var recipientUser = await _userManager.FindByIdAsync(recipientUserId);
+                var senderUser = await _userManager.FindByIdAsync(senderUserId);
+
+                if (recipientUser != null)
+                {
+                    string notificationMessage = $"Nova poruka od {senderUser?.UserName ?? "korisnika"}: {content.Substring(0, Math.Min(50, content.Length))}{(content.Length > 50 ? "..." : "")}";
+                    string pushTitle = $"Nova poruka od {senderUser?.UserName ?? "Korisnika"}";
+
+                    await _dbNotificationService.CreateNotificationAsync(
+                        recipientUserId,
+                        notificationMessage,
+                        conversationId
+                    );
+                    _logger.LogInformation("DB Notification creation task initiated for Recipient {RecipientUserId} for new message in Conversation {ConversationId}.", recipientUserId, conversationId);
+
+                    if (!string.IsNullOrWhiteSpace(recipientUser.FcmDeviceToken))
+                    {
+                        var pushData = new Dictionary<string, string> {
+                                { "conversationId", conversationId.ToString() },
+                                { "messageId", message.Id.ToString() },
+                                { "screen", "ChatScreen" }
+                            };
+                        try
+                        {
+                            await _pushNotificationService.SendPushNotificationAsync(
+                                recipientUser.FcmDeviceToken,
+                                pushTitle,
+                                content,
+                                pushData
+                            );
+                            _logger.LogInformation("Push Notification task initiated for Recipient {RecipientUserId} for new message.", recipientUserId);
+                        }
+                        catch (Exception pushEx)
+                        {
+                            _logger.LogError(pushEx, "Failed to send Push Notification to Recipient {RecipientUserId} for message in Conversation {ConversationId}.", recipientUserId, conversationId);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Recipient {RecipientUserId} has no FcmDeviceToken for push notification.", recipientUserId);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Could not find recipient user {RecipientUserId} for notification.", recipientUserId);
+                }
             }
-            else
+            catch (Exception notifyEx)
             {
-                _logger.LogError("Failed to save message. Conversation {ConversationId} not found when trying to update LastMessageId.", conversationId);
-                await _context.SaveChangesAsync(); // Ipak pokušaj sačuvati poruku
-                // Razmisli da li treba baciti izuzetak ako konverzacija ne postoji
-                // throw new KeyNotFoundException($"Conversation with ID {conversationId} not found.");
+                _logger.LogError(notifyEx, "Error sending notification for new message from {SenderUserId} in Conversation {ConversationId}.", senderUserId, conversationId);
             }
 
-            var senderUser = await _userManager.FindByIdAsync(senderUserId);
+            // 4. Mapiraj i vrati DTO sačuvane poruke
             return new MessageDto
             {
                 Id = message.Id,
                 ConversationId = message.ConversationId,
                 SenderUserId = message.SenderUserId,
-                SenderUsername = senderUser?.UserName,
                 Content = message.Content,
                 SentAt = message.SentAt,
                 ReadAt = message.ReadAt,
@@ -207,13 +262,14 @@ namespace Chat.Services
             };
         }
 
+
         public async Task<IEnumerable<ConversationDto>> GetConversationsForUserAsync(string userId)
         {
             _logger.LogInformation("Fetching conversations for User {UserId}", userId);
             var conversations = await _context.Conversations
                 .Where(c => c.BuyerUserId == userId || c.SellerUserId == userId)
                 .OrderByDescending(c => c.LastMessageId.HasValue ?
-                    _context.Messages.Where(m => m.Id == c.LastMessageId).Select(m => m.SentAt).FirstOrDefault() : // Može biti neefikasno
+                    _context.Messages.Where(m => m.Id == c.LastMessageId).Select(m => m.SentAt).FirstOrDefault() :
                     c.CreatedAt)
                 .AsNoTracking()
                 .ToListAsync();
@@ -238,19 +294,16 @@ namespace Chat.Services
                 throw new UnauthorizedAccessException("User does not have access to this conversation.");
             }
 
-            // Provjeri da li konverzacija uopšte postoji
             var conversationExists = await _context.Conversations.AnyAsync(c => c.Id == conversationId);
             if (!conversationExists)
             {
                 _logger.LogWarning("Conversation {ConversationId} not found when fetching messages.", conversationId);
-                return Enumerable.Empty<MessageDto>(); // Ili baci KeyNotFoundException
+                return Enumerable.Empty<MessageDto>();
             }
 
 
             var query = _context.Messages
                 .Where(m => m.ConversationId == conversationId)
-                // Admin vidi samo ne-privatne poruke.
-                // Učesnik vidi sve ne-privatne, i svoje privatne.
                 .Where(m => !m.IsPrivate || (m.IsPrivate && m.SenderUserId == requestingUserId) || (isAdmin && !m.IsPrivate))
                 .OrderByDescending(m => m.SentAt)
                 .Skip((page - 1) * pageSize)
@@ -261,7 +314,6 @@ namespace Chat.Services
             _logger.LogInformation("Retrieved {MessageCount} messages for Conversation {ConversationId}", messages.Count, conversationId);
 
             var senderIds = messages.Select(m => m.SenderUserId).Distinct().ToList();
-            // Optimizacija: Dohvati sve usere odjednom
             var senders = await _userManager.Users
                                     .Where(u => senderIds.Contains(u.Id))
                                     .ToDictionaryAsync(u => u.Id, u => u.UserName);
@@ -272,11 +324,11 @@ namespace Chat.Services
                 ConversationId = m.ConversationId,
                 SenderUserId = m.SenderUserId,
                 SenderUsername = senders.TryGetValue(m.SenderUserId, out var username) ? username : "Nepoznat",
-                Content = m.IsPrivate && isAdmin ? "[Privatna poruka - sakriveno za admina]" : m.Content, // Sakrij sadržaj od admina ako je privatna
+                Content = m.IsPrivate && isAdmin ? "[Privatna poruka - sakriveno za admina]" : m.Content,
                 SentAt = m.SentAt,
                 ReadAt = m.ReadAt,
                 IsPrivate = m.IsPrivate
-            }).Reverse(); // Vrati u hronološkom redoslijedu (starije prvo)
+            }).Reverse();
         }
 
         public async Task<bool> CanUserAccessConversationAsync(string userId, int conversationId)
