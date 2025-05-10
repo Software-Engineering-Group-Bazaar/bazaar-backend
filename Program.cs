@@ -3,6 +3,8 @@ using Amazon.S3;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
+using Chat.Interfaces;
+using Chat.Services;
 using Conversation.Data;
 using Inventory.Interfaces;
 using Inventory.Models;
@@ -53,6 +55,10 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<IChatService, ChatService>();
+
+
+builder.Services.AddSignalR();
 
 
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
