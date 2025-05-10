@@ -52,8 +52,9 @@ namespace MarketingAnalytics.Services
 
             // procjeni broj reklama sto se trb vidjeti 0+
             var dist = new LogNormal(0.2, 0.8);
+            var s = random.NextDouble();
             int N = (int)Math.Round(dist.Next()); // klk reklama poslati
-            N = N < 4 ? N : 3;
+            N = s < 0.15 ? 0 : s < 0.65 ? 1 : s < 85 ? 2 : 3;
             if (N == 0)
                 return new List<AdFeaturePair>();
             // nabavi kandidate
