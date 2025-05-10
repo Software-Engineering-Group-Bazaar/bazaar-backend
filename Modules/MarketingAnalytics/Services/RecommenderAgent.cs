@@ -124,10 +124,11 @@ namespace MarketingAnalytics.Services
                 t.Add(x => 0);
             }
 
-            using var scope = _scopeFactory.CreateScope();
-            Func<AdDbContext> createContext = () => scope.ServiceProvider.GetRequiredService<AdDbContext>();
+
             var task1 = Task.Run(async () =>
             {
+                using var scope = _scopeFactory.CreateScope();
+                Func<AdDbContext> createContext = () => scope.ServiceProvider.GetRequiredService<AdDbContext>();
                 using var context = createContext();
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
@@ -138,6 +139,8 @@ namespace MarketingAnalytics.Services
 
             var task2 = Task.Run(async () =>
             {
+                using var scope = _scopeFactory.CreateScope();
+                Func<AdDbContext> createContext = () => scope.ServiceProvider.GetRequiredService<AdDbContext>();
                 using var context = createContext();
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
@@ -148,6 +151,8 @@ namespace MarketingAnalytics.Services
 
             var task3 = Task.Run(async () =>
             {
+                using var scope = _scopeFactory.CreateScope();
+                Func<AdDbContext> createContext = () => scope.ServiceProvider.GetRequiredService<AdDbContext>();
                 using var context = createContext();
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
@@ -158,6 +163,8 @@ namespace MarketingAnalytics.Services
 
             var task5 = Task.Run(async () =>
             {
+                using var scope = _scopeFactory.CreateScope();
+                Func<AdDbContext> createContext = () => scope.ServiceProvider.GetRequiredService<AdDbContext>();
                 using var context = createContext();
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
@@ -168,6 +175,8 @@ namespace MarketingAnalytics.Services
 
             var task6 = Task.Run(async () =>
             {
+                using var scope = _scopeFactory.CreateScope();
+                Func<AdDbContext> createContext = () => scope.ServiceProvider.GetRequiredService<AdDbContext>();
                 using var context = createContext();
                 var normAd = new Normalizator<AdDbContext, Advertisment>(context);
                 return await normAd.ZTranformFactoryAsync(
