@@ -63,7 +63,11 @@ namespace MarketingAnalytics.Controllers
                         .SendAsync("ReceiveClickTimestamp", System.DateTime.UtcNow);
                 var ad = await _adService.GetAdvertisementByIdAsync(id);
                 await SendAdHelperAsync(ad);
-                return StatusCode(StatusCodes.Status201Created, recordedClick);
+                return StatusCode(StatusCodes.Status201Created, new
+                {
+                    TimeStamps = recordedClick.Timestamp,
+                    AdId = recordedClick.AdvertismentId
+                });
             }
             catch (Exception ex)
             {
@@ -106,7 +110,11 @@ namespace MarketingAnalytics.Controllers
                 var p = _advertisementHubContext.Clients.Group(AdvertisementHub.AdminGroup);
                 var ad = await _adService.GetAdvertisementByIdAsync(id);
                 await SendAdHelperAsync(ad);
-                return StatusCode(StatusCodes.Status201Created, recordedConversion);
+                return StatusCode(StatusCodes.Status201Created, new
+                {
+                    TimeStamps = recordedConversion.Timestamp,
+                    AdId = recordedConversion.AdvertismentId
+                });
             }
             catch (Exception ex)
             {
