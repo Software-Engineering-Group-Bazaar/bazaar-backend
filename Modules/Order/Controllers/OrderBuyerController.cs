@@ -11,11 +11,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Notifications.Interfaces;
+using Notifications.Services;
 using Order.Interface;
 using Order.Models;
 using Order.Models.DTOs.Buyer;
 using Users.Models;
 
+ 
 namespace Order.Controllers
 {
     [Authorize]
@@ -36,7 +38,8 @@ namespace Order.Controllers
         private readonly InventoryDbContext _inventoryContext;
         private readonly IAdService _adService;
         private readonly IProductService _productService;
-
+        
+       private readonly ReviewReminderService _reviewReminderService;
         public OrderBuyerController(
             ILogger<OrderBuyerController> logger,
             IOrderService orderService,
@@ -47,7 +50,10 @@ namespace Order.Controllers
             IInventoryService inventoryService,
             InventoryDbContext inventoryContext,
             IAdService adService,
-            IProductService productService)
+            IProductService productService,
+            ReviewReminderService reviewReminderService
+            
+            )
 
         {
             _logger = logger;
@@ -60,6 +66,7 @@ namespace Order.Controllers
             _inventoryContext = inventoryContext;
             _adService = adService ?? throw new ArgumentNullException(nameof(adService));
             _productService = productService ?? throw new ArgumentNullException(nameof(productService));
+             _reviewReminderService = reviewReminderService ?? throw new ArgumentNullException(nameof(reviewReminderService));
         }
 
         // GET /api/OrderBuyer/order
@@ -256,7 +263,8 @@ namespace Order.Controllers
                     Total = createdOrder.Total, // Will likely be null or 0 initially
                     OrderItems = listitems // Order items for the buyer
                 };
-
+                  //Notif za buyera 
+                  await _reviewReminderService.SendReminderWithDelayAsync(createdOrder.BuyerId, createdOrder.Id);
                 // Sending notification to the seller
                 var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdOrder.StoreId);
 

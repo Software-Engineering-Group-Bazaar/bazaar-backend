@@ -40,6 +40,8 @@ using Users.Interfaces;
 using Users.Models;
 using Users.Services;
 
+using Hangfire;
+using Hangfire.MemoryStorage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -65,6 +67,10 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 
 // Registrujte ostale servise
+//Hangfire:
+builder.Services.AddHangfire(config => config.UseMemoryStorage());
+builder.Services.AddHangfireServer();
+
 
 const string AllowLocalhostOriginsPolicy = "_allowLocalhostOrigins";
 const string AllowProductionOriginPolicy = "_allowProductionOrigin";
@@ -134,7 +140,7 @@ builder.Services.AddScoped<IGeographyService, GeographyService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 builder.Services.AddScoped<INotificationService, NotificationService>();
-
+builder.Services.AddScoped<ReviewReminderService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderItemService, OrderItemService>();
 
@@ -246,8 +252,13 @@ else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironm
     // Ne treba logovanje ovdje ako pravi probleme
 }
 
+
+
 // --- Build the App ---
 var app = builder.Build();
+
+app.UseHangfireDashboard();
+
 
 // --- Seed Data (Optional) ---
 await SeedRolesAsync(app);
