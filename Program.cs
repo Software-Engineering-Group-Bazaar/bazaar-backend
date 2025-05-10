@@ -3,6 +3,7 @@ using Amazon.S3;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
+using Chat.Hubs;
 using Chat.Interfaces;
 using Chat.Services;
 using Conversation.Data;
@@ -300,6 +301,7 @@ app.UseAuthentication(); // IMPORTANT: Before Authorization
 app.UseCors(AllowLocalhostOriginsPolicy);
 app.UseCors(AllowProductionOriginPolicy);
 app.UseAuthorization();  // IMPORTANT: After Authentication
+app.MapHub<ChatHub>("/chathub"); // Endpoint za SignalR
 
 app.MapControllers(); // Map controller endpoints
 

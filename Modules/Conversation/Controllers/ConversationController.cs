@@ -58,13 +58,12 @@ namespace Chat.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId)) return Unauthorized("User ID not found.");
-            bool isAdmin = User.IsInRole("Admin"); // Za filtriranje privatnih poruka
+            bool isAdmin = User.IsInRole("Admin");
 
             _logger.LogInformation("User {UserId} (IsAdmin: {IsAdmin}) fetching messages for Conversation {ConversationId}, Page: {Page}, Size: {PageSize}",
                 userId, isAdmin, conversationId, page, pageSize);
             try
             {
-                // Servis radi autorizaciju (CanUserAccessConversationAsync) i filtriranje privatnih
                 var messages = await _chatService.GetConversationMessagesAsync(conversationId, userId, isAdmin, page, pageSize);
                 return Ok(messages);
             }
@@ -73,7 +72,7 @@ namespace Chat.Controllers
                 _logger.LogWarning(ex, "User {UserId} unauthorized access to messages for Conversation {ConversationId}", userId, conversationId);
                 return Forbid("You do not have access to this conversation.");
             }
-            catch (KeyNotFoundException ex) // Ako konverzacija ne postoji
+            catch (KeyNotFoundException ex)
             {
                 _logger.LogWarning(ex, "Conversation {ConversationId} not found when fetching messages for User {UserId}", conversationId, userId);
                 return NotFound(ex.Message);
@@ -101,7 +100,7 @@ namespace Chat.Controllers
             try
             {
                 bool success = await _chatService.MarkMessagesAsReadAsync(conversationId, userId);
-                if (!success && !(await _chatService.CanUserAccessConversationAsync(userId, conversationId))) // Provjeri da li je NotFound
+                if (!success && !(await _chatService.CanUserAccessConversationAsync(userId, conversationId)))
                 {
                     return NotFound($"Conversation {conversationId} not found or no messages to mark as read.");
                 }
@@ -112,7 +111,7 @@ namespace Chat.Controllers
                 _logger.LogWarning(ex, "User {UserId} unauthorized to mark messages as read for Conversation {ConversationId}", userId, conversationId);
                 return Forbid("You do not have access to this conversation.");
             }
-            catch (KeyNotFoundException ex) // Ako konverzacija ne postoji
+            catch (KeyNotFoundException ex)
             {
                 _logger.LogWarning(ex, "Conversation {ConversationId} not found when marking as read for User {UserId}", conversationId, userId);
                 return NotFound(ex.Message);
@@ -128,8 +127,7 @@ namespace Chat.Controllers
         [HttpPost("conversations/find-or-create")]
         [ProducesResponseType(typeof(ConversationDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ConversationDto), StatusCodes.Status201Created)]
-        // ... (ostali ProducesResponseType) ...
-        public async Task<ActionResult<ConversationDto>> FindOrCreateConversation([FromBody] FindOrCreateConversationDto findDto) // DTO sada ima ProductId
+        public async Task<ActionResult<ConversationDto>> FindOrCreateConversation([FromBody] FindOrCreateConversationDto findDto)
         {
             var requestingUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(requestingUserId)) return Unauthorized("User ID not found.");
@@ -143,8 +141,8 @@ namespace Chat.Controllers
                     requestingUserId,
                     findDto.TargetUserId,
                     findDto.StoreId,
-                    findDto.OrderId, // Proslijedi OrderId
-                    findDto.ProductId  // <<< Proslijedi ProductId
+                    findDto.OrderId,
+                    findDto.ProductId
                 );
 
                 if (conversationDto == null)
@@ -152,9 +150,8 @@ namespace Chat.Controllers
                     return StatusCode(500, "Could not find or create conversation.");
                 }
 
-                // Približna provjera da li je nova (za CreatedAtAction)
                 bool wasJustCreated = conversationDto.CreatedAt >= DateTime.UtcNow.AddSeconds(-5);
-                string actionName = wasJustCreated ? nameof(GetConversationMessages) : nameof(GetConversationMessages); // Linkuj na messages
+                string actionName = wasJustCreated ? nameof(GetConversationMessages) : nameof(GetConversationMessages);
                 object routeValues = new { conversationId = conversationDto.Id };
 
                 if (wasJustCreated)
@@ -163,11 +160,71 @@ namespace Chat.Controllers
                 }
                 return Ok(conversationDto);
             }
-            // ... (catch blokovi ostaju isti) ...
             catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
             catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
             catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
             catch (Exception ex) { _logger.LogError(ex, "Error in FindOrCreateConversation."); return StatusCode(500, "An error occurred."); }
+        }
+
+        [HttpPost("test/send-message")]
+        [Authorize]
+        [ProducesResponseType(typeof(MessageDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)] // Ako korisnik ne pripada konverzaciji
+        [ProducesResponseType(StatusCodes.Status404NotFound)] // Ako konverzacija ne postoji
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<MessageDto>> TestSendMessage([FromBody] CreateMessageDto createMessageDto)
+        {
+            var senderUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(senderUserId))
+            {
+                return Unauthorized("User ID not found.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            _logger.LogInformation("[TEST ENDPOINT] User {SenderUserId} attempting to send message via HTTP to Conversation {ConversationId}",
+                senderUserId, createMessageDto.ConversationId);
+
+            try
+            {
+                MessageDto? savedMessage = await _chatService.SaveMessageAsync(
+                    senderUserId,
+                    createMessageDto.ConversationId,
+                    createMessageDto.Content,
+                    createMessageDto.IsPrivate
+                );
+
+                if (savedMessage == null)
+                {
+                    _logger.LogWarning("[TEST ENDPOINT] SaveMessageAsync returned null for Conversation {ConversationId}", createMessageDto.ConversationId);
+                    return NotFound($"Could not save message, possibly conversation {createMessageDto.ConversationId} not found or other issue.");
+                }
+
+                _logger.LogInformation("[TEST ENDPOINT] Message ID {MessageId} saved successfully for Conversation {ConversationId} by User {SenderId}",
+                    savedMessage.Id, savedMessage.ConversationId, senderUserId);
+
+                return StatusCode(StatusCodes.Status201Created, savedMessage);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "[TEST ENDPOINT] Unauthorized message send by User {SenderUserId} to Conversation {ConversationId}", senderUserId, createMessageDto.ConversationId);
+                return Forbid(ex.Message);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                _logger.LogWarning(ex, "[TEST ENDPOINT] Conversation not found when sending message by User {SenderUserId} to Conversation {ConversationId}", senderUserId, createMessageDto.ConversationId);
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[TEST ENDPOINT] Error sending message via HTTP for User {SenderUserId} to Conversation {ConversationId}", senderUserId, createMessageDto.ConversationId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while sending the message.");
+            }
         }
     }
 }

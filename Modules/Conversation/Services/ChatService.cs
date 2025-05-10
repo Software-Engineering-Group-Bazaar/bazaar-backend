@@ -2,27 +2,26 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Catalog.Models; // Za Product model (za ProductName)
-using Catalog.Models;   // Za CatalogDbContext
+using Catalog.Models;
+using Catalog.Models;
 using Chat.Dtos;
 using Chat.Interfaces;
-using Conversation.Data; // Koristiš Conversation.Data za DbContext
-using Conversation.Models; // Koristiš Conversation.Models za Entitete
+using Conversation.Data;
+using Conversation.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Store.Interface; // Za IStoreService
-// using Store.Models; // StoreModel se koristi preko IStoreService
-using Users.Models;   // Za User model
+using Store.Interface;
+using Users.Models;
 
 namespace Chat.Services
 {
     public class ChatService : IChatService
     {
-        private readonly ConversationDbContext _context; // DbContext za Chat
+        private readonly ConversationDbContext _context;
         private readonly UserManager<User> _userManager;
-        private readonly IStoreService _storeService;     // Za dohvat StoreName
-        private readonly CatalogDbContext _catalogContext; // Za dohvat ProductName
+        private readonly IStoreService _storeService;
+        private readonly CatalogDbContext _catalogContext;
         private readonly ILogger<ChatService> _logger;
 
         public ChatService(
