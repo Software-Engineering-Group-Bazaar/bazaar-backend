@@ -21,7 +21,7 @@ namespace MarketingAnalytics.DTOs
         public int Conversions { get; set; }
         public decimal ConversionPrice { get; set; }
         public string AdType { get; set; }
-        public int Triggers { get; set; }
+        public List<string> Triggers { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public bool IsActive { get; set; }

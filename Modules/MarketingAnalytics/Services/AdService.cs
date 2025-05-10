@@ -229,6 +229,12 @@ namespace MarketingAnalytics.Services
             advertisment.StartTime = request.StartTime;
             advertisment.EndTime = request.EndTime;
             advertisment.IsActive = request.IsActive ?? (DateTime.UtcNow >= request.StartTime && DateTime.UtcNow < request.EndTime);
+            advertisment.Triggers = request.Triggers;
+            advertisment.ClickPrice = request.ClickPrice;
+            advertisment.ViewPrice = request.ClickPrice;
+            advertisment.ConversionPrice = request.ClickPrice;
+            advertisment.AdType = request.AdType;
+
 
             // Process NEW AdData items if provided
             if (request.NewAdDataItems != null && request.NewAdDataItems.Any())

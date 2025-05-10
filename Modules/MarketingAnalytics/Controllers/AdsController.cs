@@ -1,6 +1,8 @@
 // Controllers/ClicksController.cs
 using System.Security.Claims;
 using System.Threading.Tasks;
+using MarketingAnalytics.Dtos;
+using MarketingAnalytics.DTOs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -13,12 +15,14 @@ namespace MarketingAnalytics.Controllers
     public class AdsController : ControllerBase
     {
         private readonly IAdService _adService;
+        private readonly IRecommenderAgent _recommender;
         private readonly ILogger<AdsController> _logger;
 
-        public AdsController(IAdService adService, ILogger<AdsController> logger)
+        public AdsController(IAdService adService, IRecommenderAgent recommender, ILogger<AdsController> logger)
         {
             _adService = adService;
             _logger = logger;
+            _recommender = recommender;
         }
 
         // POST: api/Ads/clicks/{id}
@@ -160,6 +164,57 @@ namespace MarketingAnalytics.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se neočekivana greška na serveru.");
             }
         }
+        [HttpGet("ads")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(List<AdvertismentFeatureDto>))]
+        public async Task<ActionResult<List<AdvertismentFeatureDto>>> GetAds()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var ads = await _recommender.RecommendAsync(userId);
+            var dto = ads.Select(adVec =>
+            {
+                var advertisement = adVec.Ad;
+                return new AdvertismentFeatureDto
+                {
+                    Advertisment = new AdvertismentDto
+                    {
+                        Id = advertisement.Id,
+                        SellerId = advertisement.SellerId,
+                        StartTime = advertisement.StartTime,
+                        EndTime = advertisement.EndTime,
+                        IsActive = advertisement.IsActive,
+                        Views = advertisement.Views,
+                        ViewPrice = advertisement.ViewPrice,
+                        Clicks = advertisement.Clicks,
+                        ClickPrice = advertisement.ClickPrice,
+                        Conversions = advertisement.Conversions,
+                        ConversionPrice = advertisement.ConversionPrice,
+                        AdType = advertisement.AdType.ToString(),
+                        Triggers = _adService.AdTriggerToString(advertisement.Triggers),
+                        AdData = advertisement.AdData.Select(ad => new AdDataDto
+                        {
+                            Id = ad.Id,
+                            StoreId = ad.StoreId,
+                            ImageUrl = ad.ImageUrl,
+                            Description = ad.Description,
+                            ProductId = ad.ProductId
+                        }).ToList()
+                    },
+                    FeatureVec = adVec.FeatureVec
+                };
+            }
+            );
+            return Ok(dto);
+        }
+
+        [HttpPost("reward")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
+        public async Task<ActionResult> Reward([FromBody] RewardDto rewardDto)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            await _recommender.RecordRewardAsync(rewardDto.FeatureVec, rewardDto.Reward, userId);
+            return Ok("Weights updated!");
+        }
+
 
         // // GET: api/clicks/advertisement/{advertisementId}
         // [HttpGet("advertisement/{advertisementId:int}")]

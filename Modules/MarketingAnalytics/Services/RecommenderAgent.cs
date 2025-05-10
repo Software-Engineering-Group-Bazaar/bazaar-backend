@@ -64,7 +64,7 @@ namespace MarketingAnalytics.Services
             var categories = activities.Select(a => a.ProductCategoryId);
             var candidates = await _context.Advertisments.Where(ad => ad.IsActive &&
             categories.Count(c => c == ad.ProductCategoryId) > 0).ToListAsync();
-            var triggers = activities.Aggregate(0, (acc, a) => acc ^ ((int)a.InteractionType));
+            var triggers = activities.Aggregate(0, (acc, a) => acc | ((int)a.InteractionType));
             var c = await _context.Advertisments.Where(ad => ad.IsActive && (triggers & ad.Triggers) != 0).ToListAsync();
             candidates.AddRange(c);
             return await RecommendCandidatesAsync(userId, candidates, N);

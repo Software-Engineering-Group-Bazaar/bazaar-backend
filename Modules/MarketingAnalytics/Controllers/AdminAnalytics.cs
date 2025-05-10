@@ -57,7 +57,7 @@ namespace MarketingAnalytics.Controllers
                     Conversions = advertisement.Conversions,
                     ConversionPrice = advertisement.ConversionPrice,
                     AdType = advertisement.AdType.ToString(),
-                    Triggers = advertisement.Triggers,
+                    Triggers = _adService.AdTriggerToString(advertisement.Triggers),
                     AdData = advertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -109,7 +109,7 @@ namespace MarketingAnalytics.Controllers
                     Conversions = advertisement.Conversions,
                     ConversionPrice = advertisement.ConversionPrice,
                     AdType = advertisement.AdType.ToString(),
-                    Triggers = advertisement.Triggers,
+                    Triggers = _adService.AdTriggerToString(advertisement.Triggers),
                     AdData = advertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -139,7 +139,7 @@ namespace MarketingAnalytics.Controllers
         [ProducesResponseType(typeof(AdvertismentDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<AdvertismentDto>> CreateAdvertisement([FromForm] CreateAdvertismentRequestDto request)
+        public async Task<ActionResult<AdvertismentDto>> CreateAdvertisement([FromForm] CreateAdDto request)
         {
             // Basic check, model state validation handles more via [ApiController]
             if (request?.AdDataItems == null)
@@ -149,33 +149,52 @@ namespace MarketingAnalytics.Controllers
 
             try
             {
-                var createdAdvertisement = await _adService.CreateAdvertismentAsync(request);
-                // Return 201 Created with a Location header pointing to the new resource
-                var dto = new AdvertismentDto
+                if (Enum.TryParse<AdType>(request.AdType, ignoreCase: true, out var adType))
                 {
-                    Id = createdAdvertisement.Id,
-                    SellerId = createdAdvertisement.SellerId,
-                    StartTime = createdAdvertisement.StartTime,
-                    EndTime = createdAdvertisement.EndTime,
-                    IsActive = createdAdvertisement.IsActive,
-                    Views = createdAdvertisement.Views,
-                    ViewPrice = createdAdvertisement.ViewPrice,
-                    Clicks = createdAdvertisement.Clicks,
-                    ClickPrice = createdAdvertisement.ClickPrice,
-                    Conversions = createdAdvertisement.Conversions,
-                    ConversionPrice = createdAdvertisement.ConversionPrice,
-                    AdType = createdAdvertisement.AdType.ToString(),
-                    Triggers = createdAdvertisement.Triggers,
-                    AdData = createdAdvertisement.AdData.Select(ad => new AdDataDto
+                    var contract = new CreateAdvertismentRequestDto
                     {
-                        Id = ad.Id,
-                        StoreId = ad.StoreId,
-                        ImageUrl = ad.ImageUrl,
-                        Description = ad.Description,
-                        ProductId = ad.ProductId
-                    }).ToList()
-                };
-                return CreatedAtRoute("GetAdvertisementById", new { id = createdAdvertisement.Id }, dto);
+                        SellerId = request.SellerId,
+                        StartTime = request.StartTime,
+                        EndTime = request.EndTime,
+                        AdType = adType,
+                        Triggers = _adService.AdTriggerFromStrings(request.Triggers),
+                        ConversionPrice = request.ConversionPrice,
+                        ViewPrice = request.ViewPrice,
+                        ClickPrice = request.ClickPrice,
+                    };
+
+                    var createdAdvertisement = await _adService.CreateAdvertismentAsync(contract);
+                    // Return 201 Created with a Location header pointing to the new resource
+                    var dto = new AdvertismentDto
+                    {
+                        Id = createdAdvertisement.Id,
+                        SellerId = createdAdvertisement.SellerId,
+                        StartTime = createdAdvertisement.StartTime,
+                        EndTime = createdAdvertisement.EndTime,
+                        IsActive = createdAdvertisement.IsActive,
+                        Views = createdAdvertisement.Views,
+                        ViewPrice = createdAdvertisement.ViewPrice,
+                        Clicks = createdAdvertisement.Clicks,
+                        ClickPrice = createdAdvertisement.ClickPrice,
+                        Conversions = createdAdvertisement.Conversions,
+                        ConversionPrice = createdAdvertisement.ConversionPrice,
+                        AdType = createdAdvertisement.AdType.ToString(),
+                        Triggers = _adService.AdTriggerToString(createdAdvertisement.Triggers),
+                        AdData = createdAdvertisement.AdData.Select(ad => new AdDataDto
+                        {
+                            Id = ad.Id,
+                            StoreId = ad.StoreId,
+                            ImageUrl = ad.ImageUrl,
+                            Description = ad.Description,
+                            ProductId = ad.ProductId
+                        }).ToList()
+                    };
+                    return CreatedAtRoute("GetAdvertisementById", new { id = createdAdvertisement.Id }, dto);
+                }
+                else
+                {
+                    return BadRequest("Incorect AdType");
+                }
             }
             catch (ArgumentException argEx) // Catch specific validation errors from service
             {
@@ -208,11 +227,29 @@ namespace MarketingAnalytics.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<AdvertismentDto>> UpdateAdvertisement(int advertismentId, [FromForm] UpdateAdvertismentRequestDto request)
+        public async Task<ActionResult<AdvertismentDto>> UpdateAdvertisement(int advertismentId, [FromForm] UpdateAdDto request)
         {
             try
             {
-                var updatedAdvertisement = await _adService.UpdateAdvertismentAsync(advertismentId, request);
+                UpdateAdvertismentRequestDto contract;
+                if (Enum.TryParse<AdType>(request.AdType, ignoreCase: true, out var adType))
+                {
+                    contract = new UpdateAdvertismentRequestDto
+                    {
+                        StartTime = request.StartTime,
+                        EndTime = request.EndTime,
+                        AdType = adType,
+                        Triggers = _adService.AdTriggerFromStrings(request.Triggers),
+                        ConversionPrice = request.ConversionPrice,
+                        ViewPrice = request.ViewPrice,
+                        ClickPrice = request.ClickPrice,
+                    };
+                }
+                else
+                {
+                    return BadRequest("Invalid AdType!");
+                }
+                var updatedAdvertisement = await _adService.UpdateAdvertismentAsync(advertismentId, contract);
                 if (updatedAdvertisement == null)
                 {
                     _logger.LogWarning("UpdateAdvertisement: Advertisement with ID {AdvertisementId} not found.", advertismentId);
@@ -232,7 +269,7 @@ namespace MarketingAnalytics.Controllers
                     Conversions = updatedAdvertisement.Conversions,
                     ConversionPrice = updatedAdvertisement.ConversionPrice,
                     AdType = updatedAdvertisement.AdType.ToString(),
-                    Triggers = updatedAdvertisement.Triggers,
+                    Triggers = _adService.AdTriggerToString(updatedAdvertisement.Triggers),
                     AdData = updatedAdvertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
