@@ -12,5 +12,6 @@ namespace Chat.Interfaces
         Task<IEnumerable<MessageDto>> GetConversationMessagesAsync(int conversationId, string requestingUserId, bool isAdmin, int page = 1, int pageSize = 30);
         Task<bool> CanUserAccessConversationAsync(string userId, int conversationId);
         Task<bool> MarkMessagesAsReadAsync(int conversationId, string readerUserId);
+        Task<IEnumerable<MessageDto>> GetAllMessagesForConversationAsync(int conversationId, string requestingUserId, bool isAdmin, int page = 1, int pageSize = 30);
     }
 }

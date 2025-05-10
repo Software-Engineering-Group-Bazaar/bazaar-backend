@@ -382,5 +382,69 @@ namespace Chat.Services
                 UnreadMessagesCount = unreadCount
             };
         }
+
+        public async Task<IEnumerable<MessageDto>> GetAllMessagesForConversationAsync(int conversationId, string requestingUserId, bool isAdmin, int page = 1, int pageSize = 30)
+        {
+            _logger.LogInformation("[GetAllMessages] User {UserId} (IsAdmin: {IsAdmin}) fetching ALL messages for Conversation {ConversationId}, Page: {Page}, Size: {PageSize}",
+                requestingUserId, isAdmin, conversationId, page, pageSize);
+
+            // 1. Autorizacija: Provjeri da li korisnik uopšte ima pristup ovoj konverzaciji
+            bool isParticipant = await CanUserAccessConversationAsync(requestingUserId, conversationId);
+            if (!isAdmin && !isParticipant)
+            {
+                _logger.LogWarning("[GetAllMessages] User {RequestingUserId} unauthorized access to Conversation {ConversationId}", requestingUserId, conversationId);
+                throw new UnauthorizedAccessException("User does not have access to this conversation.");
+            }
+
+            var conversationExists = await _context.Conversations.AnyAsync(c => c.Id == conversationId);
+            if (!conversationExists)
+            {
+                _logger.LogWarning("[GetAllMessages] Conversation {ConversationId} not found.", conversationId);
+                return Enumerable.Empty<MessageDto>();
+            }
+
+            // 2. Dohvati SVE poruke za dati conversationId
+            var query = _context.Messages
+                .Where(m => m.ConversationId == conversationId);
+
+            // 3. Primijeni filter za privatne poruke na osnovu toga da li je Admin i da li je učesnik
+            if (isAdmin && !isParticipant)
+            {
+                query = query.Where(m => !m.IsPrivate);
+                _logger.LogDebug("[GetAllMessages] Admin {AdminUserId} viewing non-private messages for Conversation {ConversationId}", requestingUserId, conversationId);
+            }
+
+
+            query = query.OrderByDescending(m => m.SentAt) // Najnovije prvo za paginaciju
+                         .Skip((page - 1) * pageSize)
+                         .Take(pageSize)
+                         .AsNoTracking();
+
+            var messages = await query.ToListAsync();
+            _logger.LogInformation("[GetAllMessages] Retrieved {MessageCount} messages for Conversation {ConversationId}", messages.Count, conversationId);
+
+            // 4. Dohvati imena pošiljaoca
+            var senderIds = messages.Select(m => m.SenderUserId).Distinct().ToList();
+            var senders = new Dictionary<string, string?>();
+            if (senderIds.Any())
+            {
+                senders = await _userManager.Users
+                                    .Where(u => senderIds.Contains(u.Id))
+                                    .ToDictionaryAsync(u => u.Id, u => u.UserName);
+            }
+
+            // 5. Mapiraj u DTO
+            return messages.Select(m => new MessageDto
+            {
+                Id = m.Id,
+                ConversationId = m.ConversationId,
+                SenderUserId = m.SenderUserId,
+                SenderUsername = senders.TryGetValue(m.SenderUserId, out var username) ? username : "Nepoznat",
+                Content = (m.IsPrivate && isAdmin && !isParticipant) ? "[Privatna poruka - sakriveno za admina]" : m.Content,
+                SentAt = m.SentAt,
+                ReadAt = m.ReadAt,
+                IsPrivate = m.IsPrivate
+            }).Reverse();
+        }
     }
 }

@@ -226,5 +226,44 @@ namespace Chat.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while sending the message.");
             }
         }
+        [HttpGet("conversations/{conversationId:int}/all-messages")]
+        [ProducesResponseType(typeof(IEnumerable<MessageDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<IEnumerable<MessageDto>>> GetAllConversationMessages(
+
+            int conversationId,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 30)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized("User ID not found.");
+            bool isAdmin = User.IsInRole("Admin");
+
+            _logger.LogInformation("[GetAllMessages Endpoint] User {UserId} (IsAdmin: {IsAdmin}) fetching ALL messages for Conversation {ConversationId}, Page: {Page}, Size: {PageSize}",
+                userId, isAdmin, conversationId, page, pageSize);
+            try
+            {
+                // Pozovi NOVU servisnu metodu
+                var messages = await _chatService.GetAllMessagesForConversationAsync(conversationId, userId, isAdmin, page, pageSize);
+                return Ok(messages);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "[GetAllMessages Endpoint] User {UserId} unauthorized access to ALL messages for Conversation {ConversationId}", userId, conversationId);
+                return Forbid("You do not have access to this conversation.");
+            }
+            catch (KeyNotFoundException ex)
+            {
+                _logger.LogWarning(ex, "[GetAllMessages Endpoint] Conversation {ConversationId} not found when fetching ALL messages for User {UserId}", conversationId, userId);
+                return NotFound(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[GetAllMessages Endpoint] Error fetching ALL messages for Conversation {ConversationId}, User {UserId}", conversationId, userId);
+                return StatusCode(500, "An error occurred while fetching all messages.");
+            }
+        }
     }
 }
