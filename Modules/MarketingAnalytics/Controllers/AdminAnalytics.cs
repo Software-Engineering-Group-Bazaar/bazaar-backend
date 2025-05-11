@@ -142,10 +142,10 @@ namespace MarketingAnalytics.Controllers
         public async Task<ActionResult<AdvertismentDto>> CreateAdvertisement([FromForm] CreateAdDto request)
         {
             // Basic check, model state validation handles more via [ApiController]
-            if (request?.AdDataItems == null)
-            {
-                return BadRequest("At least one AdData item must be provided.");
-            }
+            // if (request?.AdDataItems == null)
+            // {
+            //     return BadRequest("At least one AdData item must be provided.");
+            // }
 
             try
             {
@@ -161,6 +161,7 @@ namespace MarketingAnalytics.Controllers
                         ConversionPrice = request.ConversionPrice,
                         ViewPrice = request.ViewPrice,
                         ClickPrice = request.ClickPrice,
+                        AdDataItems = request.AdDataItems
                     };
 
                     var createdAdvertisement = await _adService.CreateAdvertismentAsync(contract);
