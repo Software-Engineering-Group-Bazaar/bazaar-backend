@@ -52,7 +52,7 @@ namespace Notifications.Services
                     try
                     {
                         string pushTitle = "Ostavite recenziju!";
-                        string pushBody = $"Završena je narudžbu #{order.Id}.";
+                        string pushBody = $"Završena je narudžba #{order.Id}.";
                         var pushData = new Dictionary<string, string>
                     {
                         { "orderId", order.Id.ToString() },
