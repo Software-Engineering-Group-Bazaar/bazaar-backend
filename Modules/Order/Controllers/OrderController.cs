@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using AdminApi.DTOs;
 using Catalog.Dtos;
 using Catalog.Services;
+using Hangfire;
 using Inventory.Dtos;
 using Inventory.Interfaces;
 using Inventory.Models;
@@ -19,6 +20,8 @@ using Notifications.Interfaces;
 using Order.DTOs;
 using Order.Interface;
 using Order.Models;
+using Review.Interfaces;
+using Review.Models;
 using Store.Services;
 using Users.Models;
 
@@ -43,6 +46,8 @@ namespace Order.Controllers
         private readonly InventoryDbContext _inventoryContext;
         private readonly IAdService _adService;
         private readonly IProductService _productService;
+        private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IReviewService _reviewService;
 
 
         public OrderController(
@@ -55,7 +60,9 @@ namespace Order.Controllers
             IInventoryService inventoryService,
             InventoryDbContext inventoryContext,
             IAdService adService,
-            IProductService productService
+            IProductService productService,
+            IBackgroundJobClient backgroundJobClient,
+            IReviewService reviewService
             )
 
         {
@@ -69,6 +76,8 @@ namespace Order.Controllers
             _inventoryContext = inventoryContext;
             _adService = adService ?? throw new ArgumentNullException(nameof(adService));
             _productService = productService ?? throw new ArgumentNullException(nameof(productService));
+            _backgroundJobClient = backgroundJobClient;
+            _reviewService = reviewService ?? throw new ArgumentNullException(nameof(reviewService));
         }
 
         // GET /api//order
@@ -428,6 +437,16 @@ namespace Order.Controllers
                 {
                     return BadRequest("OrderItem update failed.");
                 }
+                //Notifikacija za review ce doci 3min nakon dostava ili otkazivanja narudzbe
+                ReviewModel review = await _reviewService.GetOrderReviewAsync(id);
+                if (review == null && (status == OrderStatus.Delivered || status == OrderStatus.Cancelled))
+                {
+
+                    _backgroundJobClient.Schedule<IReviewReminderService>(
+                         svc => svc.SendReminderAsync(updateDto.BuyerId, id),
+                         TimeSpan.FromMinutes(1)
+                     );
+                }
             }
             return NoContent();
         }
@@ -527,6 +546,17 @@ namespace Order.Controllers
                             {
                                 // Loguj grešku slanja push notifikacije ali ne prekidaj izvršavanje
                                 _logger.LogError(pushEx, "Failed to send Push Notification to Buyer {BuyerId} for Order {OrderId}.", buyerUser.Id, id);
+                            }
+
+                            //Notifikacija za review ce doci 3min nakon dostava ili otkazivanja narudzbe
+                            ReviewModel review = await _reviewService.GetOrderReviewAsync(id);
+                            if (review == null && (status == OrderStatus.Delivered || status == OrderStatus.Cancelled))
+                            {
+
+                                _backgroundJobClient.Schedule<IReviewReminderService>(
+                                     svc => svc.SendReminderAsync(buyerUser.Id, id),
+                                     TimeSpan.FromMinutes(1)
+                                 );
                             }
                         }
                         else if (updatedOrder != null)
