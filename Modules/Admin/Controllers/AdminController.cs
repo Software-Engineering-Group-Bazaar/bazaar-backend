@@ -1362,7 +1362,7 @@ namespace Admin.Controllers
 {
     _backgroundJobClient.Schedule<IReviewReminderService>(
          svc => svc.SendReminderAsync(updateDto.BuyerId, id),
-         TimeSpan.FromMinutes(3)
+         TimeSpan.FromMinutes(1)
      );
 }
                     
@@ -1461,7 +1461,7 @@ namespace Admin.Controllers
     {
         _backgroundJobClient.Schedule<IReviewReminderService>(
             svc => svc.SendReminderAsync(updatedOrder.BuyerId, id),
-            TimeSpan.FromMinutes(3)
+            TimeSpan.FromMinutes(1)
         );
     }
 }

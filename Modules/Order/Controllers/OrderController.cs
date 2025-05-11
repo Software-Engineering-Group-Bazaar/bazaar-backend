@@ -20,6 +20,8 @@ using Notifications.Interfaces;
 using Order.DTOs;
 using Order.Interface;
 using Order.Models;
+using Review.Interfaces;
+using Review.Models;
 using Store.Services;
 using Users.Models;
 
@@ -45,6 +47,7 @@ namespace Order.Controllers
         private readonly IAdService _adService;
         private readonly IProductService _productService;
         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IReviewService _reviewService;
 
 
         public OrderController(
@@ -58,7 +61,8 @@ namespace Order.Controllers
             InventoryDbContext inventoryContext,
             IAdService adService,
             IProductService productService,
-            IBackgroundJobClient backgroundJobClient
+            IBackgroundJobClient backgroundJobClient,
+            IReviewService reviewService
             )
 
         {
@@ -73,6 +77,7 @@ namespace Order.Controllers
             _adService = adService ?? throw new ArgumentNullException(nameof(adService));
             _productService = productService ?? throw new ArgumentNullException(nameof(productService));
             _backgroundJobClient = backgroundJobClient;
+            _reviewService = reviewService ?? throw new ArgumentNullException(nameof(reviewService));
         }
 
         // GET /api//order
@@ -433,12 +438,13 @@ namespace Order.Controllers
                     return BadRequest("OrderItem update failed.");
                 }
                 //Notifikacija za review ce doci 3min nakon dostava ili otkazivanja narudzbe
-                if (status == OrderStatus.Delivered || status == OrderStatus.Cancelled)
+                ReviewModel review = await _reviewService.GetOrderReviewAsync(id);
+                if (review == null && (status == OrderStatus.Delivered || status == OrderStatus.Cancelled))
                 {
 
                     _backgroundJobClient.Schedule<IReviewReminderService>(
                          svc => svc.SendReminderAsync(updateDto.BuyerId, id),
-                         TimeSpan.FromMinutes(3)
+                         TimeSpan.FromMinutes(1)
                      );
                 }
             }
@@ -543,12 +549,13 @@ namespace Order.Controllers
                             }
 
                             //Notifikacija za review ce doci 3min nakon dostava ili otkazivanja narudzbe
-                            if (status == OrderStatus.Delivered || status == OrderStatus.Cancelled)
+                            ReviewModel review = await _reviewService.GetOrderReviewAsync(id);
+                            if (review == null && (status == OrderStatus.Delivered || status == OrderStatus.Cancelled))
                             {
-                                
+
                                 _backgroundJobClient.Schedule<IReviewReminderService>(
                                      svc => svc.SendReminderAsync(buyerUser.Id, id),
-                                     TimeSpan.FromMinutes(3)
+                                     TimeSpan.FromMinutes(1)
                                  );
                             }
                         }
