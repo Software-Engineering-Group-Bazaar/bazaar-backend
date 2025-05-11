@@ -1,4 +1,4 @@
 public interface IReviewReminderService
 {
-    Task SendReminderAsync(string userId);
+    Task SendReminderAsync(string buyerUserId, int orderId);
 }

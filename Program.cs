@@ -7,6 +7,9 @@ using Chat.Hubs;
 using Chat.Interfaces;
 using Chat.Services;
 using Conversation.Data;
+using Hangfire;
+using Hangfire.MemoryStorage;
+using Hangfire.PostgreSql;
 using Inventory.Interfaces;
 using Inventory.Models;
 using Inventory.Services;
@@ -40,9 +43,6 @@ using Users.Interfaces;
 using Users.Models;
 using Users.Services;
 
-using Hangfire;
-using Hangfire.MemoryStorage;
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSignalR(options =>
@@ -67,9 +67,6 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 
 // Registrujte ostale servise
-//Hangfire:
-builder.Services.AddHangfire(config => config.UseMemoryStorage());
-builder.Services.AddHangfireServer();
 
 
 const string AllowLocalhostOriginsPolicy = "_allowLocalhostOrigins";
@@ -147,6 +144,7 @@ builder.Services.AddScoped<IOrderItemService, OrderItemService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IAdService, AdService>();
 builder.Services.AddScoped<IRecommenderAgent, RecommenderAgent>();
+builder.Services.AddScoped<IReviewReminderService, ReviewReminderService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -252,13 +250,32 @@ else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironm
     // Ne treba logovanje ovdje ako pravi probleme
 }
 
+//Hangfire:
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddHangfire(config => config.UseMemoryStorage());
+}
+else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHangfire(config =>
+        config.UsePostgreSqlStorage(builder.Configuration.GetConnectionString("DefaultConnection"))
+    );
+}
 
+builder.Services.AddHangfireServer(options =>
+{
+    options.WorkerCount = 5;
+});
+GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute { Attempts = 2 });
 
 // --- Build the App ---
 var app = builder.Build();
 
-app.UseHangfireDashboard();
-
+if (!app.Environment.IsProduction()) //For local development or testing the dashboard can be seen on baseUrl:port/hangfire
+{
+    app.UseHangfireDashboard();
+    //Add cleanup startegy here if hangfire db gets over 1000 entires
+}
 
 // --- Seed Data (Optional) ---
 await SeedRolesAsync(app);

@@ -39,7 +39,6 @@ namespace Order.Controllers
         private readonly IAdService _adService;
         private readonly IProductService _productService;
         
-       private readonly ReviewReminderService _reviewReminderService;
         public OrderBuyerController(
             ILogger<OrderBuyerController> logger,
             IOrderService orderService,
@@ -50,9 +49,7 @@ namespace Order.Controllers
             IInventoryService inventoryService,
             InventoryDbContext inventoryContext,
             IAdService adService,
-            IProductService productService,
-            ReviewReminderService reviewReminderService
-            
+            IProductService productService            
             )
 
         {
@@ -66,7 +63,6 @@ namespace Order.Controllers
             _inventoryContext = inventoryContext;
             _adService = adService ?? throw new ArgumentNullException(nameof(adService));
             _productService = productService ?? throw new ArgumentNullException(nameof(productService));
-             _reviewReminderService = reviewReminderService ?? throw new ArgumentNullException(nameof(reviewReminderService));
         }
 
         // GET /api/OrderBuyer/order
@@ -263,8 +259,7 @@ namespace Order.Controllers
                     Total = createdOrder.Total, // Will likely be null or 0 initially
                     OrderItems = listitems // Order items for the buyer
                 };
-                  //Notif za buyera 
-                  await _reviewReminderService.SendReminderWithDelayAsync(createdOrder.BuyerId, createdOrder.Id);
+               
                 // Sending notification to the seller
                 var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdOrder.StoreId);
 
