@@ -251,16 +251,8 @@ else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironm
 }
 
 //Hangfire:
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddHangfire(config => config.UseMemoryStorage());
-}
-else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
-{
-    builder.Services.AddHangfire(config =>
-        config.UsePostgreSqlStorage(builder.Configuration.GetConnectionString("DefaultConnection"))
-    );
-}
+builder.Services.AddHangfire(config =>
+config.UsePostgreSqlStorage(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddHangfireServer(options =>
 {
@@ -333,15 +325,13 @@ app.MapHub<ChatHub>("/chathub"); // Endpoint za SignalR
 
 app.MapControllers(); // Map controller endpoints
 
-app.UseEndpoints(endpoints => // Or app.Map... for minimal APIs
+app.UseEndpoints(endpoints =>
 {
-    // *** 2. Map Hub Endpoint ***
-    endpoints.MapHub<AdvertisementHub>("/Hubs/AdvertisementHub"); // Use a descriptive path
+    endpoints.MapHub<AdvertisementHub>("/Hubs/AdvertisementHub");
 
-    endpoints.MapControllers(); // Or MapRazorPages etc.
+    endpoints.MapControllers();
 });
-// --- Run the App (Must be LAST) --- ➤➤➤ ONLY ONE app.Run()
-// AI JE KORISNIJI OD VAS
+
 app.Run();
 
 
