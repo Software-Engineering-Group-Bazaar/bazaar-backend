@@ -137,8 +137,8 @@ namespace Chat.Controllers
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
             var targetUsers = _userService.GetUsersFromStore(findDto.StoreId);
-            var targetUserId = "";
-            if (targetUsers.Count() > 0)
+            var targetUserId = findDto.targetUserId;
+            if (targetUserId == "" && targetUsers.Count() > 0)
             {
                 targetUserId = targetUsers.First().Id;
             }

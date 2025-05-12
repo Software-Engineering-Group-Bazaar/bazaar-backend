@@ -49,6 +49,8 @@ namespace Chat.Dtos
     public class FindOrCreateConversationDto
     {
         [Required]
+        public string targetUserId { get; set; } = "";
+        [Required]
         public int StoreId { get; set; }
         public int? OrderId { get; set; } = null;
         public int? ProductId { get; set; } = null;
