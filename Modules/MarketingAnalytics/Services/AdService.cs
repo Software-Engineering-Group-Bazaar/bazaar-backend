@@ -1,9 +1,14 @@
 using Catalog.Interfaces;
 using Catalog.Services;
+using MarketingAnalytics.Dtos;
+using MarketingAnalytics.DTOs;
+using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services.DTOs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.VisualBasic;
 using Store.Interface;
 using Users.Interface;
 
@@ -18,11 +23,17 @@ namespace MarketingAnalytics.Services
         private readonly IProductService _productService;
         private readonly IUserService _userService;
         private readonly ILogger<AdService> _logger;
+        private readonly IProductCategoryService _productCategoryService;
+        private readonly IHubContext<AdvertisementHub> _hubContext; // <<< ADD THIS FIELD
+
 
         public AdService(AdDbContext context, IImageStorageService imageStorageService,
                         IStoreService storeService, IProductService productService,
                         IUserService userService,
-                        ILogger<AdService> logger)
+                        ILogger<AdService> logger,
+                        IProductCategoryService productCategoryService,
+                        IHubContext<AdvertisementHub> hubContext)
+
         {
             _context = context;
             _imageStorageService = imageStorageService;
@@ -30,6 +41,10 @@ namespace MarketingAnalytics.Services
             _productService = productService;
             _userService = userService;
             _logger = logger;
+
+            _productCategoryService = productCategoryService;
+
+            _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext)); // <<< ASSIGN hubContext TO FIELD
         }
 
         public async Task<IEnumerable<Advertisment>> GetAllAdvertisementsAsync()
@@ -76,7 +91,7 @@ namespace MarketingAnalytics.Services
             var s = await _userService.GetUserWithIdAsync(request.SellerId);
             if (s is null)
                 throw new ArgumentException("SellerId is invalid.", nameof(request.SellerId));
-
+            var prod = await _productService.GetProductByIdAsync((int)request.AdDataItems[0].ProductId);
             // --- Create Advertisment Entity ---
             var newAdvertisment = new Advertisment
             {
@@ -85,8 +100,15 @@ namespace MarketingAnalytics.Services
                 EndTime = request.EndTime,
                 Views = 0, // Initialize counters
                 Clicks = 0,
+                Conversions = 0,
+                ViewPrice = request.ViewPrice,
+                ClickPrice = request.ClickPrice,
+                ConversionPrice = request.ConversionPrice,
                 // Determine IsActive based on current time and dates - or set explicitly if needed
                 IsActive = DateTime.UtcNow >= request.StartTime && DateTime.UtcNow < request.EndTime,
+                ProductCategoryId = prod.ProductCategoryId,
+                Triggers = request.Triggers,
+                AdType = request.AdType
                 // AdData collection will be populated below
             };
 
@@ -148,7 +170,7 @@ namespace MarketingAnalytics.Services
                     ImageUrl = imageUrl, // Assign the uploaded URL or null
                     Advertisment = newAdvertisment, // Associate with 
                     // the parent Advertisment
-                    Description = adDataItemDto.Description
+                    Description = adDataItemDto.Description,
                     // EF Core will automatically set AdvertismentId when saving
                 };
                 adDataEntities.Add(adDataEntity);
@@ -208,6 +230,12 @@ namespace MarketingAnalytics.Services
             advertisment.StartTime = request.StartTime;
             advertisment.EndTime = request.EndTime;
             advertisment.IsActive = request.IsActive ?? (DateTime.UtcNow >= request.StartTime && DateTime.UtcNow < request.EndTime);
+            advertisment.Triggers = request.Triggers;
+            advertisment.ClickPrice = request.ClickPrice;
+            advertisment.ViewPrice = request.ClickPrice;
+            advertisment.ConversionPrice = request.ClickPrice;
+            advertisment.AdType = request.AdType;
+
 
             // Process NEW AdData items if provided
             if (request.NewAdDataItems != null && request.NewAdDataItems.Any())
@@ -297,11 +325,7 @@ namespace MarketingAnalytics.Services
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Successfully updated Advertisment with Id {AdvertismentId}.", advertismentId);
 
-                // Reload the entity to ensure related data (like new AdData items) is included
-                var updatedEntity = await _context.Advertisments
-                                                  .Include(a => a.AdData) // Eager load AdData
-                                                  .AsNoTracking()        // Detach after loading for return
-                                                  .FirstOrDefaultAsync(a => a.Id == advertismentId);
+                var updatedEntity = await _context.Advertisments.Include(a => a.AdData).AsNoTracking().FirstOrDefaultAsync(a => a.Id == advertismentId);
                 return updatedEntity;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -335,6 +359,7 @@ namespace MarketingAnalytics.Services
                 _logger.LogWarning("DeleteAdvertismentAsync: Advertisment with Id {AdvertismentId} not found.", advertismentId);
                 return false;
             }
+            int idToDelete = advertisment.Id;
 
             // --- Delete associated images first ---
             var imageDeletionTasks = new List<Task>();
@@ -355,9 +380,20 @@ namespace MarketingAnalytics.Services
                 // Remove the parent Advertisment. EF Core cascade delete (if configured, which is default for required relationships)
                 // should handle removing the AdData rows automatically.
                 _context.Advertisments.Remove(advertisment);
-                await _context.SaveChangesAsync();
+                var result = await _context.SaveChangesAsync();
                 _logger.LogInformation("Successfully deleted Advertisment with Id {AdvertismentId} and its associated AdData.", advertismentId);
-                return true;
+                if (result > 0)
+                {
+                    // --- Send SignalR ---
+                    try
+                    {
+                        await _hubContext.Clients.All.SendAsync("AdvertisementDeleted", idToDelete); // <<< Send ID
+                    }
+                    catch (Exception ex) { _logger.LogError(ex, "Error sending SignalR delete notification for Ad {AdId}", idToDelete); }
+                    // --------------------
+                    return true;
+                }
+                return false;
             }
             catch (DbUpdateException ex)
             {
@@ -540,6 +576,7 @@ namespace MarketingAnalytics.Services
             }
 
             string? imageUrlToDelete = adData.ImageUrl; // Store URL before removing entity
+            int parentAdId = adData.AdvertismentId;
 
             // Check if this AdData is the *last* one associated with its Advertisment
             var siblingCount = await _context.AdData.CountAsync(ad => ad.AdvertismentId == adData.AdvertismentId && ad.Id != adDataId);
@@ -585,5 +622,355 @@ namespace MarketingAnalytics.Services
         {
         }
 
+        public async Task<UserActivity> CreateUserActivityAsync(UserActivity userActivity)
+        {
+            if (userActivity == null)
+            {
+                _logger.LogWarning("Pokušaj kreiranja null UserActivity objekta.");
+                throw new ArgumentNullException(nameof(userActivity));
+            }
+
+            userActivity.TimeStamp = DateTime.UtcNow;
+
+            if (string.IsNullOrWhiteSpace(userActivity.UserId))
+            {
+                _logger.LogWarning("Pokušaj kreiranja UserActivity bez UserId. {@UserActivityInput}", new { userActivity.ProductCategoryId, userActivity.InteractionType });
+                throw new ArgumentException("UserId ne može biti prazan.", nameof(userActivity.UserId));
+            }
+
+            var category = await _productCategoryService.GetCategoryByIdAsync(userActivity.ProductCategoryId);
+
+            if (category == null)
+            {
+                _logger.LogWarning("Pokušaj kreiranja UserActivity sa nevalidnim ProductCategoryId: {ProductCategoryId}", userActivity.ProductCategoryId);
+                throw new ArgumentException("ProductCategoryId mora biti validan.", nameof(userActivity.ProductCategoryId));
+            }
+
+            var user = await _userService.GetUserWithIdAsync(userActivity.UserId);
+
+            if (user == null)
+            {
+                _logger.LogWarning("Pokušaj kreiranja UserActivity sa nevalidnim UserId: {UserId}", userActivity.UserId);
+                throw new ArgumentException("UserId mora biti validan.", nameof(userActivity.UserId));
+            }
+
+            try
+            {
+                _context.UserActivities.Add(userActivity);
+                int recordsAffected = await _context.SaveChangesAsync();
+
+                if (recordsAffected > 0)
+                {
+                    _logger.LogInformation("UserActivity (Id: {ActivityId}) uspešno kreiran za korisnika {UserId}.", userActivity.Id, userActivity.UserId);
+                    return userActivity;
+                }
+                else
+                {
+                    // Ovo je neočekivano ako Add() nije bacio izuzetak i SaveChangesAsync nije bacio izuzetak.
+                    // Može ukazivati na problem sa EF Core konfiguracijom ili vrlo specifičan scenario konkurentnosti.
+                    _logger.LogError("UserActivity za korisnika {UserId} je dodat u context, ali SaveChangesAsync nije napravio izmjene i nije bacio izuzetak. {@UserActivity}", userActivity.UserId, userActivity);
+                    throw new InvalidOperationException($"Nije bilo moguće sačuvati UserActivity za korisnika {userActivity.UserId}, nijedan zapis nije izmijenjen.");
+                }
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "DbUpdateException prilikom čuvanja UserActivity za korisnika {UserId}. {@UserActivity}", userActivity.UserId, userActivity);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Neočekivana greška prilikom kreiranja UserActivity za korisnika {UserId}. {@UserActivity}", userActivity.UserId, userActivity);
+                throw;
+            }
+        }
+
+        public async Task<ICollection<UserActivity>> GetUserActivitiesByUserId(string id)
+        {
+            return await _context.UserActivities
+                            .Where(u => u.UserId == id)
+                            .AsNoTracking()
+                            .ToListAsync();
+        }
+
+
+        public async Task<Clicks?> RecordClickAsync(AdStatsDto clickDto)
+        {
+            // Provjera postoji li oglas
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == clickDto.AdvertisementId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja klika za nepostojeći oglas ID: {AdvertisementId}", clickDto.AdvertisementId);
+                return null;
+            }
+            var ad = await _context.Advertisments.FirstOrDefaultAsync(a => a.Id == clickDto.AdvertisementId);
+            ad.Clicks += 1;
+            var newClick = new Clicks
+            {
+                UserId = clickDto.UserId,
+                AdvertismentId = clickDto.AdvertisementId,
+                Timestamp = DateTime.UtcNow
+            };
+
+            _context.Clicks.Add(newClick);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Zabilježen klik ID: {ClickId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
+                newClick.Id, newClick.UserId, newClick.AdvertismentId);
+
+            // Opcionalno: Učitati navigacijsko svojstvo ako je potrebno za povratnu vrijednost
+            // await _context.Entry(newClick).Reference(c => c.Advertisement).LoadAsync();
+
+            return newClick;
+        }
+
+        public async Task<Views?> RecordViewAsync(AdStatsDto viewDto)
+        {
+            // Provjera postoji li oglas
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == viewDto.AdvertisementId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja pregleda za nepostojeći oglas ID: {AdvertisementId}", viewDto.AdvertisementId);
+                return null;
+            }
+            var ad = await _context.Advertisments.FirstOrDefaultAsync(a => a.Id == viewDto.AdvertisementId);
+            ad.Views += 1;
+            var newView = new Views
+            {
+                UserId = viewDto.UserId,
+                AdvertismentId = viewDto.AdvertisementId,
+                Timestamp = DateTime.UtcNow
+            };
+
+            _context.Views.Add(newView);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Zabilježen pregled ID: {ViewId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
+                newView.Id, newView.UserId, newView.AdvertismentId);
+            await SendAdHelperAsync(ad);
+            return newView;
+        }
+
+        public async Task<Conversions?> RecordConversionAsync(AdStatsDto conversionDto)
+        {
+            // Provjera postoji li oglas
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == conversionDto.AdvertisementId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", conversionDto.AdvertisementId);
+                return null;
+            }
+            var ad = await _context.Advertisments.FirstOrDefaultAsync(a => a.Id == conversionDto.AdvertisementId);
+            ad.Conversions += 1;
+            var newConversion = new Conversions
+            {
+                UserId = conversionDto.UserId,
+                AdvertismentId = conversionDto.AdvertisementId,
+                Timestamp = DateTime.UtcNow
+            };
+
+            _context.Conversions.Add(newConversion);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Zabilježena konverzija ID: {ClickId} za korisnika: {UserId} na oglas ID: {AdvertisementId}",
+                newConversion.Id, newConversion.UserId, newConversion.AdvertismentId);
+
+            return newConversion;
+        }
+
+
+        public async Task<ICollection<DateTime>> GetClicksTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null)
+        {
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == advertismentId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", advertismentId);
+                return new List<DateTime>();
+            }
+
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("GetClicksTimestampsAsync pozvan sa 'from' datumom ({FromDate}) kasnijim od 'to' datuma ({ToDate}) za oglas ID: {AdvertismentId}.", from.Value, to.Value, advertismentId);
+                return new List<DateTime>();
+            }
+
+            try
+            {
+                IQueryable<Clicks> query = _context.Clicks
+                    .Where(click => click.AdvertismentId == advertismentId);
+
+                if (from.HasValue)
+                {
+                    query = query.Where(click => click.Timestamp >= from.Value);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(click => click.Timestamp <= to.Value);
+                }
+
+                var timestamps = await query
+                    .OrderBy(click => click.Timestamp)
+                    .Select(click => click.Timestamp)
+                    .ToListAsync();
+
+                return timestamps;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih zapisa klikova za oglas ID: {AdvertismentId}, u opsegu od {FromDate} do {ToDate}.",
+                    advertismentId,
+                    from.HasValue ? from.Value.ToString("o") : "N/A", // "o" format za ISO 8601
+                    to.HasValue ? to.Value.ToString("o") : "N/A");
+                throw;
+            }
+        }
+
+        public async Task<ICollection<DateTime>> GetViewsTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null)
+        {
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == advertismentId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", advertismentId);
+                return new List<DateTime>();
+            }
+
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("GetViewsTimestampsAsync pozvan sa 'from' datumom ({FromDate}) kasnijim od 'to' datuma ({ToDate}) za oglas ID: {AdvertismentId}.", from.Value, to.Value, advertismentId);
+                return new List<DateTime>();
+            }
+
+            try
+            {
+                IQueryable<Views> query = _context.Views
+                    .Where(view => view.AdvertismentId == advertismentId);
+
+                if (from.HasValue)
+                {
+                    query = query.Where(view => view.Timestamp >= from.Value);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(view => view.Timestamp <= to.Value);
+                }
+
+                var timestamps = await query
+                    .OrderBy(view => view.Timestamp)
+                    .Select(view => view.Timestamp)
+                    .ToListAsync();
+
+                return timestamps;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih zapisa pregleda za oglas ID: {AdvertismentId}, u opsegu od {FromDate} do {ToDate}.",
+                    advertismentId,
+                    from.HasValue ? from.Value.ToString("o") : "N/A", // "o" format za ISO 8601
+                    to.HasValue ? to.Value.ToString("o") : "N/A");
+                throw;
+            }
+        }
+
+        public async Task<ICollection<DateTime>> GetConversionsTimestampsAsync(int advertismentId, DateTime? from = null, DateTime? to = null)
+        {
+            var advertisementExists = await _context.Advertisments.AnyAsync(a => a.Id == advertismentId);
+            if (!advertisementExists)
+            {
+                _logger.LogWarning("Pokušaj bilježenja konverzije za nepostojeći oglas ID: {AdvertisementId}", advertismentId);
+                return new List<DateTime>();
+            }
+
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("GetConversionsTimestampsAsync pozvan sa 'from' datumom ({FromDate}) kasnijim od 'to' datuma ({ToDate}) za oglas ID: {AdvertismentId}.", from.Value, to.Value, advertismentId);
+                return new List<DateTime>();
+            }
+
+            try
+            {
+                IQueryable<Conversions> query = _context.Conversions
+                    .Where(conversion => conversion.AdvertismentId == advertismentId);
+
+                if (from.HasValue)
+                {
+                    query = query.Where(conversion => conversion.Timestamp >= from.Value);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(conversion => conversion.Timestamp <= to.Value);
+                }
+
+                var timestamps = await query
+                    .OrderBy(conversion => conversion.Timestamp)
+                    .Select(conversion => conversion.Timestamp)
+                    .ToListAsync();
+
+                return timestamps;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih zapisa konverzija za oglas ID: {AdvertismentId}, u opsegu od {FromDate} do {ToDate}.",
+                    advertismentId,
+                    from.HasValue ? from.Value.ToString("o") : "N/A", // "o" format za ISO 8601
+                    to.HasValue ? to.Value.ToString("o") : "N/A");
+                throw;
+            }
+        }
+
+        public List<string> AdTriggerToString(int triggers)
+        {
+            var l = new List<string>();
+            foreach (var interaction in Enum.GetValues(typeof(InteractionType)))
+            {
+                if ((triggers & (int)interaction) != 0)
+                    l.Add(interaction.ToString());
+            }
+            return l;
+        }
+        public int AdTriggerFromStrings(List<string> interactions)
+        {
+            int trigger = 0;
+            foreach (var item in interactions)
+            {
+                if (Enum.TryParse<InteractionType>(item, ignoreCase: true, out var result))
+                {
+                    trigger = trigger | (int)result;
+                }
+            }
+            return trigger;
+        }
+        private async Task SendAdHelperAsync(Advertisment ad)
+        {
+            var dto = new AdvertismentDto
+            {
+                Id = ad.Id,
+                SellerId = ad.SellerId,
+                StartTime = ad.StartTime,
+                EndTime = ad.EndTime,
+                IsActive = ad.IsActive,
+                Views = ad.Views,
+                ViewPrice = ad.ViewPrice,
+                Clicks = ad.Clicks,
+                ClickPrice = ad.ClickPrice,
+                Conversions = ad.Conversions,
+                ConversionPrice = ad.ConversionPrice,
+                AdType = ad.AdType.ToString(),
+                Triggers = AdTriggerToString(ad.Triggers), // Use the helper
+                AdData = ad.AdData.Select(a => new AdDataDto
+                {
+                    Id = a.Id,
+                    StoreId = a.StoreId,
+                    ImageUrl = a.ImageUrl,
+                    Description = a.Description,
+                    ProductId = a.ProductId
+                }).ToList()
+            };
+
+            await _hubContext.Clients
+                .Group(AdvertisementHub.AdminGroup)
+                .SendAsync("ReceiveAdUpdate", dto);
+        }
     }
 }

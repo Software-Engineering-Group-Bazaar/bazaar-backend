@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Http;
 
 namespace MarketingAnalytics.Services.DTOs
@@ -24,6 +25,12 @@ namespace MarketingAnalytics.Services.DTOs
         [Required]
         public DateTime EndTime { get; set; }
 
+        public AdType AdType { get; set; }
+        public int Triggers { get; set; }
+        public decimal ClickPrice { get; set; }
+        public decimal ViewPrice { get; set; }
+        public decimal ConversionPrice { get; set; }
+
         // Optional: Add other Advertisment properties if they are set during creation
         // public bool IsActive { get; set; } // Often determined by Start/End time
 
@@ -40,6 +47,11 @@ namespace MarketingAnalytics.Services.DTOs
 
         [Required]
         public DateTime EndTime { get; set; }
+        public decimal ClickPrice { get; set; }
+        public decimal ViewPrice { get; set; }
+        public decimal ConversionPrice { get; set; }
+        public int Triggers { get; set; }
+        public AdType AdType { get; set; }
 
         public bool? IsActive { get; set; } // Optional: Allow explicit setting
 
@@ -58,5 +70,11 @@ namespace MarketingAnalytics.Services.DTOs
 
         // Optional flag to explicitly remove the image without replacing it
         public bool RemoveCurrentImage { get; set; } = false;
+    }
+
+    public class AdFeaturePair
+    {
+        public Advertisment Ad { get; set; }
+        public double[] FeatureVec { get; set; }
     }
 }

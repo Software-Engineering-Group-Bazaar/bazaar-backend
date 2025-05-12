@@ -13,5 +13,9 @@ namespace Users.Interface
         IEnumerable<User> GetUsersFromStore(int storeId);
 
         Task<User?> GetUserWithIdAsync(string userId);
+
+        Task<string?> GetMyUsernameAsync(string userId);
+        Task<string?> GetUsernameByIdAsync(string targetUserId);
+        Task<bool> UpdateMyUsernameAsync(string userId, UpdateUsernameDto dto);
     }
 }

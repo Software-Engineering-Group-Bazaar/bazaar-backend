@@ -17,7 +17,8 @@ using Order.Models;
 using SharedKernel;
 using Store.Interface;
 using Store.Models;
-using Users.Models; // Your User model and DbContext namespace
+using Users.Models; 
+using Hangfire;// Your User model and DbContext namespace
 namespace Admin.Controllers
 {
     [Authorize(Roles = "Admin")]
@@ -37,6 +38,7 @@ namespace Admin.Controllers
         private readonly IOrderItemService _orderItemService; // <<<--- INJECT
         private readonly IPushNotificationService _pushNotificationService;
         private readonly INotificationService _notificationService;
+         private readonly IBackgroundJobClient _backgroundJobClient;
 
         public AdminController(
             UserManager<User> userManager,
@@ -49,7 +51,8 @@ namespace Admin.Controllers
             IOrderService orderService,         // <<<--- ADD to constructor parameters
             IPushNotificationService pushNotificationService,
             INotificationService notificationService,
-            IOrderItemService orderItemService) // Add logger to constructor
+            IOrderItemService orderItemService,
+            IBackgroundJobClient backgroundJobClient) // Add logger to constructor
 
         {
             _userManager = userManager;
@@ -63,6 +66,7 @@ namespace Admin.Controllers
             _pushNotificationService = pushNotificationService;
             _notificationService = notificationService;
             _orderItemService = orderItemService;
+            _backgroundJobClient = backgroundJobClient;
         }
 
         // GET /api/admin/users
@@ -1352,6 +1356,17 @@ namespace Admin.Controllers
                         pushBody,
                         pushData
                     );
+
+
+                if (status == OrderStatus.Delivered || status == OrderStatus.Cancelled)
+{
+    _backgroundJobClient.Schedule<IReviewReminderService>(
+         svc => svc.SendReminderAsync(updateDto.BuyerId, id),
+         TimeSpan.FromMinutes(1)
+     );
+}
+                    
+                    
                 _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", buyer.Id, id);
             }
             if (updateDto.StoreId is not null)
@@ -1382,6 +1397,8 @@ namespace Admin.Controllers
                     );
                 _logger.LogInformation("Push Notification task initiated for Seller {BuyerId} for Order {OrderId} status update.", seller.Id, id);
             }
+            
+               
             return NoContent();
         }
 
@@ -1437,6 +1454,17 @@ namespace Admin.Controllers
                     // If it exists, it might be a concurrency issue or other update failure
                     return BadRequest($"Failed to update status for order ID: {id}. See logs for details.");
                 }
+                 if (status == OrderStatus.Delivered || status == OrderStatus.Cancelled)
+{
+    var updatedOrder = await _orderService.GetOrderByIdAsync(id);
+    if (updatedOrder != null && !string.IsNullOrWhiteSpace(updatedOrder.BuyerId))
+    {
+        _backgroundJobClient.Schedule<IReviewReminderService>(
+            svc => svc.SendReminderAsync(updatedOrder.BuyerId, id),
+            TimeSpan.FromMinutes(1)
+        );
+    }
+}
 
 
 

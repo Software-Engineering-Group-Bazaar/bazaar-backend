@@ -2,18 +2,18 @@
 
 #nullable disable
 
-namespace bazaar.Migrations.AdDb
+namespace bazaar.Migrations.ConversationDb
 {
     /// <inheritdoc />
-    public partial class Nezz : Migration
+    public partial class AddProductIdToConversations : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "Description",
-                table: "AdData",
-                type: "text",
+            migrationBuilder.AddColumn<int>(
+                name: "ProductId",
+                table: "Conversation",
+                type: "integer",
                 nullable: true);
         }
 
@@ -21,8 +21,8 @@ namespace bazaar.Migrations.AdDb
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "Description",
-                table: "AdData");
+                name: "ProductId",
+                table: "Conversation");
         }
     }
 }

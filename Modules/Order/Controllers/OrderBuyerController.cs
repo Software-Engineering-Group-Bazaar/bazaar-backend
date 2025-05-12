@@ -1,18 +1,23 @@
 using System.Security.Claims;
+using Catalog.Services;
 using Inventory.Dtos;
 using Inventory.Interfaces;
 using Inventory.Models;
+using MarketingAnalytics.Interfaces;
+using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Notifications.Interfaces;
+using Notifications.Services;
 using Order.Interface;
 using Order.Models;
 using Order.Models.DTOs.Buyer;
 using Users.Models;
 
+ 
 namespace Order.Controllers
 {
     [Authorize]
@@ -31,7 +36,9 @@ namespace Order.Controllers
 
         private readonly IInventoryService _inventoryService;
         private readonly InventoryDbContext _inventoryContext;
-
+        private readonly IAdService _adService;
+        private readonly IProductService _productService;
+        
         public OrderBuyerController(
             ILogger<OrderBuyerController> logger,
             IOrderService orderService,
@@ -40,7 +47,10 @@ namespace Order.Controllers
             INotificationService notificationService,
             IPushNotificationService pushNotificationService,
             IInventoryService inventoryService,
-            InventoryDbContext inventoryContext)
+            InventoryDbContext inventoryContext,
+            IAdService adService,
+            IProductService productService            
+            )
 
         {
             _logger = logger;
@@ -51,6 +61,8 @@ namespace Order.Controllers
             _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
             _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
             _inventoryContext = inventoryContext;
+            _adService = adService ?? throw new ArgumentNullException(nameof(adService));
+            _productService = productService ?? throw new ArgumentNullException(nameof(productService));
         }
 
         // GET /api/OrderBuyer/order
@@ -188,6 +200,24 @@ namespace Order.Controllers
                         throw new Exception($"Failed to create order item for product {item.ProductId}.");
                     }
 
+                    // Biljezenje podataka za reklame
+
+                    var product = await _productService.GetProductByIdAsync(item.ProductId);
+
+                    if (product == null)
+                    {
+                        throw new Exception($"Failed to find product with id {item.ProductId}.");
+                    }
+
+                    await _adService.CreateUserActivityAsync(new UserActivity
+                    {
+                        Id = 0,
+                        UserId = userId,
+                        ProductCategoryId = product.ProductCategoryId,
+                        TimeStamp = DateTime.Now,
+                        InteractionType = InteractionType.Order
+                    });
+
                     // Add item to response DTO
                     listitems.Add(new OrderItemGetBuyerDto
                     {
@@ -229,7 +259,7 @@ namespace Order.Controllers
                     Total = createdOrder.Total, // Will likely be null or 0 initially
                     OrderItems = listitems // Order items for the buyer
                 };
-
+               
                 // Sending notification to the seller
                 var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdOrder.StoreId);
 

@@ -60,7 +60,19 @@ namespace bazaar.Migrations.AdDb
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("AdType")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ClickPrice")
+                        .HasColumnType("numeric");
+
                     b.Property<int>("Clicks")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ConversionPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("Conversions")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("EndTime")
@@ -69,6 +81,9 @@ namespace bazaar.Migrations.AdDb
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("ProductCategoryId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SellerId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -76,12 +91,140 @@ namespace bazaar.Migrations.AdDb
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("Triggers")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ViewPrice")
+                        .HasColumnType("numeric");
+
                     b.Property<int>("Views")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
                     b.ToTable("Advertisments");
+                });
+
+            modelBuilder.Entity("MarketingAnalytics.Models.Clicks", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AdvertismentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdvertismentId");
+
+                    b.ToTable("Clicks");
+                });
+
+            modelBuilder.Entity("MarketingAnalytics.Models.Conversions", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AdvertismentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdvertismentId");
+
+                    b.ToTable("Conversions");
+                });
+
+            modelBuilder.Entity("MarketingAnalytics.Models.UserActivity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("InteractionType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProductCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("TimeStamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("UserActivities");
+                });
+
+            modelBuilder.Entity("MarketingAnalytics.Models.UserWeights", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Weights")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("UserWeights");
+                });
+
+            modelBuilder.Entity("MarketingAnalytics.Models.Views", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AdvertismentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdvertismentId");
+
+                    b.ToTable("Views");
                 });
 
             modelBuilder.Entity("MarketingAnalytics.Models.AdData", b =>
@@ -95,9 +238,48 @@ namespace bazaar.Migrations.AdDb
                     b.Navigation("Advertisment");
                 });
 
+            modelBuilder.Entity("MarketingAnalytics.Models.Clicks", b =>
+                {
+                    b.HasOne("MarketingAnalytics.Models.Advertisment", "Advertisment")
+                        .WithMany("ClickTimestamps")
+                        .HasForeignKey("AdvertismentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Advertisment");
+                });
+
+            modelBuilder.Entity("MarketingAnalytics.Models.Conversions", b =>
+                {
+                    b.HasOne("MarketingAnalytics.Models.Advertisment", "Advertisment")
+                        .WithMany("ConversionTimestamps")
+                        .HasForeignKey("AdvertismentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Advertisment");
+                });
+
+            modelBuilder.Entity("MarketingAnalytics.Models.Views", b =>
+                {
+                    b.HasOne("MarketingAnalytics.Models.Advertisment", "Advertisment")
+                        .WithMany("ViewTimestamps")
+                        .HasForeignKey("AdvertismentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Advertisment");
+                });
+
             modelBuilder.Entity("MarketingAnalytics.Models.Advertisment", b =>
                 {
                     b.Navigation("AdData");
+
+                    b.Navigation("ClickTimestamps");
+
+                    b.Navigation("ConversionTimestamps");
+
+                    b.Navigation("ViewTimestamps");
                 });
 #pragma warning restore 612, 618
         }

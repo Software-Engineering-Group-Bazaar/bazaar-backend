@@ -4,9 +4,13 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using AdminApi.DTOs;
 using Catalog.Dtos;
+using Catalog.Services;
+using Hangfire;
 using Inventory.Dtos;
 using Inventory.Interfaces;
 using Inventory.Models;
+using MarketingAnalytics.Interfaces;
+using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -16,6 +20,8 @@ using Notifications.Interfaces;
 using Order.DTOs;
 using Order.Interface;
 using Order.Models;
+using Review.Interfaces;
+using Review.Models;
 using Store.Services;
 using Users.Models;
 
@@ -38,6 +44,10 @@ namespace Order.Controllers
         private readonly IPushNotificationService _pushNotificationService;
         private readonly IInventoryService _inventoryService;
         private readonly InventoryDbContext _inventoryContext;
+        private readonly IAdService _adService;
+        private readonly IProductService _productService;
+        private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IReviewService _reviewService;
 
 
         public OrderController(
@@ -48,7 +58,11 @@ namespace Order.Controllers
             INotificationService notificationService,
             IPushNotificationService pushNotificationService,
             IInventoryService inventoryService,
-            InventoryDbContext inventoryContext
+            InventoryDbContext inventoryContext,
+            IAdService adService,
+            IProductService productService,
+            IBackgroundJobClient backgroundJobClient,
+            IReviewService reviewService
             )
 
         {
@@ -60,35 +74,57 @@ namespace Order.Controllers
             _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
             _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
             _inventoryContext = inventoryContext;
+            _adService = adService ?? throw new ArgumentNullException(nameof(adService));
+            _productService = productService ?? throw new ArgumentNullException(nameof(productService));
+            _backgroundJobClient = backgroundJobClient;
+            _reviewService = reviewService ?? throw new ArgumentNullException(nameof(reviewService));
         }
 
         // GET /api//order
         [HttpGet]
-        [ProducesResponseType(typeof(IEnumerable<OrderGetDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(IEnumerable<OrderGetSellerDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<OrderGetDto>>> GetAllOrders()
+        public async Task<ActionResult<IEnumerable<OrderGetSellerDto>>> GetAllOrders()
         {
             _logger.LogInformation("Attempting to retrieve all orders.");
             try
             {
                 var orders = await _orderService.GetAllOrdersAsync();
+                var orderDtos = new List<OrderGetSellerDto>();
 
-                var orderDtos = orders.Select(o => new OrderGetDto
+                foreach (var o in orders)
                 {
-                    Id = o.Id,
-                    BuyerId = o.BuyerId,
-                    StoreId = o.StoreId,
-                    Status = o.Status.ToString(),
-                    Time = o.Time,
-                    Total = o.Total,
-                    OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                    string username = "";
+                    var buyer = await _userManager.FindByIdAsync(o.BuyerId);
+                    if (buyer == null)
                     {
-                        Id = oi.Id,
-                        ProductId = oi.ProductId,
-                        Price = oi.Price,
-                        Quantity = oi.Quantity
-                    }).ToList()
-                }).ToList();
+                        _logger.LogWarning("Buyer with ID {BuyerId} not found.", o.BuyerId);
+                    }
+                    else
+                    {
+                        username = buyer.UserName;
+                    }
+
+                    var orderDto = new OrderGetSellerDto
+                    {
+                        Id = o.Id,
+                        BuyerId = o.BuyerId,
+                        BuyerUserName = username,
+                        StoreId = o.StoreId,
+                        Status = o.Status.ToString(),
+                        Time = o.Time,
+                        Total = o.Total,
+                        OrderItems = o.OrderItems.Select(oi => new OrderItemGetDto
+                        {
+                            Id = oi.Id,
+                            ProductId = oi.ProductId,
+                            Price = oi.Price,
+                            Quantity = oi.Quantity
+                        }).ToList()
+                    };
+
+                    orderDtos.Add(orderDto);
+                }
 
                 _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
                 return Ok(orderDtos);
@@ -103,11 +139,11 @@ namespace Order.Controllers
         // GET /api/order/{id}
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin, Seller")]
-        [ProducesResponseType(typeof(OrderGetDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(OrderGetSellerDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<OrderGetDto>> GetOrderById(int id)
+        public async Task<ActionResult<OrderGetSellerDto>> GetOrderById(int id)
         {
             _logger.LogInformation("Attempting to retrieve order with ID: {OrderId}", id);
             if (id <= 0)
@@ -126,10 +162,23 @@ namespace Order.Controllers
                     return NotFound($"Order with ID {id} not found.");
                 }
 
-                var orderDto = new OrderGetDto
+                var username = "";
+
+                var buyer = await _userManager.FindByIdAsync(order.BuyerId);
+                if (buyer == null)
+                {
+                    _logger.LogWarning("Buyer with ID {BuyerId} not found.", order.BuyerId);
+                }
+                else
+                {
+                    username = buyer.UserName;
+                }
+
+                var orderDto = new OrderGetSellerDto
                 {
                     Id = order.Id,
                     BuyerId = order.BuyerId,
+                    BuyerUserName = username,
                     StoreId = order.StoreId,
                     Status = order.Status.ToString(),
                     Time = order.Time,
@@ -223,6 +272,27 @@ namespace Order.Controllers
                         _logger.LogError(invEx, "Failed to update inventory for ProductId {ProductId}, StoreId {StoreId} after order item creation. ORDER IS INCONSISTENT!", itemDto.ProductId, storeIdForRequest);
                         throw new InvalidOperationException($"Insufficient stock for product ID {itemDto.ProductId} discovered during update.");
                     }
+
+
+                    // Biljezenje podataka za reklame
+
+                    var product = await _productService.GetProductByIdAsync(itemDto.ProductId);
+
+                    if (product == null)
+                    {
+                        throw new Exception($"Failed to find product with id {itemDto.ProductId}.");
+                    }
+
+                    await _adService.CreateUserActivityAsync(new UserActivity
+                    {
+                        Id = 0,
+                        UserId = buyerUserIdForRequest,
+                        ProductCategoryId = product.ProductCategoryId,
+                        TimeStamp = DateTime.Now,
+                        InteractionType = InteractionType.Order
+                    });
+
+
 
                     listitems.Add(new OrderItemGetDto
                     {
@@ -367,6 +437,16 @@ namespace Order.Controllers
                 {
                     return BadRequest("OrderItem update failed.");
                 }
+                //Notifikacija za review ce doci 3min nakon dostava ili otkazivanja narudzbe
+                ReviewModel review = await _reviewService.GetOrderReviewAsync(id);
+                if (review == null && (status == OrderStatus.Delivered || status == OrderStatus.Cancelled))
+                {
+
+                    _backgroundJobClient.Schedule<IReviewReminderService>(
+                         svc => svc.SendReminderAsync(updateDto.BuyerId, id),
+                         TimeSpan.FromMinutes(1)
+                     );
+                }
             }
             return NoContent();
         }
@@ -466,6 +546,17 @@ namespace Order.Controllers
                             {
                                 // Loguj grešku slanja push notifikacije ali ne prekidaj izvršavanje
                                 _logger.LogError(pushEx, "Failed to send Push Notification to Buyer {BuyerId} for Order {OrderId}.", buyerUser.Id, id);
+                            }
+
+                            //Notifikacija za review ce doci 3min nakon dostava ili otkazivanja narudzbe
+                            ReviewModel review = await _reviewService.GetOrderReviewAsync(id);
+                            if (review == null && (status == OrderStatus.Delivered || status == OrderStatus.Cancelled))
+                            {
+
+                                _backgroundJobClient.Schedule<IReviewReminderService>(
+                                     svc => svc.SendReminderAsync(buyerUser.Id, id),
+                                     TimeSpan.FromMinutes(1)
+                                 );
                             }
                         }
                         else if (updatedOrder != null)

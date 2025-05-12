@@ -10,7 +10,7 @@ namespace Review.Interfaces
         Task<ReviewModel?> GetOrderReviewAsync(int orderId);
         Task<double?> GetStoreAverageRatingAsync(int storeId);
         Task<ReviewModel?> CreateReviewAsync(ReviewModel review);
-        Task<ReviewResponse?> CreateReviewResponseAsync(ReviewResponse response);
+        Task<ReviewResponse?> CreateReviewResponseAsync(ReviewResponse response, string sellerUserId);
         Task<ReviewModel?> GetReviewByIdAsync(int reviewId);
     }
 }

@@ -3,9 +3,17 @@ using Amazon.S3;
 using Catalog.Interfaces;
 using Catalog.Models;
 using Catalog.Services;
+using Chat.Hubs;
+using Chat.Interfaces;
+using Chat.Services;
+using Conversation.Data;
+using Hangfire;
+using Hangfire.MemoryStorage;
+using Hangfire.PostgreSql;
 using Inventory.Interfaces;
 using Inventory.Models;
 using Inventory.Services;
+using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using MarketingAnalytics.Services;
@@ -35,8 +43,12 @@ using Users.Interfaces;
 using Users.Models;
 using Users.Services;
 
-
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
 
 builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 builder.Services.AddTransient<IMailService, MailService>();
@@ -46,11 +58,16 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<IChatService, ChatService>();
+
+
+builder.Services.AddSignalR();
 
 
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 
 // Registrujte ostale servise
+
 
 const string AllowLocalhostOriginsPolicy = "_allowLocalhostOrigins";
 const string AllowProductionOriginPolicy = "_allowProductionOrigin";
@@ -96,6 +113,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("InventoryConnection")));
     builder.Services.AddDbContext<ReviewDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ReviewConnection")));
     builder.Services.AddDbContext<AdDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("AdvertismentConnection")));
+    builder.Services.AddDbContext<ConversationDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ConversationConnection")));
 }
 
 builder.Services.AddHttpClient();
@@ -119,12 +137,14 @@ builder.Services.AddScoped<IGeographyService, GeographyService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 builder.Services.AddScoped<INotificationService, NotificationService>();
-
+builder.Services.AddScoped<ReviewReminderService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IOrderItemService, OrderItemService>();
 
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IAdService, AdService>();
+builder.Services.AddScoped<IRecommenderAgent, RecommenderAgent>();
+builder.Services.AddScoped<IReviewReminderService, ReviewReminderService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -230,8 +250,24 @@ else if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironm
     // Ne treba logovanje ovdje ako pravi probleme
 }
 
+//Hangfire:
+builder.Services.AddHangfire(config =>
+config.UsePostgreSqlStorage(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddHangfireServer(options =>
+{
+    options.WorkerCount = 5;
+});
+GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute { Attempts = 2 });
+
 // --- Build the App ---
 var app = builder.Build();
+
+if (!app.Environment.IsProduction()) //For local development or testing the dashboard can be seen on baseUrl:port/hangfire
+{
+    app.UseHangfireDashboard();
+    //Add cleanup startegy here if hangfire db gets over 1000 entires
+}
 
 // --- Seed Data (Optional) ---
 await SeedRolesAsync(app);
@@ -285,11 +321,17 @@ app.UseAuthentication(); // IMPORTANT: Before Authorization
 app.UseCors(AllowLocalhostOriginsPolicy);
 app.UseCors(AllowProductionOriginPolicy);
 app.UseAuthorization();  // IMPORTANT: After Authentication
+app.MapHub<ChatHub>("/chathub"); // Endpoint za SignalR
 
 app.MapControllers(); // Map controller endpoints
 
-// --- Run the App (Must be LAST) --- ➤➤➤ ONLY ONE app.Run()
-// AI JE KORISNIJI OD VAS
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapHub<AdvertisementHub>("/Hubs/AdvertisementHub");
+
+    endpoints.MapControllers();
+});
+
 app.Run();
 
 

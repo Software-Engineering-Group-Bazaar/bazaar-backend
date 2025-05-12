@@ -51,7 +51,13 @@ namespace MarketingAnalytics.Controllers
                     EndTime = advertisement.EndTime,
                     IsActive = advertisement.IsActive,
                     Views = advertisement.Views,
+                    ViewPrice = advertisement.ViewPrice,
                     Clicks = advertisement.Clicks,
+                    ClickPrice = advertisement.ClickPrice,
+                    Conversions = advertisement.Conversions,
+                    ConversionPrice = advertisement.ConversionPrice,
+                    AdType = advertisement.AdType.ToString(),
+                    Triggers = _adService.AdTriggerToString(advertisement.Triggers),
                     AdData = advertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -97,7 +103,13 @@ namespace MarketingAnalytics.Controllers
                     EndTime = advertisement.EndTime,
                     IsActive = advertisement.IsActive,
                     Views = advertisement.Views,
+                    ViewPrice = advertisement.ViewPrice,
                     Clicks = advertisement.Clicks,
+                    ClickPrice = advertisement.ClickPrice,
+                    Conversions = advertisement.Conversions,
+                    ConversionPrice = advertisement.ConversionPrice,
+                    AdType = advertisement.AdType.ToString(),
+                    Triggers = _adService.AdTriggerToString(advertisement.Triggers),
                     AdData = advertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -127,35 +139,63 @@ namespace MarketingAnalytics.Controllers
         [ProducesResponseType(typeof(AdvertismentDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<AdvertismentDto>> CreateAdvertisement([FromForm] CreateAdvertismentRequestDto request)
+        public async Task<ActionResult<AdvertismentDto>> CreateAdvertisement([FromForm] CreateAdDto request)
         {
             // Basic check, model state validation handles more via [ApiController]
-            if (request?.AdDataItems == null)
-            {
-                return BadRequest("At least one AdData item must be provided.");
-            }
+            // if (request?.AdDataItems == null)
+            // {
+            //     return BadRequest("At least one AdData item must be provided.");
+            // }
 
             try
             {
-                var createdAdvertisement = await _adService.CreateAdvertismentAsync(request);
-                // Return 201 Created with a Location header pointing to the new resource
-                var dto = new AdvertismentDto
+                if (Enum.TryParse<AdType>(request.AdType, ignoreCase: true, out var adType))
                 {
-                    Id = createdAdvertisement.Id,
-                    SellerId = createdAdvertisement.SellerId,
-                    StartTime = createdAdvertisement.StartTime,
-                    EndTime = createdAdvertisement.EndTime,
-                    IsActive = createdAdvertisement.IsActive,
-                    AdData = createdAdvertisement.AdData.Select(ad => new AdDataDto
+                    var contract = new CreateAdvertismentRequestDto
                     {
-                        Id = ad.Id,
-                        StoreId = ad.StoreId,
-                        ImageUrl = ad.ImageUrl,
-                        Description = ad.Description,
-                        ProductId = ad.ProductId
-                    }).ToList()
-                };
-                return CreatedAtRoute("GetAdvertisementById", new { id = createdAdvertisement.Id }, dto);
+                        SellerId = request.SellerId,
+                        StartTime = request.StartTime,
+                        EndTime = request.EndTime,
+                        AdType = adType,
+                        Triggers = _adService.AdTriggerFromStrings(request.Triggers),
+                        ConversionPrice = request.ConversionPrice,
+                        ViewPrice = request.ViewPrice,
+                        ClickPrice = request.ClickPrice,
+                        AdDataItems = request.AdDataItems
+                    };
+
+                    var createdAdvertisement = await _adService.CreateAdvertismentAsync(contract);
+                    // Return 201 Created with a Location header pointing to the new resource
+                    var dto = new AdvertismentDto
+                    {
+                        Id = createdAdvertisement.Id,
+                        SellerId = createdAdvertisement.SellerId,
+                        StartTime = createdAdvertisement.StartTime,
+                        EndTime = createdAdvertisement.EndTime,
+                        IsActive = createdAdvertisement.IsActive,
+                        Views = createdAdvertisement.Views,
+                        ViewPrice = createdAdvertisement.ViewPrice,
+                        Clicks = createdAdvertisement.Clicks,
+                        ClickPrice = createdAdvertisement.ClickPrice,
+                        Conversions = createdAdvertisement.Conversions,
+                        ConversionPrice = createdAdvertisement.ConversionPrice,
+                        AdType = createdAdvertisement.AdType.ToString(),
+                        Triggers = _adService.AdTriggerToString(createdAdvertisement.Triggers),
+                        AdData = createdAdvertisement.AdData.Select(ad => new AdDataDto
+                        {
+                            Id = ad.Id,
+                            StoreId = ad.StoreId,
+                            ImageUrl = ad.ImageUrl,
+                            Description = ad.Description,
+                            ProductId = ad.ProductId
+                        }).ToList()
+                    };
+                    return CreatedAtRoute("GetAdvertisementById", new { id = createdAdvertisement.Id }, dto);
+                }
+                else
+                {
+                    return BadRequest("Incorect AdType");
+                }
             }
             catch (ArgumentException argEx) // Catch specific validation errors from service
             {
@@ -188,11 +228,29 @@ namespace MarketingAnalytics.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<AdvertismentDto>> UpdateAdvertisement(int advertismentId, [FromForm] UpdateAdvertismentRequestDto request)
+        public async Task<ActionResult<AdvertismentDto>> UpdateAdvertisement(int advertismentId, [FromForm] UpdateAdDto request)
         {
             try
             {
-                var updatedAdvertisement = await _adService.UpdateAdvertismentAsync(advertismentId, request);
+                UpdateAdvertismentRequestDto contract;
+                if (Enum.TryParse<AdType>(request.AdType, ignoreCase: true, out var adType))
+                {
+                    contract = new UpdateAdvertismentRequestDto
+                    {
+                        StartTime = request.StartTime,
+                        EndTime = request.EndTime,
+                        AdType = adType,
+                        Triggers = _adService.AdTriggerFromStrings(request.Triggers),
+                        ConversionPrice = request.ConversionPrice,
+                        ViewPrice = request.ViewPrice,
+                        ClickPrice = request.ClickPrice,
+                    };
+                }
+                else
+                {
+                    return BadRequest("Invalid AdType!");
+                }
+                var updatedAdvertisement = await _adService.UpdateAdvertismentAsync(advertismentId, contract);
                 if (updatedAdvertisement == null)
                 {
                     _logger.LogWarning("UpdateAdvertisement: Advertisement with ID {AdvertisementId} not found.", advertismentId);
@@ -205,8 +263,14 @@ namespace MarketingAnalytics.Controllers
                     StartTime = updatedAdvertisement.StartTime,
                     EndTime = updatedAdvertisement.EndTime,
                     IsActive = updatedAdvertisement.IsActive,
-                    Clicks = updatedAdvertisement.Clicks,
                     Views = updatedAdvertisement.Views,
+                    ViewPrice = updatedAdvertisement.ViewPrice,
+                    Clicks = updatedAdvertisement.Clicks,
+                    ClickPrice = updatedAdvertisement.ClickPrice,
+                    Conversions = updatedAdvertisement.Conversions,
+                    ConversionPrice = updatedAdvertisement.ConversionPrice,
+                    AdType = updatedAdvertisement.AdType.ToString(),
+                    Triggers = _adService.AdTriggerToString(updatedAdvertisement.Triggers),
                     AdData = updatedAdvertisement.AdData.Select(ad => new AdDataDto
                     {
                         Id = ad.Id,
@@ -356,6 +420,153 @@ namespace MarketingAnalytics.Controllers
             {
                 _logger.LogError(ex, "Error deleting AdData {AdDataId}.", adDataId);
                 return StatusCode(StatusCodes.Status500InternalServerError, $"An internal error occurred: {ex.Message}");
+            }
+        }
+
+        [HttpGet("advertisement/{advertismentId:int}/clicks")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ICollection<DateTime>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetClickTimestamps(
+        [FromRoute] int advertismentId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+        {
+            _logger.LogInformation("Pokušaj dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}, od: {FromDate}, do: {ToDate}",
+                advertismentId,
+                from?.ToString("o") ?? "N/A",
+                to?.ToString("o") ?? "N/A");
+
+            // Osnovna validacija ulaznih parametara
+            if (advertismentId <= 0)
+            {
+                _logger.LogWarning("Nevalidan advertismentId ({AdvertismentId}) prosleđen.", advertismentId);
+                return BadRequest("ID oglasa mora biti pozitivan broj.");
+            }
+
+            // Validacija opsega datuma (ako su oba zadata)
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("Nevalidan opseg datuma: 'from' ({FromDate}) je posle 'to' ({ToDate}) za oglas ID: {AdvertismentId}.",
+                    from.Value, to.Value, advertismentId);
+                return BadRequest("Početni datum ne može biti posle krajnjeg datuma.");
+            }
+
+            try
+            {
+                var timestamps = await _adService.GetClicksTimestampsAsync(advertismentId, from, to);
+
+                return Ok(timestamps);
+            }
+            // Specifični izuzeci iz servisa ako ih ima i želite drugačije da ih tretirate
+            // catch (AdvertisementNotFoundException ex) // Primer custom izuzetka
+            // {
+            //     _logger.LogWarning(ex, "Oglas nije pronađen prilikom dohvatanja klikova za ID: {AdvertismentId}", advertismentId);
+            //     return NotFound(ex.Message);
+            // }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}.", advertismentId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška na serveru prilikom dohvatanja podataka o klikovima.");
+            }
+        }
+
+        [HttpGet("advertisement/{advertismentId:int}/views")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ICollection<DateTime>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetViewTimestamps(
+        [FromRoute] int advertismentId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+        {
+            _logger.LogInformation("Pokušaj dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}, od: {FromDate}, do: {ToDate}",
+                advertismentId,
+                from?.ToString("o") ?? "N/A",
+                to?.ToString("o") ?? "N/A");
+
+            // Osnovna validacija ulaznih parametara
+            if (advertismentId <= 0)
+            {
+                _logger.LogWarning("Nevalidan advertismentId ({AdvertismentId}) prosleđen.", advertismentId);
+                return BadRequest("ID oglasa mora biti pozitivan broj.");
+            }
+
+            // Validacija opsega datuma (ako su oba zadata)
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("Nevalidan opseg datuma: 'from' ({FromDate}) je posle 'to' ({ToDate}) za oglas ID: {AdvertismentId}.",
+                    from.Value, to.Value, advertismentId);
+                return BadRequest("Početni datum ne može biti posle krajnjeg datuma.");
+            }
+
+            try
+            {
+                var timestamps = await _adService.GetViewsTimestampsAsync(advertismentId, from, to);
+
+                return Ok(timestamps);
+            }
+            // Specifični izuzeci iz servisa ako ih ima i želite drugačije da ih tretirate
+            // catch (AdvertisementNotFoundException ex) // Primer custom izuzetka
+            // {
+            //     _logger.LogWarning(ex, "Oglas nije pronađen prilikom dohvatanja klikova za ID: {AdvertismentId}", advertismentId);
+            //     return NotFound(ex.Message);
+            // }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}.", advertismentId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška na serveru prilikom dohvatanja podataka o klikovima.");
+            }
+        }
+
+        [HttpGet("advertisement/{advertismentId:int}/conversions")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ICollection<DateTime>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetConversionTimestamps(
+        [FromRoute] int advertismentId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+        {
+            _logger.LogInformation("Pokušaj dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}, od: {FromDate}, do: {ToDate}",
+                advertismentId,
+                from?.ToString("o") ?? "N/A",
+                to?.ToString("o") ?? "N/A");
+
+            // Osnovna validacija ulaznih parametara
+            if (advertismentId <= 0)
+            {
+                _logger.LogWarning("Nevalidan advertismentId ({AdvertismentId}) prosleđen.", advertismentId);
+                return BadRequest("ID oglasa mora biti pozitivan broj.");
+            }
+
+            // Validacija opsega datuma (ako su oba zadata)
+            if (from.HasValue && to.HasValue && from.Value > to.Value)
+            {
+                _logger.LogWarning("Nevalidan opseg datuma: 'from' ({FromDate}) je posle 'to' ({ToDate}) za oglas ID: {AdvertismentId}.",
+                    from.Value, to.Value, advertismentId);
+                return BadRequest("Početni datum ne može biti posle krajnjeg datuma.");
+            }
+
+            try
+            {
+                var timestamps = await _adService.GetConversionsTimestampsAsync(advertismentId, from, to);
+
+                return Ok(timestamps);
+            }
+            // Specifični izuzeci iz servisa ako ih ima i želite drugačije da ih tretirate
+            // catch (AdvertisementNotFoundException ex) // Primer custom izuzetka
+            // {
+            //     _logger.LogWarning(ex, "Oglas nije pronađen prilikom dohvatanja klikova za ID: {AdvertismentId}", advertismentId);
+            //     return NotFound(ex.Message);
+            // }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greška prilikom dohvatanja vremenskih pečata klikova za oglas ID: {AdvertismentId}.", advertismentId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Dogodila se greška na serveru prilikom dohvatanja podataka o klikovima.");
             }
         }
     }
