@@ -37,6 +37,7 @@ namespace MarketingAnalytics.Services
                 int skipper = random.Next(0, _context.Advertisments.Count());
                 var randAd = _context
                         .Advertisments
+                        .Include(ad => ad.AdData)
                         .OrderBy(ad => Guid.NewGuid())
                         .Skip(skipper)
                         .FirstOrDefault();
@@ -63,10 +64,10 @@ namespace MarketingAnalytics.Services
                                     Where(activity => activity.UserId == userId && activity.TimeStamp > limitDate)
                                     .ToListAsync();
             var categories = activities.Select(a => a.ProductCategoryId);
-            var candidates = await _context.Advertisments.Where(ad => ad.IsActive &&
+            var candidates = await _context.Advertisments.Include(ad => ad.AdData).Where(ad => ad.IsActive &&
             categories.Count(c => c == ad.ProductCategoryId) > 0).ToListAsync();
             var triggers = activities.Aggregate(0, (acc, a) => acc | ((int)a.InteractionType));
-            var c = await _context.Advertisments.Where(ad => ad.IsActive && (triggers & ad.Triggers) != 0).ToListAsync();
+            var c = await _context.Advertisments.Include(ad => ad.AdData).Where(ad => ad.IsActive && (triggers & ad.Triggers) != 0).ToListAsync();
             candidates.AddRange(c);
             return await RecommendCandidatesAsync(userId, candidates, N);
         }
