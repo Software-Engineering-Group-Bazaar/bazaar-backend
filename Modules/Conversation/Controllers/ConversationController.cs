@@ -7,6 +7,7 @@ using Chat.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Users.Interface;
 
 namespace Chat.Controllers
 {
@@ -17,11 +18,13 @@ namespace Chat.Controllers
     {
         private readonly IChatService _chatService;
         private readonly ILogger<ChatController> _logger;
+        private readonly IUserService _userService;
 
-        public ChatController(IChatService chatService, ILogger<ChatController> logger)
+        public ChatController(IChatService chatService, ILogger<ChatController> logger, IUserService userService)
         {
             _chatService = chatService;
             _logger = logger;
+            _userService = userService;
         }
 
         // GET /api/Chat/conversations
@@ -133,13 +136,24 @@ namespace Chat.Controllers
             if (string.IsNullOrEmpty(requestingUserId)) return Unauthorized("User ID not found.");
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
+            var targetUsers = _userService.GetUsersFromStore(findDto.StoreId);
+            var targetUserId = findDto.targetUserId;
+            if (targetUserId == "" && targetUsers.Count() > 0)
+            {
+                targetUserId = targetUsers.First().Id;
+            }
+            else
+            {
+                _logger.LogInformation("Nema sellera za taj store"); //mijenjajte poruku ako hocete
+                return BadRequest("No seller for store");
+            }
             _logger.LogInformation("User {RU} finding or creating conversation with TargetUser {TU}, Store {S}, Order {O}, Product {P}",
-                requestingUserId, findDto.TargetUserId, findDto.StoreId, findDto.OrderId?.ToString() ?? "N/A", findDto.ProductId?.ToString() ?? "N/A");
+                requestingUserId, targetUserId, findDto.StoreId, findDto.OrderId?.ToString() ?? "N/A", findDto.ProductId?.ToString() ?? "N/A");
             try
             {
                 var conversationDto = await _chatService.GetOrCreateConversationAsync(
                     requestingUserId,
-                    findDto.TargetUserId,
+                    targetUserId,
                     findDto.StoreId,
                     findDto.OrderId,
                     findDto.ProductId
