@@ -142,7 +142,7 @@ namespace Chat.Controllers
             {
                 targetUserId = targetUsers.First().Id;
             }
-            else
+            else if (targetUserId.Count() == 0)
             {
                 _logger.LogInformation("Nema sellera za taj store"); //mijenjajte poruku ako hocete
                 return BadRequest("No seller for store");
