@@ -206,7 +206,7 @@ namespace Chat.Services
                 _logger.LogWarning("SaveMessage failed: Conversation {ConversationId} not found.", conversationId);
                 throw new KeyNotFoundException($"Conversation with ID {conversationId} not found.");
             }
-            if (conversation.BuyerUserId != senderUserId && conversation.SellerUserId != senderUserId)
+            if (conversation.BuyerUserId != senderUserId && conversation.SellerUserId != senderUserId && conversation.AdminUserId != senderUserId)
             {
                 _logger.LogWarning("User {SenderUserId} attempted to send message to Conversation {ConversationId} they do not belong to.", senderUserId, conversationId);
                 throw new UnauthorizedAccessException("User does not have access to send messages in this conversation.");
@@ -234,52 +234,81 @@ namespace Chat.Services
 
             try
             {
-                string recipientUserId = conversation.BuyerUserId == senderUserId ? conversation.SellerUserId : conversation.BuyerUserId;
-                var recipientUser = await _userManager.FindByIdAsync(recipientUserId);
-                var senderUser = await _userManager.FindByIdAsync(senderUserId);
+                string? recipientUserId = null;
 
-                if (recipientUser != null)
+                if (conversation.TicketId.HasValue && !string.IsNullOrEmpty(conversation.AdminUserId))
                 {
-                    string notificationMessage = $"Nova poruka od {senderUser?.UserName ?? "korisnika"}: {content.Substring(0, Math.Min(50, content.Length))}{(content.Length > 50 ? "..." : "")}";
-                    string pushTitle = $"Nova poruka od {senderUser?.UserName ?? "Korisnika"}";
-
-                    await _dbNotificationService.CreateNotificationAsync(
-                        recipientUserId,
-                        notificationMessage,
-                        conversationId
-                    );
-                    _logger.LogInformation("DB Notification creation task initiated for Recipient {RecipientUserId} for new message in Conversation {ConversationId}.", recipientUserId, conversationId);
-
-                    if (!string.IsNullOrWhiteSpace(recipientUser.FcmDeviceToken))
+                    if (conversation.AdminUserId == senderUserId)
                     {
-                        var pushData = new Dictionary<string, string> {
+                        recipientUserId = !string.IsNullOrEmpty(conversation.BuyerUserId) ? conversation.BuyerUserId : conversation.SellerUserId;
+                    }
+                    else if (conversation.BuyerUserId == senderUserId || conversation.SellerUserId == senderUserId)
+                    {
+                        recipientUserId = conversation.AdminUserId;
+                    }
+                }
+                else if (!string.IsNullOrEmpty(conversation.BuyerUserId) && !string.IsNullOrEmpty(conversation.SellerUserId))
+                {
+                    recipientUserId = conversation.BuyerUserId == senderUserId ? conversation.SellerUserId : conversation.BuyerUserId;
+                }
+
+                if (string.IsNullOrEmpty(recipientUserId))
+                {
+                    _logger.LogWarning("Could not determine recipient for notification in Conversation {ConversationId}. Sender: {SenderUserId}, Buyer: {BuyerId}, Seller: {SellerId}, Admin: {AdminId}",
+                        conversationId, senderUserId, conversation.BuyerUserId, conversation.SellerUserId, conversation.AdminUserId);
+                }
+                else
+                {
+                    var recipientUser = await _userManager.FindByIdAsync(recipientUserId);
+                    var senderUser = await _userManager.FindByIdAsync(senderUserId);
+
+                    if (recipientUser != null && senderUser != null)
+                    {
+                        string notificationMessage = $"Nova poruka od {senderUser.UserName ?? "korisnika"}: {content.Substring(0, Math.Min(50, content.Length))}{(content.Length > 50 ? "..." : "")}";
+                        string pushTitle = $"Nova poruka od {senderUser.UserName ?? "Korisnika"}";
+
+                        // DB Notifikacija
+                        await _dbNotificationService.CreateNotificationAsync(
+                            recipientUserId,
+                            notificationMessage,
+                            conversationId // Poveži sa ConversationId
+                        );
+                        _logger.LogInformation("DB Notification creation task initiated for Recipient {RecipientUserId} for new message in Conversation {ConversationId}.", recipientUserId, conversationId);
+
+                        // Push Notifikacija
+                        if (!string.IsNullOrWhiteSpace(recipientUser.FcmDeviceToken))
+                        {
+                            var pushData = new Dictionary<string, string> {
                                 { "conversationId", conversationId.ToString() },
-                                { "messageId", message.Id.ToString() },
+                                { "messageId", message.Id.ToString() }, // message je sačuvana poruka
+                                { "senderId", senderUserId },
                                 { "screen", "ChatScreen" }
                             };
-                        try
-                        {
-                            await _pushNotificationService.SendPushNotificationAsync(
-                                recipientUser.FcmDeviceToken,
-                                pushTitle,
-                                content,
-                                pushData
-                            );
-                            _logger.LogInformation("Push Notification task initiated for Recipient {RecipientUserId} for new message.", recipientUserId);
+                            try
+                            {
+                                await _pushNotificationService.SendPushNotificationAsync(
+                                    recipientUser.FcmDeviceToken,
+                                    pushTitle,
+                                    content, // Puni sadržaj za push
+                                    pushData
+                                );
+                                _logger.LogInformation("Push Notification task initiated for Recipient {RecipientUserId} (Token: ...{TokenEnd}) for new message.",
+                                    recipientUserId, recipientUser.FcmDeviceToken.Length > 5 ? recipientUser.FcmDeviceToken.Substring(recipientUser.FcmDeviceToken.Length - 5) : "short");
+                            }
+                            catch (Exception pushEx)
+                            {
+                                _logger.LogError(pushEx, "Failed to send Push Notification to Recipient {RecipientUserId} for message in Conversation {ConversationId}.", recipientUserId, conversationId);
+                            }
                         }
-                        catch (Exception pushEx)
+                        else
                         {
-                            _logger.LogError(pushEx, "Failed to send Push Notification to Recipient {RecipientUserId} for message in Conversation {ConversationId}.", recipientUserId, conversationId);
+                            _logger.LogWarning("Recipient {RecipientUserId} has no FcmDeviceToken for push notification.", recipientUserId);
                         }
                     }
                     else
                     {
-                        _logger.LogWarning("Recipient {RecipientUserId} has no FcmDeviceToken for push notification.", recipientUserId);
+                        _logger.LogWarning("Could not find recipient user ({RecipientUserId}) or sender user ({SenderUserId}) for notification.", recipientUserId, senderUserId);
                     }
-                }
-                else
-                {
-                    _logger.LogWarning("Could not find recipient user {RecipientUserId} for notification.", recipientUserId);
                 }
             }
             catch (Exception notifyEx)
@@ -287,12 +316,15 @@ namespace Chat.Services
                 _logger.LogError(notifyEx, "Error sending notification for new message from {SenderUserId} in Conversation {ConversationId}.", senderUserId, conversationId);
             }
 
-            // 4. Mapiraj i vrati DTO sačuvane poruke
+            // Mapiraj i vrati DTO sačuvane poruke
+            // Treba dohvatiti senderUser ponovo ili ga proslijediti ako ga imamo od gore
+            var finalSenderUser = await _userManager.FindByIdAsync(senderUserId);
             return new MessageDto
             {
                 Id = message.Id,
                 ConversationId = message.ConversationId,
                 SenderUserId = message.SenderUserId,
+                SenderUsername = finalSenderUser?.UserName,
                 Content = message.Content,
                 SentAt = message.SentAt,
                 ReadAt = message.ReadAt,
@@ -305,7 +337,7 @@ namespace Chat.Services
         {
             _logger.LogInformation("Fetching conversations for User {UserId}", userId);
             var conversations = await _context.Conversations
-                .Where(c => c.BuyerUserId == userId || c.SellerUserId == userId)
+                .Where(c => c.BuyerUserId == userId || c.SellerUserId == userId || c.AdminUserId == userId)
                 .OrderByDescending(c => c.LastMessageId.HasValue ?
                     _context.Messages.Where(m => m.Id == c.LastMessageId).Select(m => m.SentAt).FirstOrDefault() :
                     c.CreatedAt)
@@ -321,40 +353,51 @@ namespace Chat.Services
             return dtos;
         }
 
-        public async Task<IEnumerable<MessageDto>> GetConversationMessagesAsync(int conversationId, string requestingUserId, bool isAdmin, int page = 1, int pageSize = 30)
+        public async Task<IEnumerable<MessageDto>> GetConversationMessagesAsync(int conversationId, string requestingUserId, bool isAdminFromController, int page = 1, int pageSize = 30)
         {
-            _logger.LogInformation("Fetching messages for Conversation {ConversationId}, User {RequestingUserId} (IsAdmin: {IsAdmin}), Page {Page}, Size {PageSize}",
-               conversationId, requestingUserId, isAdmin, page, pageSize);
+            _logger.LogInformation("Fetching messages for Conversation {CID}, User {UID} (IsAdminCtrl: {IsAdmin}), Page {P}, Size {PS}",
+               conversationId, requestingUserId, isAdminFromController, page, pageSize);
 
-            if (!isAdmin && !await CanUserAccessConversationAsync(requestingUserId, conversationId))
-            {
-                _logger.LogWarning("User {RequestingUserId} attempted to get messages for Conversation {ConversationId} without access.", requestingUserId, conversationId);
-                throw new UnauthorizedAccessException("User does not have access to this conversation.");
-            }
+            var conversation = await _context.Conversations
+                                      .AsNoTracking()
+                                      .FirstOrDefaultAsync(c => c.Id == conversationId);
 
-            var conversationExists = await _context.Conversations.AnyAsync(c => c.Id == conversationId);
-            if (!conversationExists)
+            if (conversation == null)
             {
                 _logger.LogWarning("Conversation {ConversationId} not found when fetching messages.", conversationId);
                 return Enumerable.Empty<MessageDto>();
             }
 
+            bool isDirectParticipant = conversation.BuyerUserId == requestingUserId ||
+                                       conversation.SellerUserId == requestingUserId ||
+                                       conversation.AdminUserId == requestingUserId;
+
+            if (!isAdminFromController && !isDirectParticipant)
+            {
+                _logger.LogWarning("User {RequestingUserId} attempted to get messages for Conversation {ConversationId} without being admin or participant.", requestingUserId, conversationId);
+                throw new UnauthorizedAccessException("User does not have access to this conversation.");
+            }
 
             var query = _context.Messages
-                .Where(m => m.ConversationId == conversationId)
-                .Where(m => !m.IsPrivate || (m.IsPrivate && m.SenderUserId == requestingUserId) || (isAdmin && !m.IsPrivate))
-                .OrderByDescending(m => m.SentAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .AsNoTracking();
+                .Where(m => m.ConversationId == conversationId);
+
+            if (isAdminFromController && !isDirectParticipant)
+            {
+                query = query.Where(m => !m.IsPrivate);
+                _logger.LogDebug("Admin {AdminUserId} (not participant) viewing non-private messages for Conversation {ConversationId}", requestingUserId, conversationId);
+            }
+
+            query = query.OrderByDescending(m => m.SentAt)
+                         .Skip((page - 1) * pageSize)
+                         .Take(pageSize)
+                         .AsNoTracking();
 
             var messages = await query.ToListAsync();
             _logger.LogInformation("Retrieved {MessageCount} messages for Conversation {ConversationId}", messages.Count, conversationId);
 
             var senderIds = messages.Select(m => m.SenderUserId).Distinct().ToList();
-            var senders = await _userManager.Users
-                                    .Where(u => senderIds.Contains(u.Id))
-                                    .ToDictionaryAsync(u => u.Id, u => u.UserName);
+            var senders = new Dictionary<string, string?>();
+            if (senderIds.Any()) { senders = await _userManager.Users.Where(u => senderIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.UserName); }
 
             return messages.Select(m => new MessageDto
             {
@@ -362,7 +405,7 @@ namespace Chat.Services
                 ConversationId = m.ConversationId,
                 SenderUserId = m.SenderUserId,
                 SenderUsername = senders.TryGetValue(m.SenderUserId, out var username) ? username : "Nepoznat",
-                Content = m.IsPrivate && isAdmin ? "[Privatna poruka - sakriveno za admina]" : m.Content,
+                Content = m.Content,
                 SentAt = m.SentAt,
                 ReadAt = m.ReadAt,
                 IsPrivate = m.IsPrivate
@@ -372,7 +415,10 @@ namespace Chat.Services
         public async Task<bool> CanUserAccessConversationAsync(string userId, int conversationId)
         {
             return await _context.Conversations
-                .AnyAsync(c => c.Id == conversationId && (c.BuyerUserId == userId || c.SellerUserId == userId));
+         .AnyAsync(c => c.Id == conversationId &&
+                        (c.BuyerUserId == userId ||
+                         c.SellerUserId == userId ||
+                         c.AdminUserId == userId));
         }
 
         public async Task<bool> MarkMessagesAsReadAsync(int conversationId, string readerUserId)
@@ -387,18 +433,16 @@ namespace Chat.Services
             }
 
             var now = DateTime.UtcNow;
-            // Označi kao pročitane sve poruke u konverzaciji koje NIJE poslao trenutni korisnik i koje još nisu pročitane
             int updatedCount = await _context.Messages
                 .Where(m => m.ConversationId == conversationId &&
                              m.SenderUserId != readerUserId &&
                              m.ReadAt == null)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(m => m.ReadAt, now)); // EF Core 7+
+                .ExecuteUpdateAsync(setters => setters.SetProperty(m => m.ReadAt, now));
 
             _logger.LogInformation("Marked {UpdatedCount} messages as read in Conversation {ConversationId} for User {ReaderUserId}",
                 updatedCount, conversationId, readerUserId);
 
-            // Vrati true ako je bar jedna poruka ažurirana (ili uvijek true ako operacija prođe?)
-            return updatedCount >= 0; // Vraća true čak i ako nijedna nije ažurirana (jer nije bilo nepročitanih)
+            return updatedCount >= 0;
         }
 
 
@@ -406,10 +450,72 @@ namespace Chat.Services
         {
             if (conv == null) return null;
 
-            string otherParticipantId = conv.BuyerUserId == currentUserId ? conv.SellerUserId : conv.BuyerUserId;
-            var otherParticipant = await _userManager.FindByIdAsync(otherParticipantId);
-            var currentUser = await _userManager.FindByIdAsync(currentUserId); // Treba nam i trenutni korisnik
-            var store = _storeService.GetStoreById((int)conv.StoreId);
+            var currentUser = await _userManager.FindByIdAsync(currentUserId);
+            if (currentUser == null)
+            {
+                _logger.LogWarning("MapConversationToDtoAsync: CurrentUser with ID {CurrentUserId} not found.", currentUserId);
+                return null;
+            }
+            bool isCurrentUserAdmin = await _userManager.IsInRoleAsync(currentUser, "Admin");
+
+            User? buyerUserObj = null;
+            User? sellerUserObj = null;
+            User? adminUserObj = null;
+            User? otherParticipantObj = null;
+
+            string? buyerUsername = null;
+            string? sellerUsername = null;
+            string? adminUsername = null;
+
+            if (!string.IsNullOrEmpty(conv.BuyerUserId))
+            {
+                buyerUserObj = await _userManager.FindByIdAsync(conv.BuyerUserId);
+                buyerUsername = buyerUserObj?.UserName;
+            }
+            if (!string.IsNullOrEmpty(conv.SellerUserId))
+            {
+                sellerUserObj = await _userManager.FindByIdAsync(conv.SellerUserId);
+                sellerUsername = sellerUserObj?.UserName;
+            }
+            if (!string.IsNullOrEmpty(conv.AdminUserId))
+            {
+                adminUserObj = await _userManager.FindByIdAsync(conv.AdminUserId);
+                adminUsername = adminUserObj?.UserName;
+            }
+
+            if (conv.TicketId.HasValue && !string.IsNullOrEmpty(conv.AdminUserId))
+            {
+                if (currentUserId == conv.AdminUserId)
+                {
+                    string? ticketCreatorId = !string.IsNullOrEmpty(conv.BuyerUserId) ? conv.BuyerUserId : conv.SellerUserId;
+                    if (!string.IsNullOrEmpty(ticketCreatorId))
+                    {
+                        otherParticipantObj = (ticketCreatorId == conv.BuyerUserId) ? buyerUserObj : sellerUserObj;
+                    }
+                }
+                else
+                {
+                    otherParticipantObj = adminUserObj;
+                }
+            }
+            else
+            {
+                if (conv.BuyerUserId == currentUserId && !string.IsNullOrEmpty(conv.SellerUserId))
+                {
+                    otherParticipantObj = sellerUserObj;
+                }
+                else if (conv.SellerUserId == currentUserId && !string.IsNullOrEmpty(conv.BuyerUserId))
+                {
+                    otherParticipantObj = buyerUserObj;
+                }
+            }
+
+            string? storeName = null;
+            if (conv.StoreId.HasValue)
+            {
+                var store = _storeService.GetStoreById(conv.StoreId.Value);
+                storeName = store?.name;
+            }
 
             string? productName = null;
             if (conv.ProductId.HasValue)
@@ -426,14 +532,19 @@ namespace Chat.Services
                 var lastMsg = await _context.Messages.FindAsync(conv.LastMessageId.Value);
                 if (lastMsg != null)
                 {
-                    // Provjeri da li trenutni korisnik (ili admin koji nije učesnik) smije vidjeti ovu poruku
-                    bool isAdminViewing = await _userManager.IsInRoleAsync(currentUser, "Admin") &&
-                                         !(currentUser.Id == conv.BuyerUserId || currentUser.Id == conv.SellerUserId);
+                    bool isCurrentUserAParticipantInConv = (conv.BuyerUserId == currentUserId ||
+                                                            conv.SellerUserId == currentUserId ||
+                                                            conv.AdminUserId == currentUserId);
 
-                    bool canCurrentUserSeeLastMessage = (!lastMsg.IsPrivate) || // Ako nije privatna, svi je vide
-                                                       (lastMsg.IsPrivate && (lastMsg.SenderUserId == currentUserId || !isAdminViewing)); // Ako je privatna, vidi je pošiljalac, ili drugi učesnik (ako nije admin koji gleda tuđe)
+                    bool canSeePrivateContent = (lastMsg.IsPrivate &&
+                                                (lastMsg.SenderUserId == currentUserId || isCurrentUserAParticipantInConv));
 
-                    if (canCurrentUserSeeLastMessage)
+                    bool canSeeMessage = !lastMsg.IsPrivate || canSeePrivateContent;
+
+                    bool hideContentForAdminViewer = lastMsg.IsPrivate && isCurrentUserAdmin && !isCurrentUserAParticipantInConv;
+
+
+                    if (canSeeMessage)
                     {
                         var lastMsgSender = await _userManager.FindByIdAsync(lastMsg.SenderUserId);
                         lastMessageDto = new MessageDto
@@ -442,7 +553,7 @@ namespace Chat.Services
                             ConversationId = lastMsg.ConversationId,
                             SenderUserId = lastMsg.SenderUserId,
                             SenderUsername = lastMsgSender?.UserName,
-                            Content = lastMsg.IsPrivate && isAdminViewing ? "[Privatna poruka]" : lastMsg.Content, // Admin ne vidi sadržaj privatnih
+                            Content = hideContentForAdminViewer ? "[Privatna poruka]" : lastMsg.Content,
                             SentAt = lastMsg.SentAt,
                             ReadAt = lastMsg.ReadAt,
                             IsPrivate = lastMsg.IsPrivate
@@ -453,59 +564,68 @@ namespace Chat.Services
 
             int unreadCount = await _context.Messages
                 .CountAsync(m => m.ConversationId == conv.Id &&
-                                  m.SenderUserId != currentUserId && // Nije poslao trenutni korisnik
-                                  m.ReadAt == null); // I nije pročitana
+                                  m.SenderUserId != currentUserId &&
+                                  m.ReadAt == null &&
+                                  (!m.IsPrivate || (m.IsPrivate && (conv.BuyerUserId == currentUserId || conv.SellerUserId == currentUserId || conv.AdminUserId == currentUserId)))
+                              );
 
             return new ConversationDto
             {
                 Id = conv.Id,
                 BuyerUserId = conv.BuyerUserId,
-                BuyerUsername = (conv.BuyerUserId == currentUserId ? currentUser?.UserName : otherParticipant?.UserName) ?? "Nepoznat",
+                BuyerUsername = buyerUsername,
                 SellerUserId = conv.SellerUserId,
-                SellerUsername = (conv.SellerUserId == currentUserId ? currentUser?.UserName : otherParticipant?.UserName) ?? "Nepoznat",
-                StoreId = (int)conv.StoreId,
+                SellerUsername = sellerUsername,
+                AdminUserId = conv.AdminUserId,
+                AdminUsername = adminUsername,
+                StoreId = conv.StoreId ?? 0,
+                StoreName = storeName,
                 OrderId = conv.OrderId,
                 ProductId = conv.ProductId,
                 ProductName = productName,
+                TicketId = conv.TicketId,
                 CreatedAt = conv.CreatedAt,
                 LastMessage = lastMessageDto,
                 UnreadMessagesCount = unreadCount
             };
         }
 
-        public async Task<IEnumerable<MessageDto>> GetAllMessagesForConversationAsync(int conversationId, string requestingUserId, bool isAdmin, int page = 1, int pageSize = 30)
+        public async Task<IEnumerable<MessageDto>> GetAllMessagesForConversationAsync(int conversationId, string requestingUserId, bool isAdminFromController, int page = 1, int pageSize = 30)
         {
-            _logger.LogInformation("[GetAllMessages] User {UserId} (IsAdmin: {IsAdmin}) fetching ALL messages for Conversation {ConversationId}, Page: {Page}, Size: {PageSize}",
-                requestingUserId, isAdmin, conversationId, page, pageSize);
+            _logger.LogInformation("[GetAllMessages] User {UID} (IsAdminCtrl: {IsAdmin}) fetching ALL messages for Conversation {CID}, Page {P}, Size {PS}",
+                requestingUserId, isAdminFromController, conversationId, page, pageSize);
 
-            // 1. Autorizacija: Provjeri da li korisnik uopšte ima pristup ovoj konverzaciji
-            bool isParticipant = await CanUserAccessConversationAsync(requestingUserId, conversationId);
-            if (!isAdmin && !isParticipant)
-            {
-                _logger.LogWarning("[GetAllMessages] User {RequestingUserId} unauthorized access to Conversation {ConversationId}", requestingUserId, conversationId);
-                throw new UnauthorizedAccessException("User does not have access to this conversation.");
-            }
+            var conversation = await _context.Conversations
+                                      .AsNoTracking()
+                                      .FirstOrDefaultAsync(c => c.Id == conversationId);
 
-            var conversationExists = await _context.Conversations.AnyAsync(c => c.Id == conversationId);
-            if (!conversationExists)
+            if (conversation == null)
             {
                 _logger.LogWarning("[GetAllMessages] Conversation {ConversationId} not found.", conversationId);
                 return Enumerable.Empty<MessageDto>();
             }
 
-            // 2. Dohvati SVE poruke za dati conversationId
+            bool isDirectParticipant = conversation.BuyerUserId == requestingUserId ||
+                                      conversation.SellerUserId == requestingUserId ||
+                                      conversation.AdminUserId == requestingUserId;
+
+            if (!isAdminFromController && !isDirectParticipant)
+            {
+                _logger.LogWarning("[GetAllMessages] User {RequestingUserId} unauthorized access to Conversation {ConversationId}", requestingUserId, conversationId);
+                throw new UnauthorizedAccessException("User does not have access to this conversation.");
+            }
+
             var query = _context.Messages
                 .Where(m => m.ConversationId == conversationId);
 
-            // 3. Primijeni filter za privatne poruke na osnovu toga da li je Admin i da li je učesnik
-            if (isAdmin && !isParticipant)
+
+            if (isAdminFromController && !isDirectParticipant)
             {
                 query = query.Where(m => !m.IsPrivate);
-                _logger.LogDebug("[GetAllMessages] Admin {AdminUserId} viewing non-private messages for Conversation {ConversationId}", requestingUserId, conversationId);
+                _logger.LogDebug("[GetAllMessages] Admin {AdminUserId} (not participant) viewing non-private messages for Conversation {ConversationId}", requestingUserId, conversationId);
             }
 
-
-            query = query.OrderByDescending(m => m.SentAt) // Najnovije prvo za paginaciju
+            query = query.OrderByDescending(m => m.SentAt)
                          .Skip((page - 1) * pageSize)
                          .Take(pageSize)
                          .AsNoTracking();
@@ -513,7 +633,6 @@ namespace Chat.Services
             var messages = await query.ToListAsync();
             _logger.LogInformation("[GetAllMessages] Retrieved {MessageCount} messages for Conversation {ConversationId}", messages.Count, conversationId);
 
-            // 4. Dohvati imena pošiljaoca
             var senderIds = messages.Select(m => m.SenderUserId).Distinct().ToList();
             var senders = new Dictionary<string, string?>();
             if (senderIds.Any())
@@ -523,14 +642,13 @@ namespace Chat.Services
                                     .ToDictionaryAsync(u => u.Id, u => u.UserName);
             }
 
-            // 5. Mapiraj u DTO
             return messages.Select(m => new MessageDto
             {
                 Id = m.Id,
                 ConversationId = m.ConversationId,
                 SenderUserId = m.SenderUserId,
                 SenderUsername = senders.TryGetValue(m.SenderUserId, out var username) ? username : "Nepoznat",
-                Content = (m.IsPrivate && isAdmin && !isParticipant) ? "[Privatna poruka - sakriveno za admina]" : m.Content,
+                Content = m.Content,
                 SentAt = m.SentAt,
                 ReadAt = m.ReadAt,
                 IsPrivate = m.IsPrivate
