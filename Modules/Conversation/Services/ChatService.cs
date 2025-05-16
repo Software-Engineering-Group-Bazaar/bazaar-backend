@@ -45,115 +45,153 @@ namespace Chat.Services
             _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
         }
 
-        public async Task<ConversationDto?> GetOrCreateConversationAsync(
-            string requestingUserId, string targetUserId, int storeId, int? orderId = null, int? productId = null, int? ticketId = null)
+        public async Task<ConversationDto?> GetOrCreateConversationAsync(string requestingUserId, string targetUserId, int storeId, int? orderId = null, int? productId = null, int? ticketId = null)
         {
             _logger.LogInformation(
-                "GetOrCreateConversation: RequestingUser: {RU}, TargetUser: {TU}, Store: {S}, Order: {O}, Product: {P}",
-                requestingUserId, targetUserId, storeId, orderId?.ToString() ?? "N/A", productId?.ToString() ?? "N/A");
+                "GetOrCreateConversation - Input: Requesting: {RU}, Target: {TU}, Store: {S}, Order: {O}, Product: {P}, Ticket: {T}",
+                requestingUserId, targetUserId, storeId, orderId?.ToString() ?? "N/A", productId?.ToString() ?? "N/A", ticketId?.ToString() ?? "N/A");
 
-            // Validacija: Ne mogu i OrderId i ProductId biti postavljeni istovremeno
-            if (orderId.HasValue && productId.HasValue)
-            {
-                _logger.LogWarning("GetOrCreateConversation failed: Both OrderId and ProductId were provided.");
-                throw new ArgumentException("A conversation can be related to an Order or a Product, but not both simultaneously.");
-            }
+            int? finalOrderId = (orderId.HasValue && orderId.Value == 0) ? null : orderId;
+            int? finalProductId = (productId.HasValue && productId.Value == 0) ? null : productId;
 
             var requestingUserObj = await _userManager.FindByIdAsync(requestingUserId);
-            var targetUserObj = await _userManager.FindByIdAsync(targetUserId);
-
             if (requestingUserObj == null) throw new KeyNotFoundException($"Requesting user {requestingUserId} not found.");
-            if (targetUserObj == null) throw new KeyNotFoundException($"Target user {targetUserId} not found.");
 
-            string buyerId, sellerId;
-
-            // Određivanje Buyer-a i Seller-a
-            // Pretpostavka: Seller je korisnik čiji StoreId odgovara proslijeđenom storeId
-            // Ako oba korisnika imaju isti StoreId, a nije isti korisnik, to je greška u logici ili podacima
-            // Ako nijedan nema taj StoreId, to je takođe greška.
-            bool isRequestingUserSellerForStore = requestingUserObj.StoreId.HasValue && requestingUserObj.StoreId.Value == storeId;
-            bool isTargetUserSellerForStore = targetUserObj.StoreId.HasValue && targetUserObj.StoreId.Value == storeId;
-
-            if (isTargetUserSellerForStore && !isRequestingUserSellerForStore)
+            if (ticketId.HasValue)
             {
-                // Target je Seller, Requesting je Buyer
-                sellerId = targetUserObj.Id;
-                buyerId = requestingUserObj.Id;
-                if (buyerId == sellerId) // Buyer ne može biti isti kao Seller
-                    throw new InvalidOperationException("Buyer and Seller cannot be the same user for the store.");
+                var adminUserObj = await _userManager.FindByIdAsync(targetUserId);
+                if (adminUserObj == null) throw new KeyNotFoundException($"Admin user {targetUserId} not found for ticket conversation.");
+                if (!(await _userManager.IsInRoleAsync(adminUserObj, "Admin")))
+                    throw new InvalidOperationException($"User {targetUserId} is not an Admin.");
+
+                if (requestingUserObj == null) throw new KeyNotFoundException($"Requesting user {requestingUserId} (ticket creator) not found.");
+
+
+                _logger.LogInformation("Processing as a TICKET-based conversation for TicketId: {TicketId} between User: {UserId} and Admin: {AdminId}",
+                    ticketId.Value, requestingUserId, targetUserId);
+
+                var existingConversation = await _context.Conversations
+                    .FirstOrDefaultAsync(c => c.TicketId == ticketId.Value &&
+                                             ((c.BuyerUserId == requestingUserId && c.AdminUserId == targetUserId) ||
+                                              (c.SellerUserId == requestingUserId && c.AdminUserId == targetUserId)));
+
+                if (existingConversation != null)
+                {
+                    _logger.LogInformation("Found existing TICKET conversation ID: {ConversationId}", existingConversation.Id);
+                    return await MapConversationToDtoAsync(existingConversation, requestingUserId);
+                }
+
+                _logger.LogInformation("Creating new TICKET conversation. User: {UserId}, Admin: {AdminId}, Ticket: {TicketId}",
+                    requestingUserId, targetUserId, ticketId.Value);
+
+                string? conversationBuyerId = null;
+                string? conversationSellerId = null;
+
+                if (requestingUserObj.StoreId.HasValue && requestingUserObj.StoreId.Value == storeId)
+                {
+                    conversationSellerId = requestingUserObj.Id;
+                    conversationBuyerId = null;
+                }
+                else
+                {
+                    conversationBuyerId = requestingUserObj.Id;
+                    conversationSellerId = null;
+                }
+
+                var newConversation = new Conversation.Models.Conversation
+                {
+                    BuyerUserId = conversationBuyerId,
+                    SellerUserId = conversationSellerId,
+                    AdminUserId = targetUserId,
+                    StoreId = storeId,
+                    OrderId = finalOrderId,
+                    ProductId = finalProductId,
+                    TicketId = ticketId.Value,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Conversations.Add(newConversation);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("New TICKET conversation created with ID: {ConversationId}", newConversation.Id);
+                return await MapConversationToDtoAsync(newConversation, requestingUserId);
             }
-            else if (isRequestingUserSellerForStore && !isTargetUserSellerForStore)
+            else
             {
-                // Requesting je Seller, Target je Buyer
-                sellerId = requestingUserObj.Id;
-                buyerId = targetUserObj.Id;
-                if (buyerId == sellerId)
-                    throw new InvalidOperationException("Buyer and Seller cannot be the same user for the store.");
+                _logger.LogInformation("Processing as a BUYER-SELLER conversation.");
+                if (string.IsNullOrEmpty(targetUserId))
+                {
+                    throw new ArgumentException("TargetUserId is required for Buyer-Seller conversations.");
+                }
+
+                var targetUserObjForBS = await _userManager.FindByIdAsync(targetUserId);
+                if (targetUserObjForBS == null) throw new KeyNotFoundException($"Target user {targetUserId} not found for Buyer-Seller chat.");
+
+                string buyerId, sellerId;
+                bool isRequestingUserSellerForStore = requestingUserObj.StoreId.HasValue && requestingUserObj.StoreId.Value == storeId;
+                bool isTargetUserSellerForStore = targetUserObjForBS.StoreId.HasValue && targetUserObjForBS.StoreId.Value == storeId;
+
+                if (isTargetUserSellerForStore && !isRequestingUserSellerForStore)
+                {
+                    sellerId = targetUserObjForBS.Id;
+                    buyerId = requestingUserObj.Id;
+                    if (buyerId == sellerId) throw new InvalidOperationException("Buyer and Seller cannot be the same user.");
+                }
+                else if (isRequestingUserSellerForStore && !isTargetUserSellerForStore)
+                {
+                    sellerId = requestingUserObj.Id;
+                    buyerId = targetUserObjForBS.Id;
+                    if (buyerId == sellerId) throw new InvalidOperationException("Buyer and Seller cannot be the same user.");
+                }
+                else if (isRequestingUserSellerForStore && isTargetUserSellerForStore && requestingUserObj.Id != targetUserObjForBS.Id)
+                {
+                    throw new InvalidOperationException("Ambiguous: Both users are sellers for the same store.");
+                }
+                else if (requestingUserObj.Id == targetUserObjForBS.Id)
+                {
+                    throw new InvalidOperationException("User cannot create a conversation with themselves.");
+                }
+                else
+                {
+                    throw new InvalidOperationException("Could not establish a valid buyer-seller relationship for this store.");
+                }
+
+                var query = _context.Conversations.AsQueryable();
+                query = query.Where(c =>
+                    ((c.BuyerUserId == buyerId && c.SellerUserId == sellerId) || (c.BuyerUserId == sellerId && c.SellerUserId == buyerId)) &&
+                    c.StoreId == storeId && c.TicketId == null);
+
+                if (finalOrderId.HasValue) query = query.Where(c => c.OrderId == finalOrderId.Value && c.ProductId == null);
+                else if (finalProductId.HasValue) query = query.Where(c => c.ProductId == finalProductId.Value && c.OrderId == null);
+                else query = query.Where(c => c.OrderId == null && c.ProductId == null);
+
+                var existingConversation = await query.FirstOrDefaultAsync();
+
+                if (existingConversation != null)
+                {
+                    _logger.LogInformation("Found existing BUYER-SELLER conversation ID: {ConversationId}", existingConversation.Id);
+                    return await MapConversationToDtoAsync(existingConversation, requestingUserId);
+                }
+
+                _logger.LogInformation("Creating new BUYER-SELLER conversation. Buyer: {B}, Seller: {S}, Store: {Store}, Order: {O}, Product: {P}",
+                    buyerId, sellerId, storeId, finalOrderId?.ToString() ?? "N/A", finalProductId?.ToString() ?? "N/A");
+
+                var newConversation = new Conversation.Models.Conversation
+                {
+                    BuyerUserId = buyerId,
+                    SellerUserId = sellerId,
+                    StoreId = storeId,
+                    OrderId = finalOrderId,
+                    ProductId = finalProductId,
+                    AdminUserId = null,
+                    TicketId = null,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Conversations.Add(newConversation);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("New BUYER-SELLER conversation created with ID: {ConversationId}", newConversation.Id);
+                return await MapConversationToDtoAsync(newConversation, requestingUserId);
             }
-            else if (isRequestingUserSellerForStore && isTargetUserSellerForStore && requestingUserObj.Id != targetUserObj.Id)
-            {
-                // Oba su Selleri za istu prodavnicu - ovo nema smisla za Buyer-Seller chat
-                _logger.LogError("Ambiguous situation: Both users {User1} and {User2} are sellers for Store {StoreId}.", requestingUserId, targetUserId, storeId);
-                throw new InvalidOperationException("Cannot determine a clear buyer-seller relationship for this store when both are sellers.");
-            }
-            else if (requestingUserObj.Id == targetUserObj.Id) // Korisnik pokušava chatati sam sa sobom
-            {
-                throw new InvalidOperationException("User cannot create a conversation with themselves.");
-            }
-            else // Nijedan nije jasno Seller za taj store, ili neka druga nepredviđena situacija
-            {
-                _logger.LogError("Could not determine definitive Buyer/Seller roles for conversation between {User1} and {User2} regarding Store {StoreId}.", requestingUserId, targetUserId, storeId);
-                throw new InvalidOperationException("Could not establish a valid buyer-seller relationship for this store.");
-            }
-
-
-            // Izgradnja upita za pronalaženje postojeće konverzacije
-            var query = _context.Conversations.AsQueryable();
-
-            // Buyer i Seller mogu biti zamijenjeni, pa provjeravamo obje kombinacije
-            query = query.Where(c =>
-                ((c.BuyerUserId == buyerId && c.SellerUserId == sellerId) || (c.BuyerUserId == sellerId && c.SellerUserId == buyerId)) &&
-                c.StoreId == storeId);
-
-            if (orderId.HasValue)
-            {
-                query = query.Where(c => c.OrderId == orderId.Value && c.ProductId == null);
-            }
-            else if (productId.HasValue)
-            {
-                query = query.Where(c => c.ProductId == productId.Value && c.OrderId == null);
-            }
-            else // Generalna konverzacija za prodavnicu
-            {
-                query = query.Where(c => c.OrderId == null && c.ProductId == null);
-            }
-
-            var existingConversation = await query.FirstOrDefaultAsync();
-
-            if (existingConversation != null)
-            {
-                _logger.LogInformation("Found existing conversation ID: {ConversationId}", existingConversation.Id);
-                return await MapConversationToDtoAsync(existingConversation, requestingUserId);
-            }
-
-            _logger.LogInformation("Creating new conversation. Buyer: {B}, Seller: {S}, Store: {Store}, Order: {O}, Product: {P}",
-                buyerId, sellerId, storeId, orderId?.ToString() ?? "N/A", productId?.ToString() ?? "N/A");
-
-            var newConversation = new Conversation.Models.Conversation
-            {
-                BuyerUserId = buyerId,
-                SellerUserId = sellerId,
-                StoreId = storeId,
-                OrderId = orderId,
-                ProductId = productId,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Conversations.Add(newConversation);
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("New conversation created with ID: {ConversationId}", newConversation.Id);
-
-            return await MapConversationToDtoAsync(newConversation, requestingUserId);
         }
 
         public async Task<MessageDto?> SaveMessageAsync(string senderUserId, int conversationId, string content, bool isPrivate)
