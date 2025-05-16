@@ -13,6 +13,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Notifications.Interfaces;
 using Store.Interface;
+using Ticketing.Data;
+using Ticketing.Models;
 using Users.Models;
 
 namespace Chat.Services
@@ -26,6 +28,7 @@ namespace Chat.Services
         private readonly ILogger<ChatService> _logger;
         private readonly INotificationService _dbNotificationService;
         private readonly IPushNotificationService _pushNotificationService;
+        private readonly TicketingDbContext _ticketingContext;
 
         public ChatService(
             ConversationDbContext context,
@@ -34,7 +37,8 @@ namespace Chat.Services
             CatalogDbContext catalogContext,
             INotificationService dbNotificationService,
             IPushNotificationService pushNotificationService,
-            ILogger<ChatService> logger)
+            ILogger<ChatService> logger,
+            TicketingDbContext ticketingContext)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
@@ -43,6 +47,7 @@ namespace Chat.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _dbNotificationService = dbNotificationService ?? throw new ArgumentNullException(nameof(dbNotificationService));
             _pushNotificationService = pushNotificationService ?? throw new ArgumentNullException(nameof(pushNotificationService));
+            _ticketingContext = ticketingContext ?? throw new ArgumentNullException(nameof(ticketingContext));
         }
 
         public async Task<ConversationDto?> GetOrCreateConversationAsync(string requestingUserId, string targetUserId, int storeId, int? orderId = null, int? productId = null, int? ticketId = null)
@@ -199,7 +204,6 @@ namespace Chat.Services
             _logger.LogInformation("Attempting to save message from User {SenderUserId} to Conversation {ConversationId}. IsPrivate: {IsPrivate}. Content snippet: '{ContentSnippet}'",
                 senderUserId, conversationId, isPrivate, content.Substring(0, Math.Min(30, content.Length)));
 
-            // 1. Provjeri da li korisnik pripada konverzaciji
             var conversation = await _context.Conversations.FindAsync(conversationId);
             if (conversation == null)
             {
@@ -212,7 +216,25 @@ namespace Chat.Services
                 throw new UnauthorizedAccessException("User does not have access to send messages in this conversation.");
             }
 
-            // 2. Kreiraj i sačuvaj poruku
+            if (conversation.TicketId.HasValue)
+            {
+                var ticket = await _ticketingContext.Tickets.FindAsync(conversation.TicketId.Value);
+                if (ticket == null)
+                {
+                    _logger.LogError("SaveMessage failed: Associated Ticket {TicketId} for Conversation {ConversationId} not found.",
+                                    conversation.TicketId.Value, conversationId);
+                    throw new InvalidOperationException($"Associated ticket {conversation.TicketId.Value} not found. Cannot send message.");
+                }
+
+                if (ticket.Status != TicketStatus.Open.ToString())
+                {
+                    _logger.LogWarning("SaveMessage denied: Ticket {TicketId} (Conversation {ConversationId}) is not 'Open'. Current status: {TicketStatus}. Sender: {SenderUserId}",
+                                    ticket.Id, conversationId, ticket.Status, senderUserId);
+                    throw new InvalidOperationException($"Cannot send messages. Ticket status is '{ticket.Status}'. Messages are allowed only when the ticket is 'Open'.");
+                }
+                _logger.LogInformation("Ticket {TicketId} status is 'Open'. Proceeding to save message for Conversation {ConversationId}.", ticket.Id, conversationId);
+            }
+
             var message = new Conversation.Models.Message
             {
                 ConversationId = conversationId,
@@ -331,8 +353,6 @@ namespace Chat.Services
                 IsPrivate = message.IsPrivate
             };
         }
-
-
         public async Task<IEnumerable<ConversationDto>> GetConversationsForUserAsync(string userId)
         {
             _logger.LogInformation("Fetching conversations for User {UserId}", userId);
