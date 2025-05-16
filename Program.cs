@@ -39,6 +39,8 @@ using Store.Interface;
 using Store.Models;
 using Store.Services;
 using Ticketing.Data;
+using Ticketing.Interfaces;
+using Ticketing.Services;
 using Users.Interface;
 using Users.Interfaces;
 using Users.Models;
@@ -147,6 +149,8 @@ builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IAdService, AdService>();
 builder.Services.AddScoped<IRecommenderAgent, RecommenderAgent>();
 builder.Services.AddScoped<IReviewReminderService, ReviewReminderService>();
+
+builder.Services.AddScoped<ITicketService, TicketService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");

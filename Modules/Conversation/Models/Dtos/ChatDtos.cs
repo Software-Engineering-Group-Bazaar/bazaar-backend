@@ -36,6 +36,9 @@ namespace Chat.Dtos
         public string? BuyerUsername { get; set; }
         public required string SellerUserId { get; set; }
         public string? SellerUsername { get; set; }
+        public string? AdminUserId { get; set; }
+        public string? AdminUsername { get; set; }
+        public int? TicketId { get; set; }
         public int StoreId { get; set; }
         public string? StoreName { get; set; }
         public int? OrderId { get; set; }
