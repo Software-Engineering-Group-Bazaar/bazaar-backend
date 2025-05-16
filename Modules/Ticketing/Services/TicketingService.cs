@@ -310,37 +310,6 @@ namespace Ticketing.Services
             catch (DbUpdateException ex) { _logger.LogError(ex, "Error updating status for Ticket {TicketId}", ticketId); return null; }
         }
 
-        public async Task<TicketDto?> ResolveTicketAsync(int ticketId, string resolvingUserId, bool isAdmin)
-        {
-            var userResolving = await _userManager.FindByIdAsync(resolvingUserId);
-            if (userResolving == null) throw new KeyNotFoundException($"User {resolvingUserId} not found.");
-
-            if (isAdmin)
-            {
-                return await UpdateTicketStatusAsync(ticketId, TicketStatus.Resolved, resolvingUserId);
-            }
-            else
-            { // Korisnik pokušava riješiti svoj tiket
-                var ticket = await _context.Tickets.FindAsync(ticketId);
-                if (ticket == null) return null;
-                if (ticket.UserId != resolvingUserId) throw new UnauthorizedAccessException("You can only resolve your own tickets.");
-                if (ticket.Status != TicketStatus.Open.ToString()) // Samo ako je Admin otvorio
-                    throw new InvalidOperationException("Ticket can only be resolved by user if its status is 'Open'.");
-
-                ticket.Status = TicketStatus.Resolved.ToString();
-                ticket.ResolvedAt = DateTime.UtcNow;
-                _context.Entry(ticket).State = EntityState.Modified;
-                try
-                {
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Ticket {TicketId} resolved by User {ResolvingUserId}", ticketId, resolvingUserId);
-                    // Nema notifikacije samom sebi. Možda notifikacija adminu?
-                    return await MapTicketToDtoAsync(ticket, userResolving.UserName, (await _userManager.FindByIdAsync(ticket.AssignedAdminId ?? ""))?.UserName);
-                }
-                catch (DbUpdateException ex) { _logger.LogError(ex, "Error resolving Ticket {TicketId} by user.", ticketId); return null; }
-            }
-        }
-
         public async Task<bool> DeleteTicketAsync(int ticketId, string requestingAdminId)
         {
             _logger.LogInformation("Admin {AdminId} attempting to delete Ticket {TicketId}", requestingAdminId, ticketId);
