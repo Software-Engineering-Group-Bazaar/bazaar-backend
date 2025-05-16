@@ -46,7 +46,7 @@ namespace Chat.Services
         }
 
         public async Task<ConversationDto?> GetOrCreateConversationAsync(
-            string requestingUserId, string targetUserId, int storeId, int? orderId = null, int? productId = null)
+            string requestingUserId, string targetUserId, int storeId, int? orderId = null, int? productId = null, int? ticketId = null)
         {
             _logger.LogInformation(
                 "GetOrCreateConversation: RequestingUser: {RU}, TargetUser: {TU}, Store: {S}, Order: {O}, Product: {P}",
