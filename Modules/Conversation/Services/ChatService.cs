@@ -357,7 +357,7 @@ namespace Chat.Services
         {
             _logger.LogInformation("Fetching conversations for User {UserId}", userId);
             var conversations = await _context.Conversations
-                .Where(c => c.BuyerUserId == userId || c.SellerUserId == userId)
+                .Where(c => c.BuyerUserId == userId || c.SellerUserId == userId || c.AdminUserId == userId)
                 .OrderByDescending(c => c.LastMessageId.HasValue ?
                     _context.Messages.Where(m => m.Id == c.LastMessageId).Select(m => m.SentAt).FirstOrDefault() :
                     c.CreatedAt)
