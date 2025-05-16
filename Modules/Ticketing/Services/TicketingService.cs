@@ -67,7 +67,7 @@ namespace Ticketing.Services
             var userWhoCreates = await _userManager.FindByIdAsync(requestingUserId);
             if (userWhoCreates == null) throw new KeyNotFoundException($"User with ID {requestingUserId} not found.");
 
-            int? storeIdForTicket = userWhoCreates.StoreId;
+            int? storeIdForContext = userWhoCreates.StoreId;
             OrderModel? orderRelatedToTicket = null;
 
             if (createDto.OrderId.HasValue)
@@ -76,9 +76,6 @@ namespace Ticketing.Services
                 if (orderRelatedToTicket == null)
                     throw new KeyNotFoundException($"Order with ID {createDto.OrderId.Value} not found.");
 
-                // Autorizacija: Da li ovaj korisnik smije kreirati tiket za ovu narudžbu?
-                // Ako je Buyer, mora biti njegova narudžba.
-                // Ako je Seller, narudžba mora biti iz njegove prodavnice.
                 bool isBuyerOfOrder = orderRelatedToTicket.BuyerId == requestingUserId;
                 bool isSellerOfOrderStore = userWhoCreates.StoreId.HasValue && userWhoCreates.StoreId.Value == orderRelatedToTicket.StoreId;
 
@@ -87,25 +84,25 @@ namespace Ticketing.Services
                     _logger.LogWarning("User {RequestingUserId} is not authorized to create a ticket for Order {OrderId}.", requestingUserId, createDto.OrderId.Value);
                     throw new UnauthorizedAccessException("You are not authorized to create a ticket for this order.");
                 }
-                storeIdForTicket = orderRelatedToTicket.StoreId; // Uzmi StoreId iz narudžbe
+                storeIdForContext = orderRelatedToTicket.StoreId;
             }
 
-            if (!storeIdForTicket.HasValue && userWhoCreates.StoreId == null) // Buyer kreira generalni tiket bez OrderId?
+            if (!storeIdForContext.HasValue && !userWhoCreates.StoreId.HasValue)
             {
-                _logger.LogWarning("Ticket creation attempt by Buyer {UserId} without OrderId, StoreId context cannot be determined.", requestingUserId);
-                throw new ArgumentException("Store context could not be determined. If you are a buyer, please specify an Order ID.");
+                _logger.LogWarning("Ticket creation by Buyer {UserId} without OrderId failed: Store context cannot be determined.", requestingUserId);
+                throw new ArgumentException("If you are a buyer, an Order ID is required to determine the store context for the ticket.");
             }
-            if (!storeIdForTicket.HasValue) // Ako je Seller, StoreId bi trebao biti postavljen
+
+            if (!storeIdForContext.HasValue)
             {
-                _logger.LogError("CRITICAL: StoreId for ticket could not be determined for user {UserId}.", requestingUserId);
+                _logger.LogError("CRITICAL: storeIdForContext could not be determined for ticket creation by User {UserId}.", requestingUserId);
                 throw new InvalidOperationException("Could not determine store context for the ticket.");
             }
 
             string? adminUserId = await GetAdminUserIdAsync();
             if (string.IsNullOrEmpty(adminUserId))
             {
-                _logger.LogError("Admin user ID could not be retrieved. Cannot create ticket conversation with admin.");
-                throw new InvalidOperationException("Admin user for support is not configured correctly.");
+                throw new InvalidOperationException("Admin user for support is not configured or found.");
             }
 
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
@@ -123,16 +120,15 @@ namespace Ticketing.Services
                 };
                 _context.Tickets.Add(newTicket);
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("Ticket {TicketId} created by User {UserId}.", newTicket.Id, requestingUserId);
+                _logger.LogInformation("Ticket {TicketId} created by User {UserId}, initially assigned to Admin {AdminId}.", newTicket.Id, requestingUserId, adminUserId ?? "N/A");
 
-                // Kreiraj povezanu chat konverzaciju
                 _logger.LogInformation("Attempting to create/get chat conversation for Ticket {TicketId}. User: {UserId}, Admin: {AdminId}, Store: {StoreId}",
-                    newTicket.Id, requestingUserId, adminUserId, storeIdForTicket.Value);
+                    newTicket.Id, requestingUserId, adminUserId, storeIdForContext.Value);
 
                 var conversationDto = await _chatService.GetOrCreateConversationAsync(
                     requestingUserId,
                     adminUserId,
-                    storeIdForTicket.Value,
+                    storeIdForContext.Value,
                     newTicket.OrderId,
                     null,
                     newTicket.Id
@@ -142,7 +138,7 @@ namespace Ticketing.Services
                     throw new InvalidOperationException($"Could not establish a chat conversation for ticket {newTicket.Id}.");
 
                 newTicket.ConversationId = conversationDto.Id;
-                _context.Entry(newTicket).State = EntityState.Modified;
+                // _context.Entry(newTicket).State = EntityState.Modified; // Nije potrebno ako je newTicket još uvijek praćen
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Updated Ticket {TicketId} with ConversationId {ConversationId}.", newTicket.Id, conversationDto.Id);
 
@@ -176,7 +172,8 @@ namespace Ticketing.Services
                 scope.Complete();
                 _logger.LogInformation("Transaction completed for Ticket {TicketId}.", newTicket.Id);
 
-                return await MapTicketToDtoAsync(newTicket, userWhoCreates.UserName, (await _userManager.FindByIdAsync(adminUserId))?.UserName);
+                var adminUsernameForDto = (await _userManager.FindByIdAsync(adminUserId))?.UserName;
+                return await MapTicketToDtoAsync(newTicket, userWhoCreates.UserName, adminUsernameForDto);
             }
             catch (Exception ex)
             {
@@ -269,25 +266,35 @@ namespace Ticketing.Services
         {
             _logger.LogInformation("Admin {AdminId} attempting to update status of Ticket {TicketId} to {NewStatus}", updatingAdminId, ticketId, newStatus);
             var ticket = await _context.Tickets.FindAsync(ticketId);
-            if (ticket == null) return null;
-
-            var isAdminUser = await _userManager.FindByIdAsync(updatingAdminId);
-            if (isAdminUser == null || !(await _userManager.IsInRoleAsync(isAdminUser, "Admin")))
+            if (ticket == null)
             {
+                _logger.LogWarning("UpdateTicketStatus: Ticket {TicketId} not found.", ticketId);
+                return null;
+            }
+
+            var adminUserPerformingUpdate = await _userManager.FindByIdAsync(updatingAdminId);
+            if (adminUserPerformingUpdate == null || !(await _userManager.IsInRoleAsync(adminUserPerformingUpdate, "Admin")))
+            {
+                _logger.LogWarning("User {UpdatingUserId} is not an Admin. Denying ticket status update for Ticket {TicketId}.", updatingAdminId, ticketId);
                 throw new UnauthorizedAccessException("Only admins can update ticket status.");
             }
 
+            string oldStatus = ticket.Status;
             ticket.Status = newStatus.ToString();
+
             if (newStatus == TicketStatus.Resolved && ticket.ResolvedAt == null)
             {
                 ticket.ResolvedAt = DateTime.UtcNow;
                 ticket.AssignedAdminId = updatingAdminId;
             }
-            else if (newStatus == TicketStatus.Open && ticket.AssignedAdminId == null)
+            else if (newStatus == TicketStatus.Open && string.IsNullOrEmpty(ticket.AssignedAdminId))
             {
                 ticket.AssignedAdminId = updatingAdminId;
             }
-
+            else if (oldStatus == TicketStatus.Resolved.ToString() && newStatus != TicketStatus.Resolved)
+            {
+                ticket.ResolvedAt = null;
+            }
 
             _context.Entry(ticket).State = EntityState.Modified;
             try
@@ -299,15 +306,37 @@ namespace Ticketing.Services
                 if (ticketCreator != null)
                 {
                     string message = $"Status Vašeg tiketa #{ticket.Id} ('{ticket.Title.Substring(0, Math.Min(20, ticket.Title.Length))}...') je promijenjen u '{newStatus}'.";
+                    string pushTitle = "Status Tiketa Ažuriran";
+                    var pushData = new Dictionary<string, string> {
+                        { "ticketId", ticket.Id.ToString() },
+                        { "conversationId", ticket.ConversationId?.ToString() ?? "" },
+                        { "screen", "TicketDetails" }
+                    };
+
                     await _dbNotificationService.CreateNotificationAsync(ticketCreator.Id, message, ticket.Id);
+                    _logger.LogInformation("DB Notification created for User {UserId} for Ticket {TicketId} status update.", ticketCreator.Id, ticket.Id);
+
                     if (!string.IsNullOrWhiteSpace(ticketCreator.FcmDeviceToken))
                     {
-                        await _pushNotificationService.SendPushNotificationAsync(ticketCreator.FcmDeviceToken, "Status Tiketa Ažuriran", message, new Dictionary<string, string> { { "ticketId", ticket.Id.ToString() } });
+                        try
+                        {
+                            await _pushNotificationService.SendPushNotificationAsync(ticketCreator.FcmDeviceToken, pushTitle, message, pushData);
+                            _logger.LogInformation("Push Notification initiated for User {UserId} for Ticket {TicketId} status update.", ticketCreator.Id, ticket.Id);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to send Push Notification to User {UserId} for Ticket {TicketId} status update.", ticketCreator.Id, ticket.Id);
+                        }
                     }
+                    else { _logger.LogWarning("User {UserId} has no FCM token for Ticket {TicketId} status update notification.", ticketCreator.Id, ticket.Id); }
                 }
-                return await MapTicketToDtoAsync(ticket, ticketCreator?.UserName, isAdminUser.UserName);
+                return await MapTicketToDtoAsync(ticket, ticketCreator?.UserName, adminUserPerformingUpdate.UserName);
             }
-            catch (DbUpdateException ex) { _logger.LogError(ex, "Error updating status for Ticket {TicketId}", ticketId); return null; }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Error updating status for Ticket {TicketId}", ticketId);
+                return null;
+            }
         }
 
         public async Task<bool> DeleteTicketAsync(int ticketId, string requestingAdminId)
