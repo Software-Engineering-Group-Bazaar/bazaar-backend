@@ -371,7 +371,7 @@ namespace Chat.Services
             string otherParticipantId = conv.BuyerUserId == currentUserId ? conv.SellerUserId : conv.BuyerUserId;
             var otherParticipant = await _userManager.FindByIdAsync(otherParticipantId);
             var currentUser = await _userManager.FindByIdAsync(currentUserId); // Treba nam i trenutni korisnik
-            var store = _storeService.GetStoreById(conv.StoreId);
+            var store = _storeService.GetStoreById((int)conv.StoreId);
 
             string? productName = null;
             if (conv.ProductId.HasValue)
@@ -425,7 +425,7 @@ namespace Chat.Services
                 BuyerUsername = (conv.BuyerUserId == currentUserId ? currentUser?.UserName : otherParticipant?.UserName) ?? "Nepoznat",
                 SellerUserId = conv.SellerUserId,
                 SellerUsername = (conv.SellerUserId == currentUserId ? currentUser?.UserName : otherParticipant?.UserName) ?? "Nepoznat",
-                StoreId = conv.StoreId,
+                StoreId = (int)conv.StoreId,
                 OrderId = conv.OrderId,
                 ProductId = conv.ProductId,
                 ProductName = productName,
