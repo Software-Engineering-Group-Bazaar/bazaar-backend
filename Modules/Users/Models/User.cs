@@ -13,5 +13,6 @@ namespace Users.Models
         [MaxLength(500)]
         public string? FcmDeviceToken { get; set; }
         public ICollection<PasswordResetRequest> Posts { get; } = new List<PasswordResetRequest>();
+        public ICollection<Address> Addresses { get; } = new List<Address>();
     }
 }
