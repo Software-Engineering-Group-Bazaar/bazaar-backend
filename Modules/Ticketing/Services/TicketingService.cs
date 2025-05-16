@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Transactions;
+using Chat.Dtos;
 using Chat.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -92,7 +92,6 @@ namespace Ticketing.Services
                 _logger.LogWarning("Ticket creation by Buyer {UserId} without OrderId failed: Store context cannot be determined.", requestingUserId);
                 throw new ArgumentException("If you are a buyer, an Order ID is required to determine the store context for the ticket.");
             }
-
             if (!storeIdForContext.HasValue)
             {
                 _logger.LogError("CRITICAL: storeIdForContext could not be determined for ticket creation by User {UserId}.", requestingUserId);
@@ -105,7 +104,6 @@ namespace Ticketing.Services
                 throw new InvalidOperationException("Admin user for support is not configured or found.");
             }
 
-            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             try
             {
                 var newTicket = new Ticket
@@ -122,26 +120,38 @@ namespace Ticketing.Services
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Ticket {TicketId} created by User {UserId}, initially assigned to Admin {AdminId}.", newTicket.Id, requestingUserId, adminUserId ?? "N/A");
 
-                _logger.LogInformation("Attempting to create/get chat conversation for Ticket {TicketId}. User: {UserId}, Admin: {AdminId}, Store: {StoreId}",
-                    newTicket.Id, requestingUserId, adminUserId, storeIdForContext.Value);
+                ConversationDto? conversationDto = null;
+                try
+                {
+                    _logger.LogInformation("Attempting to create/get chat conversation for Ticket {TicketId}. User: {UserId}, Admin: {AdminId}, Store: {StoreId}",
+                        newTicket.Id, requestingUserId, adminUserId, storeIdForContext.Value);
 
-                var conversationDto = await _chatService.GetOrCreateConversationAsync(
-                    requestingUserId,
-                    adminUserId,
-                    storeIdForContext.Value,
-                    newTicket.OrderId,
-                    null,
-                    newTicket.Id
-                );
+                    conversationDto = await _chatService.GetOrCreateConversationAsync(
+                        requestingUserId,
+                        adminUserId,
+                        storeIdForContext.Value,
+                        newTicket.OrderId,
+                        null,
+                        newTicket.Id
+                    );
 
-                if (conversationDto == null)
-                    throw new InvalidOperationException($"Could not establish a chat conversation for ticket {newTicket.Id}.");
+                    if (conversationDto == null)
+                    {
+                        _logger.LogError("Failed to create or retrieve chat conversation for Ticket {TicketId}. Ticket will be created without a linked conversation.", newTicket.Id);
+                    }
+                }
+                catch (Exception chatEx)
+                {
+                    _logger.LogError(chatEx, "Error during GetOrCreateConversationAsync for Ticket {TicketId}. Ticket will be created without a linked conversation.", newTicket.Id);
+                }
 
-                newTicket.ConversationId = conversationDto.Id;
-                // _context.Entry(newTicket).State = EntityState.Modified; // Nije potrebno ako je newTicket još uvijek praćen
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Updated Ticket {TicketId} with ConversationId {ConversationId}.", newTicket.Id, conversationDto.Id);
 
+                if (conversationDto != null)
+                {
+                    newTicket.ConversationId = conversationDto.Id;
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Updated Ticket {TicketId} with ConversationId {ConversationId}.", newTicket.Id, conversationDto.Id);
+                }
                 try
                 {
                     var adminUser = await _userManager.FindByIdAsync(adminUserId);
@@ -153,31 +163,16 @@ namespace Ticketing.Services
 
                         await _dbNotificationService.CreateNotificationAsync(adminUser.Id, notificationMessage, newTicket.Id);
                         _logger.LogInformation("DB Notification created for Admin {AdminUserId} for new Ticket {TicketId}.", adminUser.Id, newTicket.Id);
-
-                        if (!string.IsNullOrWhiteSpace(adminUser.FcmDeviceToken))
-                        {
-                            var pushData = new Dictionary<string, string> {
-                                { "ticketId", newTicket.Id.ToString() },
-                                { "conversationId", conversationDto.Id.ToString() },
-                                { "screen", "AdminTicketChat" }
-                            };
-                            await _pushNotificationService.SendPushNotificationAsync(adminUser.FcmDeviceToken, pushTitle, notificationMessage, pushData);
-                            _logger.LogInformation("Push Notification initiated for Admin {AdminUserId} for new Ticket {TicketId}.", adminUser.Id, newTicket.Id);
-                        }
-                        else _logger.LogWarning("Admin {AdminUserId} has no FCM token for new ticket notification.", adminUser.Id);
                     }
                 }
                 catch (Exception ex) { _logger.LogError(ex, "Failed to send notification to admin for new Ticket {TicketId}.", newTicket.Id); }
-
-                scope.Complete();
-                _logger.LogInformation("Transaction completed for Ticket {TicketId}.", newTicket.Id);
 
                 var adminUsernameForDto = (await _userManager.FindByIdAsync(adminUserId))?.UserName;
                 return await MapTicketToDtoAsync(newTicket, userWhoCreates.UserName, adminUsernameForDto);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during CreateTicketAsync transaction for User {RequestingUserId}.", requestingUserId);
+                _logger.LogError(ex, "Error during CreateTicketAsync (before or during main save operations) for User {RequestingUserId}.", requestingUserId);
                 if (ex is ArgumentException || ex is KeyNotFoundException || ex is UnauthorizedAccessException || ex is InvalidOperationException) throw;
                 throw new Exception("An error occurred while creating the ticket.", ex);
             }
