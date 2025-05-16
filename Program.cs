@@ -38,6 +38,7 @@ using SharedKernel.Services;
 using Store.Interface;
 using Store.Models;
 using Store.Services;
+using Ticketing.Data;
 using Users.Interface;
 using Users.Interfaces;
 using Users.Models;
@@ -114,6 +115,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<ReviewDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ReviewConnection")));
     builder.Services.AddDbContext<AdDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("AdvertismentConnection")));
     builder.Services.AddDbContext<ConversationDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ConversationConnection")));
+    builder.Services.AddDbContext<TicketingDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("TicketingConnection")));
 }
 
 builder.Services.AddHttpClient();
