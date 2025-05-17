@@ -122,7 +122,7 @@ namespace Order.Services
         }
 
 
-        public async Task<bool> UpdateOrderStatusAsync(int orderId, OrderStatus newStatus, bool adminDelivery = true, int estimatedPreparationTimeInMinutes = 0)
+        public async Task<bool> UpdateOrderStatusAsync(int orderId, OrderStatus newStatus, bool adminDelivery = false, int estimatedPreparationTimeInMinutes = 0)
         {
             var order = await _context.Orders.FindAsync(orderId);
 

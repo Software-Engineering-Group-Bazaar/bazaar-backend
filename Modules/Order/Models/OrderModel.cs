@@ -17,7 +17,7 @@ namespace Order.Models
         [Column(TypeName = "decimal(18, 2)")]
         public decimal? Total { get; set; }
         public int AddressId { get; set; }
-        public bool AdminDelivery { get; set; } = true;
+        public bool AdminDelivery { get; set; } = false;
         public DateTime? ExpectedReadyAt { get; set; } = null;
     }
 }
