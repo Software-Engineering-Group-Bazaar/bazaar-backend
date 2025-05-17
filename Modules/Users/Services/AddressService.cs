@@ -16,13 +16,15 @@ namespace Users.Services
         {
             return await _context.Addresses
                 .Where(a => a.UserId == userId)
+                .Include(a => a.User)
                 .AsNoTracking()
                 .ToListAsync();
         }
         public async Task<Address?> GetAddressByIdAsync(int id)
         {
             return await _context.Addresses
-                .FindAsync(id);
+                .Include(a => a.User)
+                .FirstOrDefaultAsync(a => a.Id == id);
         }
         public async Task CreateAddressAsync(Address address)
         {

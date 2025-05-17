@@ -62,6 +62,7 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IAddressService, AddressService>();
 
 
 builder.Services.AddSignalR();
