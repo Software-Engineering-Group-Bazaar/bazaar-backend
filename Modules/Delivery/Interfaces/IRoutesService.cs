@@ -6,7 +6,7 @@ namespace Delivery.Interfaces
     {
         Task<List<DeliveryRoute>> GetAllDeliveryRoutes();
         Task<DeliveryRoute?> GetRouteByIdAsync(int id);
-        Task<List<DeliveryRoute>> GetRoutesFromOrders(List<int> orders);
+        Task<DeliveryRoute> GetRoutesFromOrders(List<int> orders);
         Task DeleteRouteAsync(int id);
         Task<DeliveryRoute> CreateRoute(string routeCreatorId, List<int> orderIds, DeliveryRouteData routeData);
         Task<DeliveryRoute> UpdateRouteDataAsync(int id, DeliveryRouteData routeData);

@@ -7,7 +7,9 @@ using Chat.Hubs;
 using Chat.Interfaces;
 using Chat.Services;
 using Conversation.Data;
+using Delivery.Interfaces;
 using Delivery.Models;
+using Delivery.Services;
 using Hangfire;
 using Hangfire.MemoryStorage;
 using Hangfire.PostgreSql;
@@ -153,6 +155,7 @@ builder.Services.AddScoped<IRecommenderAgent, RecommenderAgent>();
 builder.Services.AddScoped<IReviewReminderService, ReviewReminderService>();
 
 builder.Services.AddScoped<ITicketService, TicketService>();
+builder.Services.AddScoped<IRoutesService, RoutesService>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
