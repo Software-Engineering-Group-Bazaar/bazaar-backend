@@ -28,6 +28,9 @@ namespace AdminApi.DTOs
         public DateTime Time { get; set; }
         public decimal? Total { get; set; }
         public List<OrderItemGetDto> OrderItems { get; set; } = new List<OrderItemGetDto>();
+        public int AddressId { get; set; }
+        public bool AdminDelivery { get; set; }
+        public DateTime? ExpectedReadyAt { get; set; }
     }
 
     // DTO for creating a new Order (POST request body)
@@ -41,6 +44,7 @@ namespace AdminApi.DTOs
         public int StoreId { get; set; }
 
         public List<OrderItemGetDto> OrderItems { get; set; } = new List<OrderItemGetDto>();
+        public int AddressId { get; set; } = 0;
         // Note: OrderItems are typically added separately after the order header is created.
         // If you need to create items simultaneously, this DTO would need an OrderItems list.
     }
@@ -68,5 +72,7 @@ namespace AdminApi.DTOs
         [Required]
         [EnumDataType(typeof(OrderStatus))] // Ensure valid enum value
         public string NewStatus { get; set; }
+        public bool AdminDelivery { get; set; } = true;
+        public int EstimatedPreparationTimeInMinutes { get; set; } = 0;
     }
 }
