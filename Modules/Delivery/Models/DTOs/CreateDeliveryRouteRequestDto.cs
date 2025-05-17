@@ -6,8 +6,6 @@ namespace Delivery.Dtos
 {
     public class CreateDeliveryRouteRequestDto
     {
-        [Required]
-        public string OwnerId { get; set; } = string.Empty;
 
         [Required]
         [MinLength(1, ErrorMessage = "At least one OrderId must be provided.")]

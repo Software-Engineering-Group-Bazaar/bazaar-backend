@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Delivery.Dtos;      // Za DTO klase
@@ -115,10 +116,12 @@ namespace Delivery.Controllers
         [ProducesResponseType(typeof(DeliveryRouteResponseDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Admin, Seller")]
         public async Task<ActionResult<DeliveryRouteResponseDto>> CreateRoute([FromBody] CreateDeliveryRouteRequestDto requestDto)
         {
             try
             {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 foreach (var item in requestDto.OrderIds)
                 {
                     if (await _orderService.GetOrderByIdAsync(item) == null)
@@ -139,7 +142,7 @@ namespace Delivery.Controllers
                     Hash = requestDto.RouteData?.Hash ?? string.Empty
                 };
 
-                var createdRoute = await _routesService.CreateRoute(requestDto.OwnerId, requestDto.OrderIds, routeDataModel);
+                var createdRoute = await _routesService.CreateRoute(userId, requestDto.OrderIds, routeDataModel);
                 var responseDto = MapToResponseDto(createdRoute); // Ručno mapiranje
 
                 _logger.LogInformation("Delivery route with ID {RouteId} created successfully.", createdRoute.Id);
@@ -167,10 +170,17 @@ namespace Delivery.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Admin, Seller")]
         public async Task<ActionResult<DeliveryRouteResponseDto>> UpdateRouteData(int id, [FromBody] UpdateRouteDataRequestDto requestDto)
         {
             try
             {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var r = await _routesService.GetRouteByIdAsync(id);
+                if (r == null)
+                    return BadRequest("This route does not exist");
+                if (r.OwnerId != userId)
+                    return BadRequest("This route is not owned by you!");
                 // Ručno mapiranje RouteDataDto na RouteData model
                 var routeDataModel = new DeliveryRouteData
                 {
@@ -215,10 +225,17 @@ namespace Delivery.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Admin, Seller")]
         public async Task<ActionResult<DeliveryRouteResponseDto>> UpdateRouteOrders(int id, [FromBody] UpdateRouteOrdersRequestDto requestDto)
         {
             try
             {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var r = await _routesService.GetRouteByIdAsync(id);
+                if (r == null)
+                    return BadRequest("This route does not exist");
+                if (r.OwnerId != userId)
+                    return BadRequest("This route is not owned by you!");
                 var updatedRoute = await _routesService.UpdateRouteOrdersAsync(id, requestDto.OrderIds);
                 if (updatedRoute == null)
                 {
@@ -255,10 +272,17 @@ namespace Delivery.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Admin, Seller")]
         public async Task<IActionResult> DeleteRoute(int id)
         {
             try
             {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var r = await _routesService.GetRouteByIdAsync(id);
+                if (r == null)
+                    return BadRequest("This route does not exist");
+                if (r.OwnerId != userId)
+                    return BadRequest("This route is not owned by you!");
                 await _routesService.DeleteRouteAsync(id);
                 _logger.LogInformation("Delivery route with ID {RouteId} deleted successfully.", id);
                 return NoContent();
