@@ -7,6 +7,7 @@ using Chat.Hubs;
 using Chat.Interfaces;
 using Chat.Services;
 using Conversation.Data;
+using Delivery.Models;
 using Hangfire;
 using Hangfire.MemoryStorage;
 using Hangfire.PostgreSql;
@@ -118,6 +119,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<AdDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("AdvertismentConnection")));
     builder.Services.AddDbContext<ConversationDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ConversationConnection")));
     builder.Services.AddDbContext<TicketingDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("TicketingConnection")));
+    builder.Services.AddDbContext<DeliveryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DeliveryConnection")));
 }
 
 builder.Services.AddHttpClient();
