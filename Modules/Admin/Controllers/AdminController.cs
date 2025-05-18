@@ -6,6 +6,7 @@ using AdminApi.DTOs; // Your DTOs namespace (Ensure this namespace is correct)
 using Catalog.Dtos;
 using Catalog.Models;
 using Catalog.Services;
+using Hangfire;// Your User model and DbContext namespace
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,8 +18,7 @@ using Order.Models;
 using SharedKernel;
 using Store.Interface;
 using Store.Models;
-using Users.Models; 
-using Hangfire;// Your User model and DbContext namespace
+using Users.Models;
 namespace Admin.Controllers
 {
     [Authorize(Roles = "Admin")]
@@ -38,7 +38,7 @@ namespace Admin.Controllers
         private readonly IOrderItemService _orderItemService; // <<<--- INJECT
         private readonly IPushNotificationService _pushNotificationService;
         private readonly INotificationService _notificationService;
-         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IBackgroundJobClient _backgroundJobClient;
 
         public AdminController(
             UserManager<User> userManager,
@@ -1077,7 +1077,10 @@ namespace Admin.Controllers
                         ProductId = oi.ProductId,
                         Price = oi.Price,
                         Quantity = oi.Quantity
-                    }).ToList()
+                    }).ToList(),
+                    AddressId = o.AddressId,
+                    ExpectedReadyAt = o.ExpectedReadyAt,
+                    AdminDelivery = o.AdminDelivery
                 }).ToList();
 
                 _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
@@ -1129,7 +1132,10 @@ namespace Admin.Controllers
                         ProductId = oi.ProductId,
                         Price = oi.Price,
                         Quantity = oi.Quantity
-                    }).ToList()
+                    }).ToList(),
+                    AddressId = order.AddressId,
+                    ExpectedReadyAt = order.ExpectedReadyAt,
+                    AdminDelivery = order.AdminDelivery
                 };
 
                 _logger.LogInformation("Successfully retrieved order with ID: {OrderId}", id);
@@ -1165,7 +1171,7 @@ namespace Admin.Controllers
 
             try
             {
-                var createdOrder = await _orderService.CreateOrderAsync(createDto.BuyerId, createDto.StoreId);
+                var createdOrder = await _orderService.CreateOrderAsync(createDto.BuyerId, createDto.StoreId, createDto.AddressId);
                 var listitems = new List<OrderItemGetDto>();
                 foreach (var item in createDto.OrderItems)
                 {
@@ -1187,7 +1193,10 @@ namespace Admin.Controllers
                     Status = createdOrder.Status.ToString(),
                     Time = createdOrder.Time,
                     Total = createdOrder.Total, // Will likely be null or 0 initially
-                    OrderItems = listitems // Empty list
+                    OrderItems = listitems, // Empty list
+                    AddressId = createdOrder.AddressId,
+                    AdminDelivery = createdOrder.AdminDelivery,
+                    ExpectedReadyAt = createdOrder.ExpectedReadyAt
                 };
 
                 _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder.Id);
@@ -1359,14 +1368,14 @@ namespace Admin.Controllers
 
 
                 if (status == OrderStatus.Delivered || status == OrderStatus.Cancelled)
-{
-    _backgroundJobClient.Schedule<IReviewReminderService>(
-         svc => svc.SendReminderAsync(updateDto.BuyerId, id),
-         TimeSpan.FromMinutes(1)
-     );
-}
-                    
-                    
+                {
+                    _backgroundJobClient.Schedule<IReviewReminderService>(
+                         svc => svc.SendReminderAsync(updateDto.BuyerId, id),
+                         TimeSpan.FromMinutes(1)
+                     );
+                }
+
+
                 _logger.LogInformation("Push Notification task initiated for Buyer {BuyerId} for Order {OrderId} status update.", buyer.Id, id);
             }
             if (updateDto.StoreId is not null)
@@ -1397,8 +1406,8 @@ namespace Admin.Controllers
                     );
                 _logger.LogInformation("Push Notification task initiated for Seller {BuyerId} for Order {OrderId} status update.", seller.Id, id);
             }
-            
-               
+
+
             return NoContent();
         }
 
@@ -1439,7 +1448,7 @@ namespace Admin.Controllers
                     }
                 }
 
-                var success = await _orderService.UpdateOrderStatusAsync(id, status);
+                var success = await _orderService.UpdateOrderStatusAsync(id, status, updateDto.AdminDelivery, updateDto.EstimatedPreparationTimeInMinutes);
 
                 if (!success)
                 {
@@ -1454,17 +1463,17 @@ namespace Admin.Controllers
                     // If it exists, it might be a concurrency issue or other update failure
                     return BadRequest($"Failed to update status for order ID: {id}. See logs for details.");
                 }
-                 if (status == OrderStatus.Delivered || status == OrderStatus.Cancelled)
-{
-    var updatedOrder = await _orderService.GetOrderByIdAsync(id);
-    if (updatedOrder != null && !string.IsNullOrWhiteSpace(updatedOrder.BuyerId))
-    {
-        _backgroundJobClient.Schedule<IReviewReminderService>(
-            svc => svc.SendReminderAsync(updatedOrder.BuyerId, id),
-            TimeSpan.FromMinutes(1)
-        );
-    }
-}
+                if (status == OrderStatus.Delivered || status == OrderStatus.Cancelled)
+                {
+                    var updatedOrder = await _orderService.GetOrderByIdAsync(id);
+                    if (updatedOrder != null && !string.IsNullOrWhiteSpace(updatedOrder.BuyerId))
+                    {
+                        _backgroundJobClient.Schedule<IReviewReminderService>(
+                            svc => svc.SendReminderAsync(updatedOrder.BuyerId, id),
+                            TimeSpan.FromMinutes(1)
+                        );
+                    }
+                }
 
 
 

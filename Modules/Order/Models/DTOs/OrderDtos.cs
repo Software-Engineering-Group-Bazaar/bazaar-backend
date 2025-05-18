@@ -15,6 +15,8 @@ namespace Order.DTOs
         [Range(1, int.MaxValue, ErrorMessage = "Store ID must be valid.")]
         public int StoreId { get; set; }
 
+        public int AddressId { get; set; } = 0;
+
         // Opciono: Lista stavki se može poslati odmah prilikom kreiranja narudžbe
         // public List<CreateOrderItemDto> Items { get; set; } = new List<CreateOrderItemDto>();
     }
@@ -31,6 +33,9 @@ namespace Order.DTOs
         public DateTime Time { get; set; }
         public decimal? Total { get; set; }
         public List<OrderItemGetDto> OrderItems { get; set; } = new List<OrderItemGetDto>();
+        public int AddressId { get; set; }
+        public bool AdminDelivery { get; set; }
+        public DateTime? ExpectedReadyAt { get; set; }
     }
 
     // DTO za prikaz punih detalja narudžbe

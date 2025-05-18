@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging; // Make sure you have this using for ILogger
 using Order.Interface;
 using Order.Models;
 using Store.Models;
+using Users.Interfaces;
 using Users.Models;
 
 namespace Order.Services
@@ -24,27 +25,39 @@ namespace Order.Services
         private readonly StoreDbContext _storeDbContext;
         private readonly UserManager<User> _userManager;
         private readonly ILogger<OrderService> _logger;
+        private readonly IAddressService _addressService;
 
         public OrderService(OrdersDbContext context,
                             InventoryDbContext inventoryContext,
                             StoreDbContext storeDbContext,
                             UserManager<User> userManager,
-                            ILogger<OrderService> logger)
+                            ILogger<OrderService> logger,
+                            IAddressService addressService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _inventoryContext = inventoryContext;
             _storeDbContext = storeDbContext;
             _userManager = userManager;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _addressService = addressService ?? throw new ArgumentNullException(nameof(addressService));
         }
 
-        public async Task<OrderModel> CreateOrderAsync(string buyerId, int storeId)
+        public async Task<OrderModel> CreateOrderAsync(string buyerId, int storeId, int addressId = 0)
         {
             // --- Validation ---
             if (storeId <= 0) // Basic validation
             {
                 throw new ArgumentException("Invalid StoreId provided.", nameof(storeId));
             }
+
+            var address = await _addressService.GetAddressByIdAsync(addressId);
+
+            if (addressId != 0 && address == null)
+            {
+                _logger.LogError($"Invalid AddressId provided: {addressId}");
+                throw new ArgumentException("Invalid AddressId provided.", nameof(addressId));
+            }
+
             // --- Create Order Header ---
             var order = new OrderModel
             {
@@ -52,6 +65,7 @@ namespace Order.Services
                 StoreId = storeId,
                 Status = OrderStatus.Requested,
                 Time = DateTime.UtcNow,
+                AddressId = addressId
             };
 
             _context.Orders.Add(order);
@@ -108,7 +122,7 @@ namespace Order.Services
         }
 
 
-        public async Task<bool> UpdateOrderStatusAsync(int orderId, OrderStatus newStatus)
+        public async Task<bool> UpdateOrderStatusAsync(int orderId, OrderStatus newStatus, bool adminDelivery = false, int estimatedPreparationTimeInMinutes = 0)
         {
             var order = await _context.Orders.FindAsync(orderId);
 
@@ -119,6 +133,16 @@ namespace Order.Services
             }
 
             order.Status = newStatus;
+            if (newStatus == OrderStatus.Confirmed)
+            {
+                order.AdminDelivery = adminDelivery;
+
+                DateTime nowUtc = DateTime.UtcNow;
+                TimeSpan preparationTime = TimeSpan.FromMinutes(estimatedPreparationTimeInMinutes);
+                DateTime estimatedReadyAt = nowUtc.Add(preparationTime);
+
+                order.ExpectedReadyAt = estimatedReadyAt;
+            }
             _context.Entry(order).State = EntityState.Modified;
 
             try
