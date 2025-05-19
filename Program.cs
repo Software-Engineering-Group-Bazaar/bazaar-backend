@@ -9,6 +9,8 @@ using Chat.Services;
 using Conversation.Data;
 using Delivery.Interfaces;
 using Delivery.Models;
+using Delivery.Navigation.Interfaces;
+using Delivery.Navigation.Services;
 using Delivery.Services;
 using Hangfire;
 using Hangfire.MemoryStorage;
@@ -126,6 +128,14 @@ if (!builder.Environment.IsEnvironment("Testing"))
 }
 
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("GoogleMapsClient", client =>
+{
+    // You could set a base address if all your Google Maps calls share one,
+    // but since the path varies (geocode, directions), it might be less useful here.
+    // client.BaseAddress = new Uri("https://maps.googleapis.com/maps/api/");
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+    // You could add other default headers or configurations here.
+});
 
 // Add Identity FIRST (provides RoleManager, etc.)
 builder.Services.AddIdentity<User, IdentityRole>() // Replace User if needed
@@ -157,6 +167,9 @@ builder.Services.AddScoped<IReviewReminderService, ReviewReminderService>();
 
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<IRoutesService, RoutesService>();
+
+builder.Services.AddScoped<IMapService, GMapsService>();
+builder.Services.AddScoped<Wayfinder>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
