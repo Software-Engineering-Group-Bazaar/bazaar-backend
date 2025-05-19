@@ -2,19 +2,19 @@ using System.Text.Json.Serialization;
 
 namespace Delivery.Navigation.Models
 {
-    class GeoData
+    public class GeoData
     {
         public decimal Latitude { get; set; }
         public decimal Longitude { get; set; }
         public string? StreetAddress { get; set; }
     }
-    class Post
+    public class Post
     {
         public GeoData To { get; set; }
         public GeoData From { get; set; }
     }
 
-    class GoogleGeocodingResponse
+    public class GoogleGeocodingResponse
     {
         [JsonPropertyName("results")]
         public List<GeocodingResult> Results { get; set; }
@@ -26,7 +26,7 @@ namespace Delivery.Navigation.Models
         public string ErrorMessage { get; set; }
     }
 
-    class GeocodingResult
+    public class GeocodingResult
     {
         [JsonPropertyName("formatted_address")]
         public string FormattedAddress { get; set; }

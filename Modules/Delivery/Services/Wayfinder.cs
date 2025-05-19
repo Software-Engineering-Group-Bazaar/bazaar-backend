@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Delivery.Interfaces;
 using Delivery.Models;
+using Delivery.Navigation.Interfaces;
 using Delivery.Navigation.Models;
 using Order.Interface;
 using Order.Models;
@@ -26,11 +27,18 @@ namespace Delivery.Navigation.Services
         private readonly IUserService _userService;
         private readonly IOrderService _orderService;
         private readonly IRoutesService _routeService;
-        private readonly GMapsService _mapService;
+        private readonly IMapService _mapService;
 
-        private readonly string _apiKey;
-
-        private static readonly HttpClient httpClient = new HttpClient();
+        public Wayfinder(ILogger<Wayfinder> logger, IAddressService addressService, IStoreService storeService, IUserService userService, IOrderService orderService, IRoutesService routesService, IMapService mapService)
+        {
+            _logger = logger;
+            _addressService = addressService;
+            _storeService = storeService;
+            _userService = userService;
+            _orderService = orderService;
+            _routeService = routesService;
+            _mapService = mapService;
+        }
 
         public async Task<List<Post>> OrdersConversion(List<int> orderIds)
         {

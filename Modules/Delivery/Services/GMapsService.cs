@@ -2,13 +2,14 @@ using System;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Delivery.Navigation.Interfaces;
 using Delivery.Navigation.Models; // Assuming GeoData and Google response models are here
 using Microsoft.Extensions.Configuration; // For IConfiguration
 using Microsoft.Extensions.Logging;    // For ILogger
 
 namespace Delivery.Navigation.Services
 {
-    class GMapsService // Made public if it's to be used by other assemblies/DI
+    public class GMapsService : IMapService// Made public if it's to be used by other assemblies/DI
     {
         private readonly ILogger<GMapsService> _logger;
         private readonly HttpClient _httpClient; // Get from IHttpClientFactory
