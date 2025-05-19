@@ -11,6 +11,6 @@ namespace Delivery.Navigation.Interfaces
             string travelMode = "driving",
             bool alternatives = false,
             bool optimizeWaypoints = false);
-        Task<GeoData> GetGeoDataAsync(string address)
+        Task<GeoData> GetGeoDataAsync(string address);
     }
 }
