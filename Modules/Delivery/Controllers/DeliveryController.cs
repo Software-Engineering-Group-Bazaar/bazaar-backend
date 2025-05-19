@@ -218,12 +218,14 @@ namespace Delivery.Controllers
 
 
                 var googleApiUrlBuilder = new StringBuilder($"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={destination}");
-                if (waypoints.Count != 0)
+                if (waypoints.Any())
                 {
-                    foreach (var waypoint in waypoints)
-                    {
-                        googleApiUrlBuilder.Append($"&waypoints={waypoint}");
-                    }
+                    // To optimize waypoint order (optional):
+                    string waypointsString = "optimize:true|" + string.Join("|", waypoints);
+
+                    // Without optimization (as per your original intent, just fixing the format):
+                    //string waypointsString = string.Join("|", waypoints);
+                    googleApiUrlBuilder.Append($"&waypoints={waypointsString}");
                 }
 
                 googleApiUrlBuilder.Append($"&key={googleMapsApiKey}");
