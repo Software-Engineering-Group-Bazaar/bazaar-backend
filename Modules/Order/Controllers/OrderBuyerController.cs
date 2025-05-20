@@ -17,7 +17,7 @@ using Order.Models;
 using Order.Models.DTOs.Buyer;
 using Users.Models;
 
- 
+
 namespace Order.Controllers
 {
     [Authorize]
@@ -38,7 +38,7 @@ namespace Order.Controllers
         private readonly InventoryDbContext _inventoryContext;
         private readonly IAdService _adService;
         private readonly IProductService _productService;
-        
+
         public OrderBuyerController(
             ILogger<OrderBuyerController> logger,
             IOrderService orderService,
@@ -49,7 +49,7 @@ namespace Order.Controllers
             IInventoryService inventoryService,
             InventoryDbContext inventoryContext,
             IAdService adService,
-            IProductService productService            
+            IProductService productService
             )
 
         {
@@ -97,7 +97,8 @@ namespace Order.Controllers
                         ProductId = oi.ProductId,
                         Price = oi.Price,
                         Quantity = oi.Quantity
-                    }).ToList()
+                    }).ToList(),
+                    AddressId = o.AddressId
                 }).ToList();
 
                 _logger.LogInformation("Successfully retrieved {OrderCount} orders.", orderDtos.Count);
@@ -149,7 +150,8 @@ namespace Order.Controllers
                         ProductId = oi.ProductId,
                         Price = oi.Price,
                         Quantity = oi.Quantity
-                    }).ToList()
+                    }).ToList(),
+                    AddressId = order.AddressId
                 };
 
                 _logger.LogInformation("Successfully retrieved order with ID: {OrderId}", id);
@@ -188,7 +190,7 @@ namespace Order.Controllers
             try
             {
                 // Creating the order itself
-                var createdOrder = await _orderService.CreateOrderAsync(userId, createDto.StoreId);
+                var createdOrder = await _orderService.CreateOrderAsync(userId, createDto.StoreId, createDto.AddressId);
                 List<OrderItemGetBuyerDto> listitems = new List<OrderItemGetBuyerDto>();
 
                 // Process each order item
@@ -259,7 +261,7 @@ namespace Order.Controllers
                     Total = createdOrder.Total, // Will likely be null or 0 initially
                     OrderItems = listitems // Order items for the buyer
                 };
-               
+
                 // Sending notification to the seller
                 var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdOrder.StoreId);
 

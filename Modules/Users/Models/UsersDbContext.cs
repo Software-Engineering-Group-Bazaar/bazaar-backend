@@ -6,6 +6,7 @@ namespace Users.Models
     public class UsersDbContext : IdentityDbContext<User>
     {
         public DbSet<PasswordResetRequest> PasswordResetRequests { get; set; }
+        public DbSet<Address> Addresses { get; set; }
 
         public UsersDbContext(DbContextOptions<UsersDbContext> options) : base(options)
         {

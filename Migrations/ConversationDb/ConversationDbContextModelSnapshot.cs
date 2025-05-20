@@ -30,8 +30,11 @@ namespace bazaar.Migrations.ConversationDb
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AdminUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<string>("BuyerUserId")
-                        .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
@@ -48,11 +51,13 @@ namespace bazaar.Migrations.ConversationDb
                         .HasColumnType("integer");
 
                     b.Property<string>("SellerUserId")
-                        .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
-                    b.Property<int>("StoreId")
+                    b.Property<int?>("StoreId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TicketId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");

@@ -15,20 +15,22 @@ namespace Conversation.Models
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
 
-        [Required]
         [MaxLength(450)]
-        public required string BuyerUserId { get; set; }
+        public string? BuyerUserId { get; set; }
 
-        [Required]
         [MaxLength(450)]
-        public required string SellerUserId { get; set; }
+        public string? SellerUserId { get; set; }
 
-        [Required]
-        public int StoreId { get; set; }
+        [MaxLength(450)]
+        public string? AdminUserId { get; set; }
+
+        public int? StoreId { get; set; }
 
         public int? ProductId { get; set; }
 
         public int? OrderId { get; set; }
+
+        public int? TicketId { get; set; }
 
         [Required]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

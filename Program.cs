@@ -7,6 +7,11 @@ using Chat.Hubs;
 using Chat.Interfaces;
 using Chat.Services;
 using Conversation.Data;
+using Delivery.Interfaces;
+using Delivery.Models;
+using Delivery.Navigation.Interfaces;
+using Delivery.Navigation.Services;
+using Delivery.Services;
 using Hangfire;
 using Hangfire.MemoryStorage;
 using Hangfire.PostgreSql;
@@ -38,6 +43,9 @@ using SharedKernel.Services;
 using Store.Interface;
 using Store.Models;
 using Store.Services;
+using Ticketing.Data;
+using Ticketing.Interfaces;
+using Ticketing.Services;
 using Users.Interface;
 using Users.Interfaces;
 using Users.Models;
@@ -59,6 +67,7 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IAddressService, AddressService>();
 
 
 builder.Services.AddSignalR();
@@ -114,9 +123,19 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<ReviewDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ReviewConnection")));
     builder.Services.AddDbContext<AdDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("AdvertismentConnection")));
     builder.Services.AddDbContext<ConversationDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ConversationConnection")));
+    builder.Services.AddDbContext<TicketingDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("TicketingConnection")));
+    builder.Services.AddDbContext<DeliveryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DeliveryConnection")));
 }
 
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("GoogleMapsClient", client =>
+{
+    // You could set a base address if all your Google Maps calls share one,
+    // but since the path varies (geocode, directions), it might be less useful here.
+    // client.BaseAddress = new Uri("https://maps.googleapis.com/maps/api/");
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+    // You could add other default headers or configurations here.
+});
 
 // Add Identity FIRST (provides RoleManager, etc.)
 builder.Services.AddIdentity<User, IdentityRole>() // Replace User if needed
@@ -145,6 +164,12 @@ builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IAdService, AdService>();
 builder.Services.AddScoped<IRecommenderAgent, RecommenderAgent>();
 builder.Services.AddScoped<IReviewReminderService, ReviewReminderService>();
+
+builder.Services.AddScoped<ITicketService, TicketService>();
+builder.Services.AddScoped<IRoutesService, RoutesService>();
+
+builder.Services.AddScoped<IMapService, GMapsService>();
+builder.Services.AddScoped<Wayfinder>();
 
 // Configure Authentication AFTER Identity
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");

@@ -93,19 +93,18 @@ namespace Chat.Hubs
         public async Task SendMessage(CreateMessageDto messageDto)
         {
             var senderUserId = Context.UserIdentifier;
-            if (string.IsNullOrEmpty(senderUserId) || messageDto == null)
+            if (string.IsNullOrEmpty(senderUserId) || messageDto == null || string.IsNullOrWhiteSpace(messageDto.Content))
             {
-                _logger.LogWarning("SendMessage failed: SenderUserId is null or messageDto is null.");
-                await Clients.Caller.SendAsync("SendMessageFailed", "Invalid request.");
+                _logger.LogWarning("SendMessage failed: SenderUserId is null or messageDto is invalid. Sender: {Sender}, DTO: {@DTO}", senderUserId, messageDto);
+                await Clients.Caller.SendAsync("SendMessageFailed", messageDto?.ConversationId ?? 0, "Invalid request: Message content or conversation ID might be missing.");
                 return;
             }
 
-            _logger.LogInformation("Hub: User {SenderUserId} attempting to send message to Conversation {ConversationId}: '{Content}' (IsPrivate: {IsPrivate})",
+            _logger.LogInformation("Hub: User {SenderUserId} attempting to send message to Conversation {ConversationId}. Content snippet: '{ContentSnippet}' (IsPrivate: {IsPrivate})",
                 senderUserId, messageDto.ConversationId, messageDto.Content.Substring(0, Math.Min(30, messageDto.Content.Length)), messageDto.IsPrivate);
 
             try
             {
-                // 1. Sačuvaj poruku u bazi koristeći servis
                 MessageDto? savedMessageDto = await _chatService.SaveMessageAsync(
                     senderUserId,
                     messageDto.ConversationId,
@@ -115,40 +114,34 @@ namespace Chat.Hubs
 
                 if (savedMessageDto == null)
                 {
-                    _logger.LogError("Hub: Failed to save message from {SenderUserId} to Conversation {ConversationId}. ChatService returned null.", senderUserId, messageDto.ConversationId);
-                    await Clients.Caller.SendAsync("SendMessageFailed", "Could not save message.");
+                    _logger.LogError("Hub: Failed to save message from {SenderUserId} to Conversation {ConversationId}. ChatService returned null, which is unexpected.", senderUserId, messageDto.ConversationId);
+                    await Clients.Caller.SendAsync("SendMessageFailed", messageDto.ConversationId, "Failed to process message on the server.");
                     return;
                 }
 
-                // 2. Dohvati primaoce iz konverzacije
-                var conversation = await _context.Conversations
-                                        .AsNoTracking()
-                                        .FirstOrDefaultAsync(c => c.Id == messageDto.ConversationId);
+                string groupName = GetConversationGroupName(messageDto.ConversationId);
+                _logger.LogInformation("Hub: Broadcasting 'ReceiveMessage' to group {GroupName} with MessageDto: {@MessageDto}", groupName, savedMessageDto);
 
-                if (conversation == null)
-                {
-                    _logger.LogError("Hub: Conversation {ConversationId} not found after saving message.", messageDto.ConversationId);
-                    return;
-                }
+                await Clients.Group(groupName).SendAsync("ReceiveMessage", savedMessageDto);
 
-                string recipientUserId = conversation.BuyerUserId == senderUserId ? conversation.SellerUserId : conversation.BuyerUserId;
+                _logger.LogInformation("Hub: Message ID {MessageId} (ConvID: {ConvID}) successfully broadcast to group {GroupName}.", savedMessageDto.Id, savedMessageDto.ConversationId, groupName);
 
-                // 3. Pošalji poruku primaocu (ako je online i konektovan na ovaj Hub)
-                _logger.LogInformation("Hub: Sending 'ReceiveMessage' to group {GroupName} for message ID {MessageId}", GetConversationGroupName(messageDto.ConversationId), savedMessageDto.Id);
-                await Clients.Group(GetConversationGroupName(messageDto.ConversationId))
-                             .SendAsync("ReceiveMessage", savedMessageDto);
-
-                _logger.LogInformation("Hub: Message ID {MessageId} sent successfully to group {GroupName}.", savedMessageDto.Id, GetConversationGroupName(messageDto.ConversationId));
+                await Clients.Caller.SendAsync("MessageSentSuccessfully", savedMessageDto);
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Hub: Unauthorized attempt to send message by User {SenderUserId} to Conversation {ConversationId}.", senderUserId, messageDto.ConversationId);
-                await Clients.Caller.SendAsync("SendMessageFailed", "Unauthorized to send message to this conversation.");
+                _logger.LogWarning(ex, "Hub: Unauthorized message send attempt by User {SenderUserId} to Conversation {ConversationId}.", senderUserId, messageDto.ConversationId);
+                await Clients.Caller.SendAsync("SendMessageFailed", messageDto.ConversationId, "Unauthorized to send message to this conversation.");
+            }
+            catch (KeyNotFoundException ex)
+            {
+                _logger.LogWarning(ex, "Hub: Conversation {ConversationId} not found during SendMessage by User {SenderUserId}.", messageDto.ConversationId, senderUserId);
+                await Clients.Caller.SendAsync("SendMessageFailed", messageDto.ConversationId, "Conversation not found.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Hub: Error sending message from {SenderUserId} to Conversation {ConversationId}.", senderUserId, messageDto.ConversationId);
-                await Clients.Caller.SendAsync("SendMessageFailed", "An error occurred.");
+                _logger.LogError(ex, "Hub: Error processing SendMessage from User {SenderUserId} to Conversation {ConversationId}.", senderUserId, messageDto.ConversationId);
+                await Clients.Caller.SendAsync("SendMessageFailed", messageDto.ConversationId, "An internal error occurred while sending the message.");
             }
         }
 

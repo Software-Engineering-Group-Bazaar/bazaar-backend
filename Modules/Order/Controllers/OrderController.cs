@@ -120,7 +120,10 @@ namespace Order.Controllers
                             ProductId = oi.ProductId,
                             Price = oi.Price,
                             Quantity = oi.Quantity
-                        }).ToList()
+                        }).ToList(),
+                        AddressId = o.AddressId,
+                        AdminDelivery = o.AdminDelivery,
+                        ExpectedReadyAt = o.ExpectedReadyAt
                     };
 
                     orderDtos.Add(orderDto);
@@ -189,7 +192,10 @@ namespace Order.Controllers
                         ProductId = oi.ProductId,
                         Price = oi.Price,
                         Quantity = oi.Quantity
-                    }).ToList()
+                    }).ToList(),
+                    AddressId = order.AddressId,
+                    AdminDelivery = order.AdminDelivery,
+                    ExpectedReadyAt = order.ExpectedReadyAt
                 };
 
                 _logger.LogInformation("Successfully retrieved order with ID: {OrderId}", id);
@@ -240,7 +246,7 @@ namespace Order.Controllers
 
             try
             {
-                createdOrder = await _orderService.CreateOrderAsync(buyerUserIdForRequest, storeIdForRequest);
+                createdOrder = await _orderService.CreateOrderAsync(buyerUserIdForRequest, storeIdForRequest, createDto.AddressId);
                 if (createdOrder == null) throw new Exception("Order header creation failed.");
 
                 foreach (var itemDto in createDto.OrderItems)
@@ -311,7 +317,10 @@ namespace Order.Controllers
                     Status = createdOrder.Status.ToString(),
                     Time = createdOrder.Time,
                     Total = createdOrder.Total,
-                    OrderItems = listitems
+                    OrderItems = listitems,
+                    AddressId = createdOrder.AddressId,
+                    AdminDelivery = createdOrder.AdminDelivery,
+                    ExpectedReadyAt = createdOrder.ExpectedReadyAt
                 };
 
                 var sellerUser = await _userManager.Users.FirstOrDefaultAsync(u => u.StoreId == createdOrder.StoreId);
@@ -489,7 +498,7 @@ namespace Order.Controllers
                     }
                 }
 
-                var success = await _orderService.UpdateOrderStatusAsync(id, status);
+                var success = await _orderService.UpdateOrderStatusAsync(id, status, updateDto.AdminDelivery, updateDto.EstimatedPreparationTimeInMinutes);
 
                 if (!success)
                 {
@@ -680,7 +689,10 @@ namespace Order.Controllers
                         ProductId = oi.ProductId,
                         Price = oi.Price,
                         Quantity = oi.Quantity
-                    }).ToList() ?? new List<OrderItemGetDto>()
+                    }).ToList() ?? new List<OrderItemGetDto>(),
+                    AddressId = o.AddressId,
+                    AdminDelivery = o.AdminDelivery,
+                    ExpectedReadyAt = o.ExpectedReadyAt
                 }).ToList();
 
                 _logger.LogInformation("Successfully retrieved {OrderCount} orders for Seller {UserId}'s Store ID {StoreId}", orderDtos.Count, userId, storeId);
@@ -759,7 +771,10 @@ namespace Order.Controllers
                         ProductId = oi.ProductId,
                         Price = oi.Price,
                         Quantity = oi.Quantity
-                    }).ToList() ?? new List<OrderItemGetDto>()
+                    }).ToList() ?? new List<OrderItemGetDto>(),
+                    AddressId = o.AddressId,
+                    AdminDelivery = o.AdminDelivery,
+                    ExpectedReadyAt = o.ExpectedReadyAt
                 }).ToList();
 
 

@@ -26,6 +26,7 @@ namespace Order.Models.DTOs.Buyer
         public DateTime Time { get; set; }
         public decimal? Total { get; set; }
         public List<OrderItemGetBuyerDto> OrderItems { get; set; } = new List<OrderItemGetBuyerDto>();
+        public int AddressId { get; set; }
     }
 
     // DTO for creating a new Order (POST request body)
@@ -36,5 +37,6 @@ namespace Order.Models.DTOs.Buyer
         public int StoreId { get; set; }
 
         public List<OrderItemGetBuyerDto> OrderItems { get; set; } = new List<OrderItemGetBuyerDto>();
+        public int AddressId { get; set; }
     }
 }
