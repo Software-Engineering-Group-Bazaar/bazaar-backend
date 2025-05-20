@@ -133,10 +133,63 @@ namespace Delivery.Controllers
         }
 
         /// <summary>
+        /// Creates a new delivery route.
+        /// </summary>
+        /// <param name="requestDto">The request data for creating a new route.</param>
+        [HttpPost("routes")]
+        [ProducesResponseType(typeof(DeliveryRouteResponseDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Admin, Seller")]
+        public async Task<ActionResult<DeliveryRouteResponseDto>> CreateRoute([FromBody] CreateRouteDto requestDto)
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                foreach (var item in requestDto.OrderIds)
+                {
+                    if (await _orderService.GetOrderByIdAsync(item) == null)
+                    {
+                        throw new ArgumentException("No order with that ID.");
+                    }
+
+                    if (await _routesService.GetRoutesFromOrders(new List<int> { item }) != null)
+                    {
+                        throw new ArgumentException("Order already exists in another delivery.");
+                    }
+                }
+
+                // Ručno mapiranje RouteDataDto na RouteData model
+                var routeDataModel = new DeliveryRouteData
+                {
+                    Data = requestDto.RouteData?.Data.ToString() ?? string.Empty, // Handle null requestDto.RouteData
+                    Hash = requestDto.RouteData?.Hash ?? string.Empty
+                };
+
+                var createdRoute = await _routesService.CreateRoute(userId, requestDto.OrderIds, routeDataModel);
+                var responseDto = MapToResponseDto(createdRoute); // Ručno mapiranje
+
+                _logger.LogInformation("Delivery route with ID {RouteId} created successfully.", createdRoute.Id);
+                return CreatedAtAction(nameof(GetRouteById), new { id = createdRoute.Id }, responseDto);
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Invalid argument while creating delivery route.");
+                return BadRequest(argEx.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating delivery route.");
+                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the route.");
+            }
+        }
+
+
+        /// <summary>
         /// Creates a new delivery route using Google Maps API for directions.
         /// </summary>
         /// <param name="requestDto">The request data containing order IDs for the route.</param>
-        [HttpPost("routes")]
+        [HttpPost("routes/create")]
         [ProducesResponseType(typeof(DeliveryRouteResponseDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
