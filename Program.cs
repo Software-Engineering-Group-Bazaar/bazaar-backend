@@ -18,6 +18,7 @@ using Hangfire.PostgreSql;
 using Inventory.Interfaces;
 using Inventory.Models;
 using Inventory.Services;
+using Loyalty.Models;
 using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
@@ -125,6 +126,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<ConversationDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("ConversationConnection")));
     builder.Services.AddDbContext<TicketingDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("TicketingConnection")));
     builder.Services.AddDbContext<DeliveryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DeliveryConnection")));
+    builder.Services.AddDbContext<LoyaltyDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("LoyaltyConnection")));
 }
 
 builder.Services.AddHttpClient();
