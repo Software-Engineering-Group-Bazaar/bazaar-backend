@@ -400,5 +400,36 @@ namespace Catalog.Services
                 throw new Exception("Database error occurred during product availability update.", ex);
             }
         }
+
+        public async Task<bool> UpdateProductPointRateAsync(int productId, double pointRate)
+        {
+            var product = await _context.Products.FindAsync(productId);
+            if (product == null)
+            {
+                throw new ArgumentException($"Can't find product with id: {productId}");
+            }
+
+            if (pointRate < 0)
+            {
+                throw new ArgumentException($"Point rate must be greater or equal 0");
+            }
+
+            product.PointRate = pointRate;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!await _context.Products.AnyAsync(p => p.Id == productId)) return false;
+                else throw;
+            }
+            catch (DbUpdateException ex)
+            {
+                throw new Exception("Database error occurred during product point rate update.", ex);
+            }
+        }
     }
 }
