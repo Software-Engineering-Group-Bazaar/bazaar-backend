@@ -18,7 +18,9 @@ using Hangfire.PostgreSql;
 using Inventory.Interfaces;
 using Inventory.Models;
 using Inventory.Services;
+using Loyalty.Interfaces;
 using Loyalty.Models;
+using Loyalty.Services;
 using MarketingAnalytics.Hubs;
 using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
@@ -69,6 +71,7 @@ builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IAddressService, AddressService>();
+builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();
 
 
 builder.Services.AddSignalR();

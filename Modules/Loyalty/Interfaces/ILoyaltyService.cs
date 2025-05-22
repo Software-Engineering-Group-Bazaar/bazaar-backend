@@ -15,6 +15,9 @@ namespace Loyalty.Interfaces
         Task<double> GetAdminProfitAsync(DateTime? from = null, DateTime? to = null, List<int>? storeIds = null);
         Task<double> GetStoreIncomeAsync(int storeId, DateTime? from = null, DateTime? to = null);
         Task<Transaction> CreateTransaction(int orderId, string userId, int storeId, TransactionType transactionType, int points);
-        static abstract int PointsForProduct(decimal price, int quantity, double pointRate);
+        static int PointsForProduct(decimal price, int quantity, double pointRate)
+        {
+            return (int)Math.Floor((double)price * quantity * pointRate);
+        }
     }
 }

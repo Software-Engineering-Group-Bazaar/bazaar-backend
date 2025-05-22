@@ -192,10 +192,5 @@ namespace Loyalty.Services
                 throw new InvalidOperationException($"Error saving new transaction for orderId: {orderId}", ex);
             }
         }
-
-        public static int PointsForProduct(decimal price, int quantity, double pointRate)
-        {
-            return (int)Math.Floor((double)price * quantity * pointRate);
-        }
     }
 }
