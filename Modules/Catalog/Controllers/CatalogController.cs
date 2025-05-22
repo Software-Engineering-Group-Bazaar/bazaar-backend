@@ -10,6 +10,7 @@ using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
 using Store.Interface;
 using Store.Models;
@@ -235,7 +236,8 @@ namespace Catalog.Controllers
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
                 IsActive = product.IsActive,
-                Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                PointRate = product.PointRate
             }).ToList();
 
             return Ok(productsDto);
@@ -269,7 +271,8 @@ namespace Catalog.Controllers
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
                 IsActive = product.IsActive,
-                Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                PointRate = product.PointRate
             };
 
             return Ok(productDto);
@@ -328,7 +331,8 @@ namespace Catalog.Controllers
                     VolumeUnit = product.VolumeUnit,
                     StoreId = product.StoreId,
                     IsActive = product.IsActive,
-                    Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                    Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                    PointRate = product.PointRate
                 };
 
                 return CreatedAtAction(nameof(CreateProduct), new { }, createdProductDto);
@@ -458,7 +462,8 @@ namespace Catalog.Controllers
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
                 IsActive = product.IsActive,
-                Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                PointRate = product.PointRate
             }).ToList();
 
             return Ok(productsDto);
@@ -693,7 +698,8 @@ namespace Catalog.Controllers
                     VolumeUnit = product.VolumeUnit,
                     StoreId = product.StoreId,
                     IsActive = product.IsActive,
-                    Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                    Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                    PointRate = product.PointRate
                 }).ToList();
 
                 // Console.WriteLine("Filtrirano? {0}", nestoFiltrirano.ToString());
@@ -732,6 +738,67 @@ namespace Catalog.Controllers
 
             return Ok(productsDto);
 
+        }
+
+        // PUT: api/Catalog/product/{productId}/point-rate
+        [HttpPut("product/{productId}/point-rate")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]         // Uspješno ažuriranje
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]      // Neispravan zahtjev (npr. negativan pointRate, greška validacije)
+        [ProducesResponseType(StatusCodes.Status404NotFound)]        // Produkt nije pronađen
+        [ProducesResponseType(StatusCodes.Status409Conflict)]        // Greška konkurentnosti
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)] // Ostale serverske greške
+        public async Task<IActionResult> UpdateProductPointRate(int productId, [FromBody] UpdateProductPointRateRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            try
+            {
+                var success = await _productService.UpdateProductPointRateAsync(productId, request.PointRate);
+
+                if (success)
+                {
+                    return NoContent(); // Uspješno ažurirano, nema sadržaja za vratiti
+                }
+                else
+                {
+                    // Ovo se događa ako je DbUpdateConcurrencyException uhvaćena u servisu
+                    // i provjera pokaže da produkt više ne postoji.
+                    // _logger.LogWarning("Product with ID {ProductId} was not found during concurrency check after update attempt for point rate.", productId);
+                    return NotFound($"Product with ID {productId} not found or was deleted during the update process.");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                // _logger.LogWarning(ex, "ArgumentException while updating point rate for product {ProductId}: {ErrorMessage}", productId, ex.Message);
+                if (ex.Message.Contains($"Can't find product with id: {productId}"))
+                {
+                    return NotFound(ex.Message);
+                }
+                else // "Point rate must be greater or equal 0"
+                {
+                    return BadRequest(ex.Message);
+                }
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // Ovo se događa ako produkt još postoji, ali je došlo do problema s konkurentnošću
+                // (a servis nije vratio false, nego je propustio iznimku)
+                // _logger.LogWarning(ex, "Concurrency conflict updating point rate for product {ProductId}.", productId);
+                return Conflict("A concurrency conflict occurred while updating the product's point rate. Please try again.");
+            }
+            catch (Exception ex) // Uključuje i vašu "Database error occurred..." iznimku
+            {
+                // _logger.LogError(ex, "Error updating product point rate for product ID: {ProductId}", productId);
+                // Ako je iznimka ona koju ste vi omotali: "Database error occurred..."
+                if (ex.Message.StartsWith("Database error occurred"))
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+                }
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while updating the product point rate.");
+            }
         }
     }
 }
