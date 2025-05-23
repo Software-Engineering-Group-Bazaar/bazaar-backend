@@ -7,5 +7,6 @@ namespace AdminApi.DTOs
         public DateTime FromDate { get; set; }
         public DateTime ToDate { get; set; }
         public decimal TotalIncome { get; set; }
+        public decimal TaxedIncome { get; set; }
     }
 }

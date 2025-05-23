@@ -10,6 +10,7 @@ namespace Loyalty.Services
         private readonly IConfiguration _configuration;
         private readonly LoyaltyDbContext _context;
         private readonly IUserService _userService;
+
         public LoyaltyService(
             IConfiguration configuration,
             LoyaltyDbContext context,
@@ -20,9 +21,12 @@ namespace Loyalty.Services
             _context = context;
             _userService = userService;
         }
+
         public async Task<int> GetUserPointsAsync(string userId)
         {
-            var wallet = await _context.Wallets.Where(w => w.UserId == userId).FirstOrDefaultAsync();
+            var wallet = await _context
+                .Wallets.Where(w => w.UserId == userId)
+                .FirstOrDefaultAsync();
 
             if (wallet == null)
             {
@@ -32,14 +36,17 @@ namespace Loyalty.Services
             }
             return wallet.Points;
         }
+
         public double GetAdminPaysSellerConst()
         {
             return LoyaltyRates.AdminPaysSeller;
         }
+
         public double GetSellerPaysAdminConst()
         {
             return LoyaltyRates.SellerPaysAdmin;
         }
+
         public double GetSpendingPointRateConst()
         {
             return LoyaltyRates.SpendingPointRate;
@@ -53,18 +60,16 @@ namespace Loyalty.Services
                 throw new ArgumentException($"No user with userId: {userId}");
             }
 
-            var wallet = await _context.Wallets.Where(w => w.UserId == userId).FirstOrDefaultAsync();
+            var wallet = await _context
+                .Wallets.Where(w => w.UserId == userId)
+                .FirstOrDefaultAsync();
 
             if (wallet != null)
             {
                 return wallet;
             }
 
-            wallet = new Wallet
-            {
-                UserId = userId,
-                Points = 0
-            };
+            wallet = new Wallet { UserId = userId, Points = 0 };
 
             try
             {
@@ -74,13 +79,18 @@ namespace Loyalty.Services
             }
             catch (DbUpdateException ex)
             {
-                throw new InvalidOperationException($"Error saving new wallet for userId: {userId}", ex);
+                throw new InvalidOperationException(
+                    $"Error saving new wallet for userId: {userId}",
+                    ex
+                );
             }
         }
 
         public async Task SetWalletPointsForUserAsync(string userId, int points)
         {
-            var wallet = await _context.Wallets.Where(w => w.UserId == userId).FirstOrDefaultAsync();
+            var wallet = await _context
+                .Wallets.Where(w => w.UserId == userId)
+                .FirstOrDefaultAsync();
 
             if (wallet == null)
             {
@@ -101,24 +111,47 @@ namespace Loyalty.Services
             }
             catch (DbUpdateException ex)
             {
-                throw new InvalidOperationException($"Error saving new wallet for userId: {userId}", ex);
+                throw new InvalidOperationException(
+                    $"Error saving new wallet for userId: {userId}",
+                    ex
+                );
             }
         }
 
-        public async Task<double> GetAdminIncomeAsync(DateTime? from = null, DateTime? to = null, List<int>? storeIds = null)
+        public async Task<double> GetAdminIncomeAsync(
+            DateTime? from = null,
+            DateTime? to = null,
+            List<int>? storeIds = null
+        )
         {
             var transactions = new List<Transaction>();
-            await _context.Transactions.Where(t => (from == null || t.Timestamp >= from) && (to == null || t.Timestamp <= to) && (storeIds == null || storeIds.Contains(t.StoreId))).ToListAsync();
+            await _context
+                .Transactions.Where(t =>
+                    (from == null || t.Timestamp >= from)
+                    && (to == null || t.Timestamp <= to)
+                    && (storeIds == null || storeIds.Contains(t.StoreId))
+                )
+                .ToListAsync();
 
             var sellerPaysAdmin = GetSellerPaysAdminConst();
 
             return transactions.Sum(t => t.PointsQuantity * sellerPaysAdmin);
         }
 
-        public async Task<double> GetAdminProfitAsync(DateTime? from = null, DateTime? to = null, List<int>? storeIds = null)
+        public async Task<double> GetAdminProfitAsync(
+            DateTime? from = null,
+            DateTime? to = null,
+            List<int>? storeIds = null
+        )
         {
             var transactions = new List<Transaction>();
-            await _context.Transactions.Where(t => (from == null || t.Timestamp >= from) && (to == null || t.Timestamp <= to) && (storeIds == null || storeIds.Contains(t.StoreId))).ToListAsync();
+            await _context
+                .Transactions.Where(t =>
+                    (from == null || t.Timestamp >= from)
+                    && (to == null || t.Timestamp <= to)
+                    && (storeIds == null || storeIds.Contains(t.StoreId))
+                )
+                .ToListAsync();
 
             var sellerPaysAdmin = GetSellerPaysAdminConst();
             var adminPaysSeller = GetAdminPaysSellerConst();
@@ -127,17 +160,33 @@ namespace Loyalty.Services
             return transactions.Sum(t => t.PointsQuantity * profitConst);
         }
 
-        public async Task<double> GetStoreIncomeAsync(int storeId, DateTime? from = null, DateTime? to = null)
+        public async Task<double> GetStoreIncomeAsync(
+            int storeId,
+            DateTime? from = null,
+            DateTime? to = null
+        )
         {
             var transactions = new List<Transaction>();
-            await _context.Transactions.Where(t => t.StoreId == storeId && (from == null || t.Timestamp >= from) && (to == null || t.Timestamp <= to)).ToListAsync();
+            await _context
+                .Transactions.Where(t =>
+                    t.StoreId == storeId
+                    && (from == null || t.Timestamp >= from)
+                    && (to == null || t.Timestamp <= to)
+                )
+                .ToListAsync();
 
             var adminPaysSeller = GetAdminPaysSellerConst();
 
             return transactions.Sum(t => t.PointsQuantity * adminPaysSeller);
         }
 
-        public async Task<Transaction> CreateTransaction(int orderId, string userId, int storeId, TransactionType transactionType, int points)
+        public async Task<Transaction> CreateTransaction(
+            int orderId,
+            string userId,
+            int storeId,
+            TransactionType transactionType,
+            int points
+        )
         {
             var userPoints = await GetUserPointsAsync(userId);
             if (transactionType == TransactionType.Buy)
@@ -149,7 +198,7 @@ namespace Loyalty.Services
                     PointsQuantity = points,
                     UserId = userId,
                     StoreId = storeId,
-                    TransactionType = transactionType
+                    TransactionType = transactionType,
                 };
 
                 try
@@ -161,7 +210,10 @@ namespace Loyalty.Services
                 }
                 catch (DbUpdateException ex)
                 {
-                    throw new InvalidOperationException($"Error saving new transaction for orderId: {orderId}", ex);
+                    throw new InvalidOperationException(
+                        $"Error saving new transaction for orderId: {orderId}",
+                        ex
+                    );
                 }
             }
 
@@ -177,7 +229,7 @@ namespace Loyalty.Services
                 PointsQuantity = points,
                 UserId = userId,
                 StoreId = storeId,
-                TransactionType = transactionType
+                TransactionType = transactionType,
             };
 
             try
@@ -189,7 +241,10 @@ namespace Loyalty.Services
             }
             catch (DbUpdateException ex)
             {
-                throw new InvalidOperationException($"Error saving new transaction for orderId: {orderId}", ex);
+                throw new InvalidOperationException(
+                    $"Error saving new transaction for orderId: {orderId}",
+                    ex
+                );
             }
         }
     }

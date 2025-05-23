@@ -42,18 +42,33 @@ namespace Loyalty.Controllers
             }
             catch (ArgumentException ex) // Od CreateWalletForUserAsync ako user ne postoji
             {
-                _logger.LogWarning(ex, "ArgumentException while getting points for user {UserId}: {ErrorMessage}", userId, ex.Message);
+                _logger.LogWarning(
+                    ex,
+                    "ArgumentException while getting points for user {UserId}: {ErrorMessage}",
+                    userId,
+                    ex.Message
+                );
                 return NotFound(ex.Message);
             }
             catch (InvalidOperationException ex)
             {
                 _logger.LogError(ex, "Error getting user points for userId: {UserId}", userId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving user points.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while retrieving user points."
+                );
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error getting user points for userId: {UserId}", userId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
+                _logger.LogError(
+                    ex,
+                    "Unexpected error getting user points for userId: {UserId}",
+                    userId
+                );
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An unexpected error occurred."
+                );
             }
         }
 
@@ -67,7 +82,9 @@ namespace Loyalty.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
-                _logger.LogWarning("[OrderBuyerController] CreateOrder - Could not find user ID claim for the authenticated user.");
+                _logger.LogWarning(
+                    "[OrderBuyerController] CreateOrder - Could not find user ID claim for the authenticated user."
+                );
                 return Unauthorized("User ID claim not found."); // 401 Unauthorized
             }
 
@@ -82,18 +99,33 @@ namespace Loyalty.Controllers
             }
             catch (ArgumentException ex) // Od CreateWalletForUserAsync ako user ne postoji
             {
-                _logger.LogWarning(ex, "ArgumentException while getting points for user {UserId}: {ErrorMessage}", userId, ex.Message);
+                _logger.LogWarning(
+                    ex,
+                    "ArgumentException while getting points for user {UserId}: {ErrorMessage}",
+                    userId,
+                    ex.Message
+                );
                 return NotFound(ex.Message);
             }
             catch (InvalidOperationException ex)
             {
                 _logger.LogError(ex, "Error getting user points for userId: {UserId}", userId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while retrieving user points.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while retrieving user points."
+                );
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error getting user points for userId: {UserId}", userId);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
+                _logger.LogError(
+                    ex,
+                    "Unexpected error getting user points for userId: {UserId}",
+                    userId
+                );
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An unexpected error occurred."
+                );
             }
         }
 
@@ -125,7 +157,11 @@ namespace Loyalty.Controllers
         [HttpGet("admin/income")]
         [ProducesResponseType(typeof(double), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<double>> GetAdminIncome([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] List<int>? storeIds)
+        public async Task<ActionResult<double>> GetAdminIncome(
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to,
+            [FromQuery] List<int>? storeIds
+        )
         {
             // Napomena: Vaš servis ima bug, `transactions` lista ostaje prazna.
             // `await _context.Transactions.Where(...).ToListAsync();` treba biti `transactions = await _context.Transactions.Where(...).ToListAsync();`
@@ -137,8 +173,17 @@ namespace Loyalty.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting admin income. From: {From}, To: {To}, StoreIds: {StoreIds}", from, to, string.Join(",", storeIds ?? new List<int>()));
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while calculating admin income.");
+                _logger.LogError(
+                    ex,
+                    "Error getting admin income. From: {From}, To: {To}, StoreIds: {StoreIds}",
+                    from,
+                    to,
+                    string.Join(",", storeIds ?? new List<int>())
+                );
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while calculating admin income."
+                );
             }
         }
 
@@ -146,7 +191,11 @@ namespace Loyalty.Controllers
         [HttpGet("admin/profit")]
         [ProducesResponseType(typeof(double), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<double>> GetAdminProfit([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] List<int>? storeIds)
+        public async Task<ActionResult<double>> GetAdminProfit(
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to,
+            [FromQuery] List<int>? storeIds
+        )
         {
             // Napomena: Isti bug kao u GetAdminIncomeAsync.
             try
@@ -156,8 +205,17 @@ namespace Loyalty.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting admin profit. From: {From}, To: {To}, StoreIds: {StoreIds}", from, to, string.Join(",", storeIds ?? new List<int>()));
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while calculating admin profit.");
+                _logger.LogError(
+                    ex,
+                    "Error getting admin profit. From: {From}, To: {To}, StoreIds: {StoreIds}",
+                    from,
+                    to,
+                    string.Join(",", storeIds ?? new List<int>())
+                );
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while calculating admin profit."
+                );
             }
         }
 
@@ -165,7 +223,11 @@ namespace Loyalty.Controllers
         [HttpGet("store/{storeId}/income")]
         [ProducesResponseType(typeof(double), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<double>> GetStoreIncome(int storeId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+        public async Task<ActionResult<double>> GetStoreIncome(
+            int storeId,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to
+        )
         {
             // Napomena: Isti bug kao u GetAdminIncomeAsync.
             try
@@ -175,8 +237,17 @@ namespace Loyalty.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting store income for storeId: {StoreId}. From: {From}, To: {To}", storeId, from, to);
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while calculating store income.");
+                _logger.LogError(
+                    ex,
+                    "Error getting store income for storeId: {StoreId}. From: {From}, To: {To}",
+                    storeId,
+                    from,
+                    to
+                );
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while calculating store income."
+                );
             }
         }
     }
