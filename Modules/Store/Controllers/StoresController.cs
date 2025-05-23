@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Order.Interface;
+using Order.Models;
 using Store.Interface;
 using Store.Models;
 using Users.Models;
@@ -24,19 +26,21 @@ namespace Store.Controllers
         private readonly IStoreService _storeService;
         private readonly IStoreCategoryService _storeCategoryService;
         private readonly ILogger<StoresController> _logger;
-
         private readonly UserManager<User> _userManager;
+        private readonly IOrderService _orderService;
 
         public StoresController(
             IStoreService storeService,
             IStoreCategoryService storeCategoryService,
             UserManager<User> userManager,
-            ILogger<StoresController> logger)
+            ILogger<StoresController> logger,
+            IOrderService orderService)
         {
             _storeService = storeService;
             _storeCategoryService = storeCategoryService;
             _userManager = userManager;
             _logger = logger;
+            _orderService = orderService;
         }
 
         // GET /api/Stores
@@ -420,6 +424,101 @@ namespace Store.Controllers
             {
                 _logger.LogError(ex, "[StoresController] An error occurred while searching stores with query: '{Query}'", query);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while searching for stores.");
+            }
+        }
+
+        // NEW ENDPOINT: GET api/Stores/income
+        [HttpGet("income")]
+        [Authorize(Roles = "Seller, Admin")] // Only Seller or Admin can access their store's income
+        [ProducesResponseType(typeof(AdminApi.DTOs.StoreIncomeDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<AdminApi.DTOs.StoreIncomeDto>> GetMyStoreIncome([FromQuery] DateTime from, [FromQuery] DateTime to)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogWarning("[StoresController] GetMyStoreIncome - Unauthorized: User ID claim not found.");
+                return Unauthorized("User ID claim not found.");
+            }
+
+            _logger.LogInformation("[StoresController] GetMyStoreIncome - User {UserId} attempting to retrieve income for their store from {FromDate} to {ToDate}", userId, from, to);
+
+            if (from > to)
+            {
+                _logger.LogWarning("[StoresController] GetMyStoreIncome - BadRequest: 'from' date ({FromDate}) cannot be after 'to' date ({ToDate}) for User {UserId}", from, to, userId);
+                return BadRequest("'from' date cannot be after 'to' date.");
+            }
+
+            try
+            {
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    _logger.LogError("[StoresController] GetMyStoreIncome - InternalError: Authenticated User {UserId} not found in database.", userId);
+                    // This case should ideally not happen if authentication is working.
+                    return StatusCode(StatusCodes.Status500InternalServerError, "Authenticated user could not be found.");
+                }
+
+                if (user.StoreId == null)
+                {
+                    _logger.LogWarning("[StoresController] GetMyStoreIncome - NotFound: User {UserId} does not have an associated store.", userId);
+                    return NotFound("No store is associated with your account. Cannot calculate income.");
+                }
+
+                int storeId = user.StoreId.Value;
+                var store = _storeService.GetStoreById(storeId); // Assuming this is synchronous, adjust if async
+                if (store == null)
+                {
+                    // This would indicate data inconsistency if user.StoreId is set but store doesn't exist.
+                    _logger.LogError("[StoresController] GetMyStoreIncome - NotFound: Store with ID {StoreId} associated with User {UserId} not found.", storeId, userId);
+                    return NotFound($"The store (ID: {storeId}) associated with your account was not found.");
+                }
+
+                var orders = await _orderService.GetOrdersByStoreAsync(storeId);
+
+                // Define the date range carefully to include the whole 'to' day.
+                DateTime fromDateStartOfDay = from.Date;
+                DateTime toDateEndOfDay = to.Date.AddDays(1).AddTicks(-1);
+
+                var filteredOrders = orders?.Where(o => o.Time >= fromDateStartOfDay && o.Time <= toDateEndOfDay).ToList()
+                                     ?? new List<OrderModel>();
+
+
+                if (!filteredOrders.Any())
+                {
+                    _logger.LogInformation("[StoresController] GetMyStoreIncome - No orders found for Store ID {StoreId} (User {UserId}) within the date range {FromDate} - {ToDate}. Income is 0.", storeId, userId, fromDateStartOfDay, toDateEndOfDay);
+                    return Ok(new AdminApi.DTOs.StoreIncomeDto
+                    {
+                        StoreId = storeId,
+                        StoreName = store.name,
+                        FromDate = from,
+                        ToDate = to,
+                        TotalIncome = 0
+                    });
+                }
+
+                decimal totalIncome = filteredOrders.Sum(o => o.Total ?? 0m);
+
+                var incomeDto = new AdminApi.DTOs.StoreIncomeDto
+                {
+                    StoreId = storeId,
+                    StoreName = store.name,
+                    FromDate = from,
+                    ToDate = to,
+                    TotalIncome = totalIncome
+                };
+
+                _logger.LogInformation("[StoresController] GetMyStoreIncome - Successfully retrieved income for Store ID {StoreId} (User {UserId}): {TotalIncome} from {FromDate} to {ToDate}", storeId, userId, totalIncome, from, to);
+                return Ok(incomeDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[StoresController] GetMyStoreIncome - An error occurred while retrieving income for User {UserId}'s store.", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while calculating your store's income.");
             }
         }
     }

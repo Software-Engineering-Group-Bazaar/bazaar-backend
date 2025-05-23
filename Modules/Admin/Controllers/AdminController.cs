@@ -733,6 +733,85 @@ namespace Admin.Controllers
             }
         }
 
+        // NEW ENDPOINT: GET api/Admin/store/{id}/income
+        [HttpGet("store/{id:int}/income")]
+        [ProducesResponseType(typeof(AdminApi.DTOs.StoreIncomeDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<AdminApi.DTOs.StoreIncomeDto>> GetStoreIncome(int id, [FromQuery] DateTime from, [FromQuery] DateTime to)
+        {
+            _logger.LogInformation("Attempting to retrieve income for Store ID: {StoreId} from {FromDate} to {ToDate}", id, from, to);
+
+            if (id <= 0)
+            {
+                _logger.LogWarning("GetStoreIncome request failed validation: Invalid Store ID {StoreId}", id);
+                return BadRequest("Invalid Store ID provided.");
+            }
+            if (from > to)
+            {
+                _logger.LogWarning("GetStoreIncome request failed validation: 'from' date ({FromDate}) cannot be after 'to' date ({ToDate}) for Store ID {StoreId}", from, to, id);
+                return BadRequest("'from' date cannot be after 'to' date.");
+            }
+
+            try
+            {
+                var store = _storeService.GetStoreById(id);
+                if (store == null)
+                {
+                    _logger.LogWarning("Store with ID {StoreId} not found for income calculation.", id);
+                    return NotFound($"Store with ID {id} not found.");
+                }
+
+                var orders = await _orderService.GetOrdersByStoreAsync(id);
+                if (orders == null) // orders can be an empty list, so checking for null first
+                {
+                    _logger.LogInformation("No orders collection returned for Store ID {StoreId}. Income is 0.", id);
+                    // Fall through to handle empty list if orders is not null but empty
+                }
+
+
+                // Define the date range carefully to include the whole 'to' day.
+                DateTime fromDateStartOfDay = from.Date;
+                DateTime toDateEndOfDay = to.Date.AddDays(1).AddTicks(-1);
+
+                var filteredOrders = orders?.Where(o => o.Time >= fromDateStartOfDay && o.Time <= toDateEndOfDay).ToList()
+                                     ?? new List<OrderModel>(); // Ensure filteredOrders is not null
+
+                if (!filteredOrders.Any())
+                {
+                    _logger.LogInformation("No orders found for Store ID {StoreId} within the date range {FromDate} - {ToDate}. Income is 0.", id, fromDateStartOfDay, toDateEndOfDay);
+                    return Ok(new AdminApi.DTOs.StoreIncomeDto
+                    {
+                        StoreId = id,
+                        StoreName = store.name,
+                        FromDate = fromDateStartOfDay,
+                        ToDate = to, // Return original 'to' for clarity, even if end of day was used for query
+                        TotalIncome = 0
+                    });
+                }
+
+                decimal totalIncome = filteredOrders.Sum(o => o.Total ?? 0m);
+
+                var incomeDto = new AdminApi.DTOs.StoreIncomeDto
+                {
+                    StoreId = id,
+                    StoreName = store.name,
+                    FromDate = from, // Return original from
+                    ToDate = to,     // Return original to
+                    TotalIncome = totalIncome
+                };
+
+                _logger.LogInformation("Successfully retrieved income for Store ID {StoreId}: {TotalIncome} from {FromDate} to {ToDate}", id, totalIncome, from, to);
+                return Ok(incomeDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving income for Store ID: {StoreId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An internal error occurred while calculating store income.");
+            }
+        }
+
 
         // --- Akcije za Kategorije (ProductCategory) ---
 
