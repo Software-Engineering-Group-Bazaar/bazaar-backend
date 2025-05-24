@@ -126,11 +126,14 @@ namespace Loyalty.Services
         {
             var sellerPaysAdmin = GetSellerPaysAdminConst();
 
+            DateTime? fromUtc = from?.ToUniversalTime();
+            DateTime? toUtc = to?.ToUniversalTime();
+
             return await _context
                 .Transactions
                 .Where(t =>
-                    (from == null || t.Timestamp >= from)
-                    && (to == null || t.Timestamp <= to)
+                    (fromUtc == null || t.Timestamp >= fromUtc)
+                    && (toUtc == null || t.Timestamp <= toUtc)
                     && (storeIds == null || storeIds.Count == 0 || storeIds.Contains(t.StoreId))
                     && t.TransactionType == TransactionType.Buy
                 )
@@ -146,11 +149,14 @@ namespace Loyalty.Services
             var sellerPaysAdmin = GetSellerPaysAdminConst();
             var adminPaysSeller = GetAdminPaysSellerConst();
 
+            DateTime? fromUtc = from?.ToUniversalTime();
+            DateTime? toUtc = to?.ToUniversalTime();
+
             return await _context
                 .Transactions
                 .Where(t =>
-                    (from == null || t.Timestamp >= from)
-                    && (to == null || t.Timestamp <= to)
+                    (fromUtc == null || t.Timestamp >= fromUtc)
+                    && (toUtc == null || t.Timestamp <= toUtc)
                     && (storeIds == null || storeIds.Count == 0 || storeIds.Contains(t.StoreId))
                 )
                 .SumAsync(t => (t.TransactionType == TransactionType.Buy) ? t.PointsQuantity * sellerPaysAdmin : -t.PointsQuantity * adminPaysSeller);
@@ -164,12 +170,15 @@ namespace Loyalty.Services
         {
             var adminPaysSeller = GetAdminPaysSellerConst();
 
+            DateTime? fromUtc = from?.ToUniversalTime();
+            DateTime? toUtc = to?.ToUniversalTime();
+
             return await _context
                 .Transactions
                 .Where(t =>
                     t.StoreId == storeId
-                    && (from == null || t.Timestamp >= from)
-                    && (to == null || t.Timestamp <= to)
+                    && (fromUtc == null || t.Timestamp >= fromUtc)
+                    && (toUtc == null || t.Timestamp <= toUtc)
                     && t.TransactionType == TransactionType.Spend
                 )
                 .SumAsync(t => t.PointsQuantity * adminPaysSeller);
@@ -245,11 +254,14 @@ namespace Loyalty.Services
 
         public async Task<int> GetStorePointsAssigned(int storeId, DateTime? from = null, DateTime? to = null)
         {
+            DateTime? fromUtc = from?.ToUniversalTime();
+            DateTime? toUtc = to?.ToUniversalTime();
+
             return await _context
                 .Transactions.Where(t =>
                     t.StoreId == storeId
-                    && (from == null || t.Timestamp >= from)
-                    && (to == null || t.Timestamp <= to)
+                    && (fromUtc == null || t.Timestamp >= fromUtc)
+                    && (toUtc == null || t.Timestamp <= toUtc)
                     && TransactionType.Buy == t.TransactionType
                 )
                 .SumAsync(t => t.PointsQuantity);
