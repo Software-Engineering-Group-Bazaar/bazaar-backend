@@ -247,5 +247,17 @@ namespace Loyalty.Services
                 );
             }
         }
+
+        public Task<int> GetStorePointsAssigned(int storeId, DateTime from, DateTime to)
+        {
+            return _context
+                .Transactions.Where(t =>
+                    t.StoreId == storeId
+                    && t.Timestamp > from
+                    && t.Timestamp < to
+                    && TransactionType.Buy == t.TransactionType
+                )
+                .SumAsync(t => t.PointsQuantity);
+        }
     }
 }

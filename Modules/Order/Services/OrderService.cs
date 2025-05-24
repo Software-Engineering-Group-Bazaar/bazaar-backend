@@ -42,6 +42,11 @@ namespace Order.Services
             _addressService = addressService ?? throw new ArgumentNullException(nameof(addressService));
         }
 
+        public async Task SaveChange()
+        {
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<OrderModel> CreateOrderAsync(string buyerId, int storeId, int addressId = 0)
         {
             // --- Validation ---
@@ -82,6 +87,7 @@ namespace Order.Services
             }
             return order;
         }
+        
 
         public async Task<OrderModel?> GetOrderByIdAsync(int orderId)
         {

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using AdminApi.DTOs;
+using Loyalty.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -27,13 +28,15 @@ namespace Store.Controllers
         private readonly ILogger<StoresController> _logger;
         private readonly UserManager<User> _userManager;
         private readonly IOrderService _orderService;
+        private readonly ILoyaltyService _loyaltyService;
 
         public StoresController(
             IStoreService storeService,
             IStoreCategoryService storeCategoryService,
             UserManager<User> userManager,
             ILogger<StoresController> logger,
-            IOrderService orderService
+            IOrderService orderService,
+            ILoyaltyService loyaltyService
         )
         {
             _storeService = storeService;
@@ -41,6 +44,7 @@ namespace Store.Controllers
             _userManager = userManager;
             _logger = logger;
             _orderService = orderService;
+            _loyaltyService = loyaltyService;
         }
 
         // GET /api/Stores
@@ -737,6 +741,20 @@ namespace Store.Controllers
                     "An internal error occurred while calculating your store's income."
                 );
             }
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<int>> GetPointsDistributedAsync(
+            [FromQuery] DateTime from,
+            [FromQuery] DateTime to
+        )
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null || user.StoreId is null)
+                return StatusCode(StatusCodes.Status400BadRequest, "You dont have a store!");
+            int t = await _loyaltyService.GetStorePointsAssigned((int)user.StoreId, from, to);
+            return Ok(t);
         }
     }
 }

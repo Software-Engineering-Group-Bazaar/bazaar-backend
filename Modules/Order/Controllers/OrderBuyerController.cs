@@ -392,13 +392,38 @@ namespace Order.Controllers
                             );
                         }
                     }
-                    await _loyaltyService.CreateTransaction(
-                        createdOrder.Id,
-                        createdOrder.BuyerId,
-                        createdOrder.StoreId,
-                        TransactionType.Buy,
-                        (int)points
-                    );
+
+                    if (createDto.UsingPoints)
+                    {
+                        var wallet = await _loyaltyService.GetUserPointsAsync(createdOrder.BuyerId);
+
+                        var ptsQuantity = (int)
+                            Math.Min(
+                                (double)createdOrder.Total / LoyaltyRates.SellerPaysAdmin,
+                                wallet
+                            );
+                        createdOrder.Total =
+                            (createdOrder.Total ?? 0m)
+                            - (ptsQuantity * (decimal)LoyaltyRates.SellerPaysAdmin);
+                        await _loyaltyService.CreateTransaction(
+                            createdOrder.Id,
+                            createdOrder.BuyerId,
+                            createdOrder.StoreId,
+                            TransactionType.Spend,
+                            ptsQuantity
+                        );
+                        await _orderService.SaveChange();
+                    }
+                    else
+                    {
+                        await _loyaltyService.CreateTransaction(
+                            createdOrder.Id,
+                            createdOrder.BuyerId,
+                            createdOrder.StoreId,
+                            TransactionType.Buy,
+                            (int)points
+                        );
+                    }
                 }
                 else
                 {
