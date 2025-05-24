@@ -634,6 +634,11 @@ namespace Store.Controllers
                 return BadRequest("'from' date cannot be after 'to' date.");
             }
 
+            if (to == DateTime.MinValue)
+            {
+                to = DateTime.UtcNow;
+            }
+
             try
             {
                 var user = await _userManager.FindByIdAsync(userId);
