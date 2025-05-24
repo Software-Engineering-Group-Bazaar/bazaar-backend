@@ -260,8 +260,12 @@ namespace Order.Controllers
                     // Biljezenje podataka za reklame
 
                     var product = await _productService.GetProductByIdAsync(item.ProductId);
+                    var price =
+                        item.Quantity <= product.WholesaleThreshold
+                            ? product.RetailPrice
+                            : product.WholesalePrice;
                     points += ILoyaltyService.PointsForProduct(
-                        product.RetailPrice,
+                        (decimal)price,
                         item.Quantity,
                         product.PointRate
                     );
