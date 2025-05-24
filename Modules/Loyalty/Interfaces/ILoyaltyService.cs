@@ -29,7 +29,7 @@ namespace Loyalty.Interfaces
             TransactionType transactionType,
             int points
         );
-        Task<int> GetStorePointsAssigned(int storeId, DateTime from, DateTime to);
+        Task<int> GetStorePointsAssigned(int storeId, DateTime? from = null, DateTime? to = null);
         static int PointsForProduct(decimal price, int quantity, double pointRate)
         {
             return (int)Math.Floor((double)price * quantity * pointRate);

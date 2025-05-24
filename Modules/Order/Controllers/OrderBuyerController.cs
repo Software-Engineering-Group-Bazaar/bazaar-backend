@@ -335,6 +335,7 @@ namespace Order.Controllers
                     Time = createdOrder.Time,
                     Total = createdOrder.Total, // Will likely be null or 0 initially
                     OrderItems = listitems, // Order items for the buyer
+                    AddressId = createdOrder.AddressId,
                 };
 
                 // Sending notification to the seller

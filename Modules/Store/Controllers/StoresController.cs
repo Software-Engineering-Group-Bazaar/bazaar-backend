@@ -745,8 +745,8 @@ namespace Store.Controllers
 
         [HttpGet("points")]
         public async Task<ActionResult<int>> GetPointsDistributedAsync(
-            [FromQuery] DateTime from,
-            [FromQuery] DateTime to
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to
         )
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

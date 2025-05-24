@@ -124,18 +124,17 @@ namespace Loyalty.Services
             List<int>? storeIds = null
         )
         {
-            var transactions = new List<Transaction>();
-            await _context
-                .Transactions.Where(t =>
-                    (from == null || t.Timestamp >= from)
-                    && (to == null || t.Timestamp <= to)
-                    && (storeIds == null || storeIds.Contains(t.StoreId))
-                )
-                .ToListAsync();
-
             var sellerPaysAdmin = GetSellerPaysAdminConst();
 
-            return transactions.Sum(t => t.PointsQuantity * sellerPaysAdmin);
+            return await _context
+                .Transactions
+                .Where(t =>
+                    (from == null || t.Timestamp >= from)
+                    && (to == null || t.Timestamp <= to)
+                    && (storeIds == null || storeIds.Count == 0 || storeIds.Contains(t.StoreId))
+                    && t.TransactionType == TransactionType.Buy
+                )
+                .SumAsync(t => t.PointsQuantity * sellerPaysAdmin);
         }
 
         public async Task<double> GetAdminProfitAsync(
@@ -144,20 +143,17 @@ namespace Loyalty.Services
             List<int>? storeIds = null
         )
         {
-            var transactions = new List<Transaction>();
-            await _context
-                .Transactions.Where(t =>
-                    (from == null || t.Timestamp >= from)
-                    && (to == null || t.Timestamp <= to)
-                    && (storeIds == null || storeIds.Contains(t.StoreId))
-                )
-                .ToListAsync();
-
             var sellerPaysAdmin = GetSellerPaysAdminConst();
             var adminPaysSeller = GetAdminPaysSellerConst();
-            var profitConst = sellerPaysAdmin - adminPaysSeller;
 
-            return transactions.Sum(t => t.PointsQuantity * profitConst);
+            return await _context
+                .Transactions
+                .Where(t =>
+                    (from == null || t.Timestamp >= from)
+                    && (to == null || t.Timestamp <= to)
+                    && (storeIds == null || storeIds.Count == 0 || storeIds.Contains(t.StoreId))
+                )
+                .SumAsync(t => (t.TransactionType == TransactionType.Buy) ? t.PointsQuantity * sellerPaysAdmin : -t.PointsQuantity * adminPaysSeller);
         }
 
         public async Task<double> GetStoreIncomeAsync(
@@ -166,18 +162,17 @@ namespace Loyalty.Services
             DateTime? to = null
         )
         {
-            var transactions = new List<Transaction>();
-            await _context
-                .Transactions.Where(t =>
+            var adminPaysSeller = GetAdminPaysSellerConst();
+
+            return await _context
+                .Transactions
+                .Where(t =>
                     t.StoreId == storeId
                     && (from == null || t.Timestamp >= from)
                     && (to == null || t.Timestamp <= to)
+                    && t.TransactionType == TransactionType.Spend
                 )
-                .ToListAsync();
-
-            var adminPaysSeller = GetAdminPaysSellerConst();
-
-            return transactions.Sum(t => t.PointsQuantity * adminPaysSeller);
+                .SumAsync(t => t.PointsQuantity * adminPaysSeller);
         }
 
         public async Task<Transaction> CreateTransaction(
@@ -248,13 +243,13 @@ namespace Loyalty.Services
             }
         }
 
-        public Task<int> GetStorePointsAssigned(int storeId, DateTime from, DateTime to)
+        public async Task<int> GetStorePointsAssigned(int storeId, DateTime? from = null, DateTime? to = null)
         {
-            return _context
+            return await _context
                 .Transactions.Where(t =>
                     t.StoreId == storeId
-                    && t.Timestamp > from
-                    && t.Timestamp < to
+                    && (from == null || t.Timestamp >= from)
+                    && (to == null || t.Timestamp <= to)
                     && TransactionType.Buy == t.TransactionType
                 )
                 .SumAsync(t => t.PointsQuantity);
