@@ -743,7 +743,7 @@ namespace Store.Controllers
             }
         }
 
-        [HttpGet]
+        [HttpGet("points")]
         public async Task<ActionResult<int>> GetPointsDistributedAsync(
             [FromQuery] DateTime from,
             [FromQuery] DateTime to
