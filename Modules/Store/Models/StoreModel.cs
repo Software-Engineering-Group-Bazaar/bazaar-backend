@@ -21,6 +21,6 @@ namespace Store.Models
         public string? description { get; set; }
         public Place place { get; set; } = null!; // tumaci kao grad
         public int placeId { get; set; }
-
+        public double tax { get; set; } = 0.025;
     }
 }

@@ -6,4 +6,5 @@ public class StoreUpdateDto
     public string? Description { get; set; }
     public bool? IsActive { get; set; }
     public required int Id { get; set; }
+    public double? Tax { get; set; }
 }
