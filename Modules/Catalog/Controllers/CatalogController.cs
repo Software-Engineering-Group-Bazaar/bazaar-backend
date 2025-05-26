@@ -10,6 +10,7 @@ using MarketingAnalytics.Interfaces;
 using MarketingAnalytics.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // Required for logging
 using Store.Interface;
 using Store.Models;
@@ -21,7 +22,6 @@ namespace Catalog.Controllers
     [Route("api/[controller]")] // Bazna putanja: /api/catalog
     public class CatalogController : ControllerBase
     {
-
         private readonly IProductService _productService;
         private readonly IProductCategoryService _categoryService;
         private readonly IAdService _adService;
@@ -32,11 +32,13 @@ namespace Catalog.Controllers
             IProductService productService,
             IProductCategoryService categoryService,
             IStoreService storeService,
-            IAdService adService)
-
+            IAdService adService
+        )
         {
-            _productService = productService ?? throw new ArgumentNullException(nameof(productService));
-            _categoryService = categoryService ?? throw new ArgumentNullException(nameof(categoryService));
+            _productService =
+                productService ?? throw new ArgumentNullException(nameof(productService));
+            _categoryService =
+                categoryService ?? throw new ArgumentNullException(nameof(categoryService));
             _storeService = storeService ?? throw new ArgumentNullException(nameof(storeService));
             _adService = adService ?? throw new ArgumentNullException(nameof(adService));
         }
@@ -49,11 +51,13 @@ namespace Catalog.Controllers
         {
             var categories = await _categoryService.GetAllCategoriesAsync();
 
-            var categoryDtos = categories.Select(category => new ProductCategoryGetDto
-            {
-                Id = category.Id,
-                Name = category.Name
-            }).ToList();
+            var categoryDtos = categories
+                .Select(category => new ProductCategoryGetDto
+                {
+                    Id = category.Id,
+                    Name = category.Name,
+                })
+                .ToList();
             return Ok(categoryDtos);
         }
 
@@ -63,18 +67,15 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetCategoryById(int id)
         {
-            if (id <= 0) return BadRequest("Invalid category ID.");
+            if (id <= 0)
+                return BadRequest("Invalid category ID.");
 
             var category = await _categoryService.GetCategoryByIdAsync(id);
             if (category == null)
             {
                 return NotFound();
             }
-            var categoryDto = new ProductCategoryGetDto
-            {
-                Id = category.Id,
-                Name = category.Name
-            };
+            var categoryDto = new ProductCategoryGetDto { Id = category.Id, Name = category.Name };
             return Ok(categoryDto);
         }
 
@@ -84,23 +85,20 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)] // Dodan za slučaj duplikata
         public async Task<IActionResult> CreateCategory([FromBody] ProductCategoryDto category)
         {
-            if (category == null) return BadRequest("Category data is required.");
+            if (category == null)
+                return BadRequest("Category data is required.");
             // Osnovna validacija se očekuje od [ApiController] atributa
 
             try
             {
-                var productCategory = new ProductCategory
-                {
-                    Id = 0,
-                    Name = category.Name
-                };
+                var productCategory = new ProductCategory { Id = 0, Name = category.Name };
 
                 var createdCategory = await _categoryService.CreateCategoryAsync(productCategory);
 
                 var createdCategoryDto = new ProductCategoryGetDto
                 {
                     Id = createdCategory.Id,
-                    Name = createdCategory.Name
+                    Name = createdCategory.Name,
                 };
 
                 return CreatedAtAction(nameof(GetAllCategories), new { }, createdCategoryDto);
@@ -115,7 +113,10 @@ namespace Catalog.Controllers
             }
             catch (Exception) // Općenita greška
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the category.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while creating the category."
+                );
             }
         }
 
@@ -124,7 +125,10 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)] // Dodan za slučaj duplikata imena
-        public async Task<IActionResult> UpdateCategory(int id, [FromBody] ProductCategoryDto category)
+        public async Task<IActionResult> UpdateCategory(
+            int id,
+            [FromBody] ProductCategoryDto category
+        )
         {
             if (id <= 0 || category == null)
             {
@@ -156,7 +160,10 @@ namespace Catalog.Controllers
             }
             catch (Exception) // Općenita greška
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the category.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while updating the category."
+                );
             }
         }
 
@@ -166,7 +173,8 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteCategory(int id)
         {
-            if (id <= 0) return BadRequest("Invalid category ID.");
+            if (id <= 0)
+                return BadRequest("Invalid category ID.");
 
             try
             {
@@ -182,16 +190,21 @@ namespace Catalog.Controllers
             catch (Exception) // Paziti na DbUpdateException (foreign key constraints)
             {
                 // Ovisno o zahtjevima, možete vratiti BadRequest/Conflict ili 500
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the category. It might be in use.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while deleting the category. It might be in use."
+                );
             }
         }
-
 
         // --- Akcije za Proizvode (Product) ---
 
         [HttpGet("products")] // GET /api/catalog/products?categoryId=2&storeId=10
         [ProducesResponseType(typeof(IEnumerable<ProductGetDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetProducts([FromQuery] int? categoryId, [FromQuery] int? storeId)
+        public async Task<IActionResult> GetProducts(
+            [FromQuery] int? categoryId,
+            [FromQuery] int? storeId
+        )
         {
             IEnumerable<Product> products;
 
@@ -201,11 +214,12 @@ namespace Catalog.Controllers
                 return BadRequest("Invalid Category or Store ID provided.");
             }
 
-
             if (categoryId.HasValue && storeId.HasValue)
             {
                 // Filtriranje po oba - Oprez: filtriranje u memoriji ako servis ne podržava oba filtera
-                var byCategory = await _productService.GetProductsByCategoryIdAsync(categoryId.Value);
+                var byCategory = await _productService.GetProductsByCategoryIdAsync(
+                    categoryId.Value
+                );
                 products = byCategory.Where(p => p.StoreId == storeId.Value);
             }
             else if (categoryId.HasValue)
@@ -221,22 +235,29 @@ namespace Catalog.Controllers
                 products = await _productService.GetAllProductsAsync();
             }
 
-            var productsDto = products.Select(product => new ProductGetDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
-                RetailPrice = product.RetailPrice,
-                WholesaleThreshold = product.WholesaleThreshold,
-                WholesalePrice = product.WholesalePrice,
-                Weight = product.Weight,
-                WeightUnit = product.WeightUnit,
-                Volume = product.Volume,
-                VolumeUnit = product.VolumeUnit,
-                StoreId = product.StoreId,
-                IsActive = product.IsActive,
-                Photos = product.Pictures.Select(photo => photo.Url).ToList()
-            }).ToList();
+            var productsDto = products
+                .Select(product => new ProductGetDto
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    ProductCategory = new ProductCategoryGetDto
+                    {
+                        Id = product.ProductCategory.Id,
+                        Name = product.ProductCategory.Name,
+                    },
+                    RetailPrice = product.RetailPrice,
+                    WholesaleThreshold = product.WholesaleThreshold,
+                    WholesalePrice = product.WholesalePrice,
+                    Weight = product.Weight,
+                    WeightUnit = product.WeightUnit,
+                    Volume = product.Volume,
+                    VolumeUnit = product.VolumeUnit,
+                    StoreId = product.StoreId,
+                    IsActive = product.IsActive,
+                    Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                    PointRate = product.PointRate,
+                })
+                .ToList();
 
             return Ok(productsDto);
         }
@@ -247,7 +268,8 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetProductById(int id)
         {
-            if (id <= 0) return BadRequest("Invalid product ID.");
+            if (id <= 0)
+                return BadRequest("Invalid product ID.");
 
             var product = await _productService.GetProductByIdAsync(id);
             if (product == null)
@@ -259,7 +281,11 @@ namespace Catalog.Controllers
             {
                 Id = product.Id,
                 Name = product.Name,
-                ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
+                ProductCategory = new ProductCategoryGetDto
+                {
+                    Id = product.ProductCategory.Id,
+                    Name = product.ProductCategory.Name,
+                },
                 RetailPrice = product.RetailPrice,
                 WholesaleThreshold = product.WholesaleThreshold,
                 WholesalePrice = product.WholesalePrice,
@@ -269,7 +295,8 @@ namespace Catalog.Controllers
                 VolumeUnit = product.VolumeUnit,
                 StoreId = product.StoreId,
                 IsActive = product.IsActive,
-                Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                PointRate = product.PointRate,
             };
 
             return Ok(productDto);
@@ -284,7 +311,6 @@ namespace Catalog.Controllers
         {
             try
             {
-
                 var store = _storeService.GetStoreById(createProductDto.StoreId);
 
                 if (store is null)
@@ -300,7 +326,7 @@ namespace Catalog.Controllers
                     ProductCategory = new ProductCategory
                     {
                         Id = createProductDto.ProductCategoryId,
-                        Name = "nezz"
+                        Name = "nezz",
                     },
                     RetailPrice = createProductDto.RetailPrice,
                     WholesaleThreshold = createProductDto.WholesaleThreshold,
@@ -310,15 +336,22 @@ namespace Catalog.Controllers
                     Volume = createProductDto.Volume,
                     VolumeUnit = createProductDto.VolumeUnit,
                     StoreId = createProductDto.StoreId,
-                    IsActive = createProductDto.IsActive
+                    IsActive = createProductDto.IsActive,
                 };
 
-                var createdProduct = await _productService.CreateProductAsync(product, createProductDto.Files);
+                var createdProduct = await _productService.CreateProductAsync(
+                    product,
+                    createProductDto.Files
+                );
                 var createdProductDto = new ProductGetDto
                 {
                     Id = product.Id,
                     Name = product.Name,
-                    ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
+                    ProductCategory = new ProductCategoryGetDto
+                    {
+                        Id = product.ProductCategory.Id,
+                        Name = product.ProductCategory.Name,
+                    },
                     RetailPrice = product.RetailPrice,
                     WholesaleThreshold = product.WholesaleThreshold,
                     WholesalePrice = product.WholesalePrice,
@@ -328,7 +361,8 @@ namespace Catalog.Controllers
                     VolumeUnit = product.VolumeUnit,
                     StoreId = product.StoreId,
                     IsActive = product.IsActive,
-                    Photos = product.Pictures.Select(photo => photo.Url).ToList()
+                    Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                    PointRate = product.PointRate,
                 };
 
                 return CreatedAtAction(nameof(CreateProduct), new { }, createdProductDto);
@@ -344,10 +378,11 @@ namespace Catalog.Controllers
             }
             catch (Exception)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while creating the product.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while creating the product."
+                );
             }
-
-
         }
 
         [HttpPut("products/{id}")] // PUT /api/catalog/products/15
@@ -368,12 +403,17 @@ namespace Catalog.Controllers
                 {
                     return BadRequest("Valid ProductCategoryId is required.");
                 }
-                var category = await _categoryService.GetCategoryByIdAsync(productDto.ProductCategoryId);
-                if (category == null) return BadRequest($"Category with ID {productDto.ProductCategoryId} not found.");
+                var category = await _categoryService.GetCategoryByIdAsync(
+                    productDto.ProductCategoryId
+                );
+                if (category == null)
+                    return BadRequest(
+                        $"Category with ID {productDto.ProductCategoryId} not found."
+                    );
 
                 var product = await _productService.GetProductByIdAsync(id);
-                if (product == null) return BadRequest($"Product with ID {id} not found.");
-
+                if (product == null)
+                    return BadRequest($"Product with ID {id} not found.");
 
                 product.Name = productDto.Name;
                 product.ProductCategory = category;
@@ -404,7 +444,10 @@ namespace Catalog.Controllers
             }
             catch (Exception)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating the product.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while updating the product."
+                );
             }
         }
 
@@ -414,7 +457,8 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteProduct(int id)
         {
-            if (id <= 0) return BadRequest("Invalid product ID.");
+            if (id <= 0)
+                return BadRequest("Invalid product ID.");
 
             try
             {
@@ -427,16 +471,20 @@ namespace Catalog.Controllers
             }
             catch (Exception) // Paziti na DbUpdateException (foreign key constraints)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while deleting the product. It might be in use.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while deleting the product. It might be in use."
+                );
             }
         }
 
         [HttpGet("search")] // GET api/products/search
         [ProducesResponseType(typeof(IEnumerable<ProductGetDto>), 200)]
         [ProducesResponseType(400)]
-        public async Task<ActionResult<IEnumerable<ProductGetDto>>> SearchProducts([FromQuery] string searchTerm = "")
+        public async Task<ActionResult<IEnumerable<ProductGetDto>>> SearchProducts(
+            [FromQuery] string searchTerm = ""
+        )
         {
-
             if (searchTerm is null)
             {
                 searchTerm = string.Empty;
@@ -444,22 +492,29 @@ namespace Catalog.Controllers
 
             var products = await _productService.SearchProductsByNameAsync(searchTerm);
 
-            var productsDto = products.Select(product => new ProductGetDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
-                RetailPrice = product.RetailPrice,
-                WholesaleThreshold = product.WholesaleThreshold,
-                WholesalePrice = product.WholesalePrice,
-                Weight = product.Weight,
-                WeightUnit = product.WeightUnit,
-                Volume = product.Volume,
-                VolumeUnit = product.VolumeUnit,
-                StoreId = product.StoreId,
-                IsActive = product.IsActive,
-                Photos = product.Pictures.Select(photo => photo.Url).ToList()
-            }).ToList();
+            var productsDto = products
+                .Select(product => new ProductGetDto
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    ProductCategory = new ProductCategoryGetDto
+                    {
+                        Id = product.ProductCategory.Id,
+                        Name = product.ProductCategory.Name,
+                    },
+                    RetailPrice = product.RetailPrice,
+                    WholesaleThreshold = product.WholesaleThreshold,
+                    WholesalePrice = product.WholesalePrice,
+                    Weight = product.Weight,
+                    WeightUnit = product.WeightUnit,
+                    Volume = product.Volume,
+                    VolumeUnit = product.VolumeUnit,
+                    StoreId = product.StoreId,
+                    IsActive = product.IsActive,
+                    Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                    PointRate = product.PointRate,
+                })
+                .ToList();
 
             return Ok(productsDto);
         }
@@ -472,7 +527,10 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateProductPricing(int productId, [FromBody] UpdateProductPricingRequestDto pricingData)
+        public async Task<IActionResult> UpdateProductPricing(
+            int productId,
+            [FromBody] UpdateProductPricingRequestDto pricingData
+        )
         {
             // Osnovna validacija ID-ja iz rute
             if (productId <= 0)
@@ -494,7 +552,11 @@ namespace Catalog.Controllers
 
             try
             {
-                var updatedProductDto = await _productService.UpdateProductPricingAsync(requestingUserId, productId, pricingData);
+                var updatedProductDto = await _productService.UpdateProductPricingAsync(
+                    requestingUserId,
+                    productId,
+                    pricingData
+                );
 
                 if (updatedProductDto == null)
                 {
@@ -512,11 +574,17 @@ namespace Catalog.Controllers
             }
             catch (KeyNotFoundException)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "User validation error during pricing update.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "User validation error during pricing update."
+                );
             }
             catch (Exception)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "An error occurred while updating product pricing.");
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An error occurred while updating product pricing."
+                );
             }
         }
 
@@ -530,7 +598,10 @@ namespace Catalog.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateProductAvailability(int productId, [FromBody] UpdateProductAvailabilityRequestDto availabilityDto)
+        public async Task<IActionResult> UpdateProductAvailability(
+            int productId,
+            [FromBody] UpdateProductAvailabilityRequestDto availabilityDto
+        )
         {
             // Validacija ulaznih parametara
             if (productId <= 0)
@@ -554,7 +625,11 @@ namespace Catalog.Controllers
             try
             {
                 // Pozovi servis
-                var success = await _productService.UpdateProductAvailabilityAsync(userId, productId, availabilityDto.IsActive);
+                var success = await _productService.UpdateProductAvailabilityAsync(
+                    userId,
+                    productId,
+                    availabilityDto.IsActive
+                );
 
                 if (!success)
                 {
@@ -567,29 +642,47 @@ namespace Catalog.Controllers
             catch (UnauthorizedAccessException)
             {
                 // Vrati ProblemDetails za 403 radi konzistentnosti sa ValidationProblem
-                return Problem(detail: "User is not authorized to update availability for this product.", statusCode: StatusCodes.Status403Forbidden, title: "Forbidden");
+                return Problem(
+                    detail: "User is not authorized to update availability for this product.",
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: "Forbidden"
+                );
             }
             catch (ArgumentException ex)
             {
                 // Vrati ProblemDetails
-                return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
+                return Problem(
+                    detail: ex.Message,
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Bad Request"
+                );
             }
             catch (KeyNotFoundException) // Ako servis ne nađe korisnika
             {
                 // Vrati ProblemDetails za 500
-                return Problem(detail: "User validation error during availability update.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
+                return Problem(
+                    detail: "User validation error during availability update.",
+                    statusCode: StatusCodes.Status500InternalServerError,
+                    title: "Internal Server Error"
+                );
             }
             catch (Exception) // Sve ostale greške
             {
                 // Vrati ProblemDetails za 500
-                return Problem(detail: "An error occurred while updating product availability.", statusCode: StatusCodes.Status500InternalServerError, title: "Internal Server Error");
+                return Problem(
+                    detail: "An error occurred while updating product availability.",
+                    statusCode: StatusCodes.Status500InternalServerError,
+                    title: "Internal Server Error"
+                );
             }
         }
 
         [HttpGet("filter")] // GET api/products/filter
         [ProducesResponseType(typeof(IEnumerable<ProductsByStoresGetDto>), 200)]
         [ProducesResponseType(400)]
-        public async Task<ActionResult<IEnumerable<ProductsByStoresGetDto>>> FilterProducts([FromQuery] FilterBodyDto filterBodyDto)
+        public async Task<ActionResult<IEnumerable<ProductsByStoresGetDto>>> FilterProducts(
+            [FromQuery] FilterBodyDto filterBodyDto
+        )
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
@@ -615,17 +708,16 @@ namespace Catalog.Controllers
 
             if (filterBodyDto.places != null && filterBodyDto.places.Count > 0)
             {
-
-                var listaTaskova = filterBodyDto.places
-                .Select(place => _storeService.GetPlaceByNameAsync(place))
-                .ToList();
+                var listaTaskova = filterBodyDto
+                    .places.Select(place => _storeService.GetPlaceByNameAsync(place))
+                    .ToList();
 
                 var sviRezultati = await Task.WhenAll(listaTaskova);
 
                 placesId = sviRezultati
-                .Where(rezultat => rezultat != null)
-                .Select(rezultat => rezultat!.Id)
-                .ToList();
+                    .Where(rezultat => rezultat != null)
+                    .Select(rezultat => rezultat!.Id)
+                    .ToList();
 
                 nestoFiltrirano = true;
             }
@@ -641,7 +733,10 @@ namespace Catalog.Controllers
                 }
             }
 
-            if (!string.IsNullOrEmpty(filterBodyDto.query) && !string.IsNullOrWhiteSpace(filterBodyDto.query))
+            if (
+                !string.IsNullOrEmpty(filterBodyDto.query)
+                && !string.IsNullOrWhiteSpace(filterBodyDto.query)
+            )
             {
                 nestoFiltrirano = true;
             }
@@ -669,7 +764,10 @@ namespace Catalog.Controllers
             {
                 var products = await _productService.GetProductsByStoreIdAsync(store.id);
 
-                if (!string.IsNullOrEmpty(filterBodyDto.query) && !string.IsNullOrWhiteSpace(filterBodyDto.query))
+                if (
+                    !string.IsNullOrEmpty(filterBodyDto.query)
+                    && !string.IsNullOrWhiteSpace(filterBodyDto.query)
+                )
                 {
                     products = products.Where(p => p.Name.ToLower().Contains(filterBodyDto.query));
                 }
@@ -679,22 +777,29 @@ namespace Catalog.Controllers
                     products = products.Where(p => p.ProductCategoryId == categoryId);
                 }
 
-                var productsInDto = products.Select(product => new ProductGetDto
-                {
-                    Id = product.Id,
-                    Name = product.Name,
-                    ProductCategory = new ProductCategoryGetDto { Id = product.ProductCategory.Id, Name = product.ProductCategory.Name },
-                    RetailPrice = product.RetailPrice,
-                    WholesaleThreshold = product.WholesaleThreshold,
-                    WholesalePrice = product.WholesalePrice,
-                    Weight = product.Weight,
-                    WeightUnit = product.WeightUnit,
-                    Volume = product.Volume,
-                    VolumeUnit = product.VolumeUnit,
-                    StoreId = product.StoreId,
-                    IsActive = product.IsActive,
-                    Photos = product.Pictures.Select(photo => photo.Url).ToList()
-                }).ToList();
+                var productsInDto = products
+                    .Select(product => new ProductGetDto
+                    {
+                        Id = product.Id,
+                        Name = product.Name,
+                        ProductCategory = new ProductCategoryGetDto
+                        {
+                            Id = product.ProductCategory.Id,
+                            Name = product.ProductCategory.Name,
+                        },
+                        RetailPrice = product.RetailPrice,
+                        WholesaleThreshold = product.WholesaleThreshold,
+                        WholesalePrice = product.WholesalePrice,
+                        Weight = product.Weight,
+                        WeightUnit = product.WeightUnit,
+                        Volume = product.Volume,
+                        VolumeUnit = product.VolumeUnit,
+                        StoreId = product.StoreId,
+                        IsActive = product.IsActive,
+                        Photos = product.Pictures.Select(photo => photo.Url).ToList(),
+                        PointRate = product.PointRate,
+                    })
+                    .ToList();
 
                 // Console.WriteLine("Filtrirano? {0}", nestoFiltrirano.ToString());
 
@@ -710,30 +815,106 @@ namespace Catalog.Controllers
 
                     foreach (var product in products)
                     {
-                        await _adService.CreateUserActivityAsync(new UserActivity
-                        {
-                            UserId = userId,
-                            ProductCategoryId = product.ProductCategoryId,
-                            InteractionType = InteractionType.Search
-                        });
+                        await _adService.CreateUserActivityAsync(
+                            new UserActivity
+                            {
+                                UserId = userId,
+                                ProductCategoryId = product.ProductCategoryId,
+                                InteractionType = InteractionType.Search,
+                            }
+                        );
                     }
                 }
 
                 if (productsInDto.Count > 0)
                 {
-                    productsDto.Add(new ProductsByStoresGetDto
-                    {
-                        Id = store.id,
-                        Name = store.name,
-                        Products = productsInDto
-                    });
+                    productsDto.Add(
+                        new ProductsByStoresGetDto
+                        {
+                            Id = store.id,
+                            Name = store.name,
+                            Products = productsInDto,
+                        }
+                    );
                 }
             }
 
             return Ok(productsDto);
+        }
 
+        [HttpPut("product/{id}")]
+        // PUT: api/Catalog/product/{productId}/point-rate
+        [HttpPut("product/{productId}/point-rate")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)] // Uspješno ažuriranje
+        [ProducesResponseType(StatusCodes.Status400BadRequest)] // Neispravan zahtjev (npr. negativan pointRate, greška validacije)
+        [ProducesResponseType(StatusCodes.Status404NotFound)] // Produkt nije pronađen
+        [ProducesResponseType(StatusCodes.Status409Conflict)] // Greška konkurentnosti
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)] // Ostale serverske greške
+        public async Task<IActionResult> UpdateProductPointRate(
+            int productId,
+            [FromBody] UpdateProductPointRateRequest request
+        )
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            try
+            {
+                var success = await _productService.UpdateProductPointRateAsync(
+                    productId,
+                    request.PointRate
+                );
+
+                if (success)
+                {
+                    return NoContent(); // Uspješno ažurirano, nema sadržaja za vratiti
+                }
+                else
+                {
+                    // Ovo se događa ako je DbUpdateConcurrencyException uhvaćena u servisu
+                    // i provjera pokaže da produkt više ne postoji.
+                    // _logger.LogWarning("Product with ID {ProductId} was not found during concurrency check after update attempt for point rate.", productId);
+                    return NotFound(
+                        $"Product with ID {productId} not found or was deleted during the update process."
+                    );
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                // _logger.LogWarning(ex, "ArgumentException while updating point rate for product {ProductId}: {ErrorMessage}", productId, ex.Message);
+                if (ex.Message.Contains($"Can't find product with id: {productId}"))
+                {
+                    return NotFound(ex.Message);
+                }
+                else // "Point rate must be greater or equal 0"
+                {
+                    return BadRequest(ex.Message);
+                }
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // Ovo se događa ako produkt još postoji, ali je došlo do problema s konkurentnošću
+                // (a servis nije vratio false, nego je propustio iznimku)
+                // _logger.LogWarning(ex, "Concurrency conflict updating point rate for product {ProductId}.", productId);
+                return Conflict(
+                    "A concurrency conflict occurred while updating the product's point rate. Please try again."
+                );
+            }
+            catch (Exception ex) // Uključuje i vašu "Database error occurred..." iznimku
+            {
+                // _logger.LogError(ex, "Error updating product point rate for product ID: {ProductId}", productId);
+                // Ako je iznimka ona koju ste vi omotali: "Database error occurred..."
+                if (ex.Message.StartsWith("Database error occurred"))
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+                }
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    "An unexpected error occurred while updating the product point rate."
+                );
+            }
         }
     }
 }
-
-

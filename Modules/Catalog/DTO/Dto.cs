@@ -38,6 +38,14 @@ namespace Catalog.Dtos
         public int StoreId { get; set; }
 
         public List<string>? Photos { get; set; } = new List<string>();
+        public double PointRate { get; set; }
+    }
+
+    public class UpdateProductPointRateRequest
+    {
+        [Required]
+        [Range(0.0, double.MaxValue, ErrorMessage = "Point rate must be greater than or equal to 0.")]
+        public double PointRate { get; set; }
     }
 
     public class UpdateProductAvailabilityRequestDto

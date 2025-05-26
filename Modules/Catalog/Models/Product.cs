@@ -49,6 +49,8 @@ namespace Catalog.Models
 
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }
-        public virtual ICollection<ProductPicture> Pictures { get; set; } = new List<ProductPicture>();
+        public virtual ICollection<ProductPicture> Pictures { get; set; } =
+            new List<ProductPicture>();
+        public double PointRate { get; set; } = 1;
     }
 }

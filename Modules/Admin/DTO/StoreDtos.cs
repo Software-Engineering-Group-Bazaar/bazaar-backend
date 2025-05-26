@@ -11,5 +11,6 @@ namespace AdminApi.DTOs
         public DateTime CreatedAt { get; set; }
         public string PlaceName { get; set; } = "";
         public string RegionName { get; set; } = "";
+        public double Tax { get; set; } = 0;
     }
 }

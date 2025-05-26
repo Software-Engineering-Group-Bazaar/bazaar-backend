@@ -7,7 +7,14 @@ namespace Store.Interface
     public interface IStoreService //TODO: Make async methods
     {
         // Create a new store
-        StoreModel CreateStore(string name, int categoryId, string address, string description, int placeId);
+        StoreModel CreateStore(
+            string name,
+            int categoryId,
+            string address,
+            string description,
+            int placeId,
+            double tax = 0.025
+        );
 
         // Get all stores
         IEnumerable<StoreModel> GetAllStores();
@@ -16,11 +23,20 @@ namespace Store.Interface
         StoreModel? GetStoreById(int id);
 
         // Update a store
-        StoreModel? UpdateStore(int id, string? name, int? categoryId, string? address, string? description, bool? isActive);
+        StoreModel? UpdateStore(
+            int id,
+            string? name,
+            int? categoryId,
+            string? address,
+            string? description,
+            bool? isActive
+        );
 
         // Delete a store
         bool DeleteStore(int id);
         Task<bool> DeleteStoreAsync(int id);
+        Task SetTaxRateAsync(int id, double tax);
+        Task<double> GetTaxRateAsync(int id);
 
         Task<IEnumerable<StoreModel>> SearchStoresAsync(string query);
         Task<IEnumerable<StoreModel>> GetAllStoresInRegion(int regionId);
