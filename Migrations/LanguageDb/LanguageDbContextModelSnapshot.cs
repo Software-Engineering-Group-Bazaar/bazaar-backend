@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using SharedKernel.Models;
+using SharedKernel.Languages.Models;
 
 #nullable disable
 
@@ -21,7 +21,7 @@ namespace bazaar.Migrations.LanguageDb
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("SharedKernel.Models.Language", b =>
+            modelBuilder.Entity("SharedKernel.Languages.Models.Language", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -34,7 +34,6 @@ namespace bazaar.Migrations.LanguageDb
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -42,7 +41,7 @@ namespace bazaar.Migrations.LanguageDb
                     b.ToTable("Languages");
                 });
 
-            modelBuilder.Entity("SharedKernel.Models.Language", b =>
+            modelBuilder.Entity("SharedKernel.Languages.Models.Language", b =>
                 {
                     b.OwnsOne("SharedKernel.Models.Translation", "Translation", b1 =>
                         {

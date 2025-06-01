@@ -1,4 +1,5 @@
 using SharedKernel.Languages.Models;
+using SharedKernel.Models;
 
 namespace SharedKernel.Languages.Interfaces
 {

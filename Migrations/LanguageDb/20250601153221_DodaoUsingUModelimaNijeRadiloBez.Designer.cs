@@ -5,15 +5,14 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SharedKernel.Languages.Models;
-using SharedKernel.Models;
 
 #nullable disable
 
 namespace bazaar.Migrations.LanguageDb
 {
     [DbContext(typeof(LanguageDbContext))]
-    [Migration("20250601121020_Init")]
-    partial class Init
+    [Migration("20250601153221_DodaoUsingUModelimaNijeRadiloBez")]
+    partial class DodaoUsingUModelimaNijeRadiloBez
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -25,7 +24,7 @@ namespace bazaar.Migrations.LanguageDb
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("SharedKernel.Models.Language", b =>
+            modelBuilder.Entity("SharedKernel.Languages.Models.Language", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -38,7 +37,6 @@ namespace bazaar.Migrations.LanguageDb
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -46,7 +44,7 @@ namespace bazaar.Migrations.LanguageDb
                     b.ToTable("Languages");
                 });
 
-            modelBuilder.Entity("SharedKernel.Models.Language", b =>
+            modelBuilder.Entity("SharedKernel.Languages.Models.Language", b =>
                 {
                     b.OwnsOne("SharedKernel.Models.Translation", "Translation", b1 =>
                         {

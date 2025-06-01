@@ -1,3 +1,5 @@
+using SharedKernel.Models;
+
 namespace SharedKernel.Languages.Models
 {
     public class Language
