@@ -159,6 +159,9 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddDbContext<LoyaltyDbContext>(options =>
         options.UseNpgsql(builder.Configuration.GetConnectionString("LoyaltyConnection"))
     );
+    builder.Services.AddDbContext<LanguageDbContext>(options =>
+        options.UseNpgsql(builder.Configuration.GetConnectionString("LanguageConnection"))
+    );
 }
 
 builder.Services.AddHttpClient();
