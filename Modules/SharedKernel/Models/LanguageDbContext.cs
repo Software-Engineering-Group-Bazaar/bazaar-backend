@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace SharedKernel.Models
+namespace SharedKernel.Languages.Models
 {
     public class LanguageDbContext : DbContext
     {

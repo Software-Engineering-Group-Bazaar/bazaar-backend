@@ -41,6 +41,9 @@ using Review.Models;
 using Review.Services;
 using SharedKernel;
 using SharedKernel.Interfaces;
+using SharedKernel.Languages.Interfaces;
+using SharedKernel.Languages.Models;
+using SharedKernel.Languages.Services;
 using SharedKernel.Models;
 using SharedKernel.Services;
 using Store.Interface;
@@ -76,6 +79,7 @@ builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();
 builder.Services.AddSignalR();
 
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<ILanguageService, LanguageService>();
 
 // Registrujte ostale servise
 
